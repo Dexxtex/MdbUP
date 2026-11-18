@@ -79,6 +79,7 @@ def enqueue_due_bindings(
             skipped += 1
             continue
         try:
+            next_run_at: datetime | None
             if binding.schedule_interval_hours is not None:
                 next_run_at = moment + timedelta(hours=binding.schedule_interval_hours)
             else:
@@ -310,38 +311,40 @@ def cleanup_old_data(
         .where(SyncBinding.last_run_id.in_(runs_to_delete))
         .values(last_run_id=None)
     )
-    runs_deleted = db.execute(delete(SyncRun).where(SyncRun.id.in_(runs_to_delete))).rowcount or 0
-    jobs_deleted = (
-        db.execute(
-            delete(JobExecution).where(
-                JobExecution.finished_at.is_not(None),
-                JobExecution.finished_at < job_cutoff,
-                JobExecution.status.in_(
-                    (JobStatus.SUCCEEDED.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value)
-                ),
-            )
-        ).rowcount
-        or 0
+    runs_result = db.execute(delete(SyncRun).where(SyncRun.id.in_(runs_to_delete)))
+    runs_deleted = int(getattr(runs_result, "rowcount", 0) or 0)
+    jobs_result = db.execute(
+        delete(JobExecution).where(
+            JobExecution.finished_at.is_not(None),
+            JobExecution.finished_at < job_cutoff,
+            JobExecution.status.in_(
+                (JobStatus.SUCCEEDED.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value)
+            ),
+        )
     )
-    sessions_deleted = (
-        db.execute(delete(UserSession).where(UserSession.expires_at < session_cutoff)).rowcount or 0
-    )
+    jobs_deleted = int(getattr(jobs_result, "rowcount", 0) or 0)
+    sessions_result = db.execute(delete(UserSession).where(UserSession.expires_at < session_cutoff))
+    sessions_deleted = int(getattr(sessions_result, "rowcount", 0) or 0)
 
     referenced = select(SyncRun.snapshot_id)
     protected = select(Collection.last_valid_snapshot_id).where(
         Collection.last_valid_snapshot_id.is_not(None)
     )
-    snapshots_deleted = (
-        db.execute(
-            delete(CollectionSnapshot).where(
-                CollectionSnapshot.status != "RUNNING",
-                CollectionSnapshot.started_at < snapshot_cutoff,
-                CollectionSnapshot.id.not_in(referenced),
-                CollectionSnapshot.id.not_in(protected),
-            )
-        ).rowcount
-        or 0
+    # A duplicate verification points at the snapshot that owns its items: the
+    # owning snapshot must survive until the last pointer is gone.
+    items_referenced = select(CollectionSnapshot.items_from_snapshot_id).where(
+        CollectionSnapshot.items_from_snapshot_id.is_not(None)
     )
+    snapshots_result = db.execute(
+        delete(CollectionSnapshot).where(
+            CollectionSnapshot.status != "RUNNING",
+            CollectionSnapshot.started_at < snapshot_cutoff,
+            CollectionSnapshot.id.not_in(referenced),
+            CollectionSnapshot.id.not_in(protected),
+            CollectionSnapshot.id.not_in(items_referenced),
+        )
+    )
+    snapshots_deleted = int(getattr(snapshots_result, "rowcount", 0) or 0)
     db.commit()
     result = {
         "runs_deleted": int(runs_deleted),

@@ -534,6 +534,17 @@ export interface SystemStatusCatalogAcquisition {
   next_acquire_at: string;
 }
 
+export interface SystemStatusStorage {
+  snapshot_bytes?: number | null;
+  run_bytes?: number | null;
+  total_bytes?: number | null;
+  database_bytes?: number | null;
+  snapshot_rows?: number | null;
+  snapshot_item_rows?: number | null;
+  run_rows?: number | null;
+  size_supported?: boolean | null;
+}
+
 export interface SystemStatus {
   /** Shape of GET /api/system/status (Phase 7 backend). */
   health?: SystemStatusHealth | null;
@@ -544,6 +555,7 @@ export interface SystemStatus {
   pending_approvals?: number | null;
   upcoming?: SystemStatusUpcoming[] | null;
   catalog_acquisitions?: SystemStatusCatalogAcquisition[] | null;
+  storage?: SystemStatusStorage | null;
   /** Legacy/tolerant fields kept for older fixtures. */
   status?: string | null;
   version?: string | null;

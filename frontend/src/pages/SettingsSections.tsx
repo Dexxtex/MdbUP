@@ -554,6 +554,29 @@ export function SystemStatusCard() {
             </dd>
           </div>
           <div>
+            <dt className="text-xs uppercase tracking-wide text-ink-faint">Storage snapshot</dt>
+            <dd className="mt-1 text-sm tabular-nums text-ink">
+              {data.storage?.size_supported
+                ? formatBytes(data.storage.snapshot_bytes)
+                : "n/d"}
+              {data.storage?.size_supported
+                ? ` · ${(data.storage.snapshot_item_rows ?? 0).toLocaleString("it-IT")} righe item`
+                : ""}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-ink-faint">Storage run</dt>
+            <dd className="mt-1 text-sm tabular-nums text-ink">
+              {data.storage?.size_supported ? formatBytes(data.storage.run_bytes) : "n/d"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-ink-faint">Database</dt>
+            <dd className="mt-1 text-sm tabular-nums text-ink">
+              {formatBytes(data.storage?.database_bytes)}
+            </dd>
+          </div>
+          <div>
             <dt className="text-xs uppercase tracking-wide text-ink-faint">Versione</dt>
             <dd className="mt-1 text-sm text-ink">{data.version ?? "—"}</dd>
           </div>

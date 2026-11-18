@@ -99,6 +99,11 @@ const snapshotColumns: Column<Snapshot>[] = [
     header: "Concluso",
     render: (snapshot) => <Timestamp value={snapshot.finished_at} className="text-xs" />,
   },
+  {
+    key: "verified",
+    header: "Ultima verifica",
+    render: (snapshot) => <Timestamp value={snapshot.last_verified_at} className="text-xs" />,
+  },
 ];
 
 const episodeColumns: Column<EpisodeEvent>[] = [

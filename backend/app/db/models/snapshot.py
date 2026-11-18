@@ -54,6 +54,7 @@ class CollectionSnapshot(UuidPrimaryKeyMixin, Base):
             postgresql_where=text("status = 'RUNNING'"),
         ),
         Index("snapshot_collection_idx", "collection_id", "started_at"),
+        Index("snapshot_items_source_idx", "items_from_snapshot_id"),
     )
 
     collection_id: Mapped[uuid.UUID] = mapped_column(
@@ -79,6 +80,15 @@ class CollectionSnapshot(UuidPrimaryKeyMixin, Base):
     warnings: Mapped[Any] = mapped_column(JSON, nullable=False, default=list)
     source_revision: Mapped[str | None] = mapped_column(String(200), nullable=True)
     checksum: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # A verified snapshot identical to the previous valid one reuses its items
+    # instead of copying thousands of rows. ``items_from_snapshot_id`` points at
+    # the snapshot that owns the rows; readers must resolve it transparently.
+    items_from_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("collection_snapshot.id", ondelete="SET NULL"), nullable=True
+    )
+    last_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     invalid_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     job_execution_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("job_execution.id", ondelete="SET NULL"), nullable=True

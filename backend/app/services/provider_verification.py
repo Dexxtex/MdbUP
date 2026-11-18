@@ -138,31 +138,27 @@ def verify_tmdb_providers(
         deactivated_movie = 0
         deactivated_show = 0
         if movie is None:
-            deactivated_movie = (
-                db.execute(
-                    update(Collection)
-                    .where(
-                        Collection.provider_id == provider.id,
-                        Collection.media_type == MediaType.MOVIE.value,
-                        Collection.is_active.is_(True),
-                    )
-                    .values(is_active=False)
-                ).rowcount
-                or 0
+            deactivated_result = db.execute(
+                update(Collection)
+                .where(
+                    Collection.provider_id == provider.id,
+                    Collection.media_type == MediaType.MOVIE.value,
+                    Collection.is_active.is_(True),
+                )
+                .values(is_active=False)
             )
+            deactivated_movie = int(getattr(deactivated_result, "rowcount", 0) or 0)
         if tv is None:
-            deactivated_show = (
-                db.execute(
-                    update(Collection)
-                    .where(
-                        Collection.provider_id == provider.id,
-                        Collection.media_type == MediaType.SHOW.value,
-                        Collection.is_active.is_(True),
-                    )
-                    .values(is_active=False)
-                ).rowcount
-                or 0
+            deactivated_result = db.execute(
+                update(Collection)
+                .where(
+                    Collection.provider_id == provider.id,
+                    Collection.media_type == MediaType.SHOW.value,
+                    Collection.is_active.is_(True),
+                )
+                .values(is_active=False)
             )
+            deactivated_show = int(getattr(deactivated_result, "rowcount", 0) or 0)
         results.append(
             ProviderVerification(
                 slug=provider.slug,

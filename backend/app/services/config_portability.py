@@ -135,14 +135,14 @@ def export_config(db: Session, settings: Settings) -> dict[str, Any]:
         )
     bindings = []
     for binding in bindings_repo.list_bindings(db):
-        collection = collections_repo.get_collection(db, binding.collection_id)
-        target = targets_repo.get_target(db, binding.target_id)
-        if collection is None or target is None:
+        binding_collection = collections_repo.get_collection(db, binding.collection_id)
+        binding_target = targets_repo.get_target(db, binding.target_id)
+        if binding_collection is None or binding_target is None:
             continue
         bindings.append(
             {
-                "collection_slug": collection.slug,
-                "target_remote_list_id": target.remote_list_id,
+                "collection_slug": binding_collection.slug,
+                "target_remote_list_id": binding_target.remote_list_id,
                 "media_type": binding.media_type,
                 "mode": binding.mode,
                 "schedule_cron": binding.schedule_cron,
@@ -316,9 +316,9 @@ def import_config(
                 "Collezione senza slug, provider o source_key.",
                 code="CONFIG_INVALID",
             )
-        provider = providers_by_slug.get(str(provider_slug))
+        provider_row = providers_by_slug.get(str(provider_slug))
         source = sources_repo.get_source_by_key(db, str(source_key))
-        if provider is None or source is None:
+        if provider_row is None or source is None:
             raise ValidationError(
                 f"Provider o fonte non trovati per la collezione '{slug}'.",
                 code="CONFIG_INVALID",
@@ -327,7 +327,7 @@ def import_config(
             db,
             slug=slug,
             source_id=source.id,
-            provider_id=provider.id,
+            provider_id=provider_row.id,
             country_code=str(item.get("country_code") or "IT").upper(),
             media_type=str(item.get("media_type") or "MOVIE"),
             kind=str(item.get("kind") or "CATALOG"),

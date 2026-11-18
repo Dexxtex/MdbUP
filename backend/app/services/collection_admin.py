@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
@@ -90,7 +91,7 @@ def _justwatch_mapping(db: Session, provider_id: uuid.UUID) -> ProviderMapping:
 
 
 def _justwatch_offer_types(
-    requested: list[str] | None,
+    requested: Sequence[str] | None,
     mapping: ProviderMapping,
 ) -> list[str]:
     """Validate the requested offer types against the live package capabilities."""
@@ -1180,7 +1181,7 @@ def _update_justwatch_collection(
             details={"kind": kind, "source_key": JUSTWATCH_SOURCE_KEY},
         )
     existing_filters = collection.filters or {}
-    requested_offers = payload.offer_types or [
+    requested_offers: Sequence[str] = payload.offer_types or [
         str(value) for value in (collection.offer_types or [OfferType.FLATRATE.value])
     ]
     offer_types = _justwatch_offer_types(requested_offers, mapping)

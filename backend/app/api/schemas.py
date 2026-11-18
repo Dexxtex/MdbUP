@@ -101,6 +101,17 @@ class CatalogAcquisitionOut(BaseModel):
     next_acquire_at: datetime
 
 
+class StorageStatusOut(BaseModel):
+    snapshot_bytes: int = 0
+    run_bytes: int = 0
+    total_bytes: int = 0
+    database_bytes: int = 0
+    snapshot_rows: int = 0
+    snapshot_item_rows: int = 0
+    run_rows: int = 0
+    size_supported: bool = False
+
+
 class SystemStatusOut(BaseModel):
     health: SystemHealthOut
     queues: dict[str, int]
@@ -110,6 +121,7 @@ class SystemStatusOut(BaseModel):
     pending_approvals: int
     upcoming: list[UpcomingRunOut]
     catalog_acquisitions: list[CatalogAcquisitionOut]
+    storage: StorageStatusOut
 
 
 class SettingItemOut(BaseModel):

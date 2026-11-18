@@ -27,6 +27,7 @@ class SnapshotOut(BaseModel):
     error_count: int
     checksum: str | None = None
     invalid_reason: str | None = None
+    last_verified_at: datetime | None = None
 
 
 class CollectionOut(BaseModel):

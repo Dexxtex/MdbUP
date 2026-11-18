@@ -307,10 +307,11 @@ def _acquire_from_local_filter(
         ):
             warnings.append(f"SOURCE_SNAPSHOT_MISSING:{source.slug}")
             continue
+        snapshot_items_id = snapshots_repo.items_snapshot_id(db, source_snapshot)
         rows = db.execute(
             select(SnapshotItem, Media)
             .join(Media, SnapshotItem.media_id == Media.id)
-            .where(SnapshotItem.snapshot_id == source_snapshot.id)
+            .where(SnapshotItem.snapshot_id == snapshot_items_id)
             .order_by(SnapshotItem.position)
         ).all()
         for item, media in rows:
@@ -438,10 +439,11 @@ def _acquire_from_combined_local(
         ):
             warnings.append(f"SOURCE_SNAPSHOT_MISSING:{source.slug}")
             continue
+        snapshot_items_id = snapshots_repo.items_snapshot_id(db, source_snapshot)
         rows = db.execute(
             select(SnapshotItem, Media)
             .join(Media, SnapshotItem.media_id == Media.id)
-            .where(SnapshotItem.snapshot_id == source_snapshot.id)
+            .where(SnapshotItem.snapshot_id == snapshot_items_id)
             .order_by(SnapshotItem.position)
         ).all()
         mapping: dict[uuid.UUID, tuple[SnapshotItem, Media, Collection]] = {}
@@ -714,10 +716,11 @@ def _acquire_from_shared_snapshot(
         for value in str(filters.get("with_genres", "")).split(",")
         if value.strip().isdigit()
     }
+    shared_items_id = snapshots_repo.items_snapshot_id(db, shared_snapshot)
     shared_items = list(
         db.scalars(
             select(SnapshotItem)
-            .where(SnapshotItem.snapshot_id == shared_snapshot.id)
+            .where(SnapshotItem.snapshot_id == shared_items_id)
             .order_by(SnapshotItem.position)
         ).all()
     )
@@ -951,23 +954,9 @@ def _finalize(
         else:
             unresolved_count += 1
         rows.append((item, media.id if media is not None else None, status, resolution_error))
-    for position, (item, media_id, status, resolution_error) in enumerate(rows):
-        snapshots_repo.add_item(
-            db,
-            snapshot,
-            position=position,
-            media_id=media_id,
-            source_item_id=_source_item_id(item),
-            source_payload=item.raw,
-            source_date_created=item.source_date_created,
-            date_basis=item.date_basis.value,
-            resolution_status=status.value,
-            resolution_error=resolution_error,
-            availability_status=item.availability_status,
-        )
     items_count = len(rows)
     duplicate_count = deduplicated.duplicates + media_duplicates
-    status, quality = _classify(
+    snapshot_status, quality = _classify(
         state,
         items_count,
         unresolved_count,
@@ -975,19 +964,51 @@ def _finalize(
         partial_on_error=connector.capabilities.partial_on_error,
     )
     is_valid = (
-        status is SnapshotStatus.COMPLETE
+        snapshot_status is SnapshotStatus.COMPLETE
         and quality is SnapshotQuality.CLEAN
         and items_count > 0
         and not state.errors
         and unresolved_count == 0
     )
     invalid_reason = _invalid_reason(
-        status, items_count, unresolved_count, duplicate_count, len(state.errors)
+        snapshot_status, items_count, unresolved_count, duplicate_count, len(state.errors)
     )
-    snapshot.status = status.value
+    checksum = normalization.checksum(deduplicated.items)
+    finished_at = utcnow()
+    previous = (
+        snapshots_repo.get_snapshot(db, collection.last_valid_snapshot_id)
+        if collection.last_valid_snapshot_id is not None
+        else None
+    )
+    reuse_previous = bool(
+        is_valid and previous is not None and previous.is_valid and previous.checksum == checksum
+    )
+
+    if reuse_previous and previous is not None:
+        # Keep the verification in the snapshot history but reuse the physical
+        # rows owned by the previous valid snapshot (or by its own base).
+        snapshot.items_from_snapshot_id = previous.items_from_snapshot_id or previous.id
+    else:
+        for position, (item, media_id, status, resolution_error) in enumerate(rows):
+            snapshots_repo.add_item(
+                db,
+                snapshot,
+                position=position,
+                media_id=media_id,
+                source_item_id=_source_item_id(item),
+                source_payload=item.raw,
+                source_date_created=item.source_date_created,
+                date_basis=item.date_basis.value,
+                resolution_status=status.value,
+                resolution_error=resolution_error,
+                availability_status=item.availability_status,
+            )
+
+    snapshot.status = snapshot_status.value
     snapshot.quality = quality.value
     snapshot.is_valid = is_valid
-    snapshot.finished_at = utcnow()
+    snapshot.finished_at = finished_at
+    snapshot.last_verified_at = finished_at
     snapshot.pages_expected = state.pages_expected
     snapshot.pages_fetched = state.pages_fetched
     snapshot.items_count = items_count
@@ -997,14 +1018,14 @@ def _finalize(
     snapshot.error_count = len(state.errors)
     snapshot.errors = state.errors
     snapshot.warnings = state.warnings
-    snapshot.checksum = normalization.checksum(deduplicated.items)
+    snapshot.checksum = checksum
     snapshot.invalid_reason = invalid_reason
     if is_valid:
         collections_repo.set_last_valid_snapshot(db, collection, snapshot.id)
     db.flush()
     return AcquisitionOutcome(
         snapshot_id=snapshot.id,
-        status=status,
+        status=snapshot_status,
         quality=quality,
         is_valid=is_valid,
         items_count=items_count,

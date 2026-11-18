@@ -12,6 +12,7 @@ from __future__ import annotations
 import threading
 import uuid
 from collections.abc import Callable
+from typing import cast
 
 import redis
 
@@ -137,7 +138,7 @@ def sweep_orphan_dispatch_locks(
             except Exception:  # pragma: no cover - defensive boundary
                 active = True
             if not active:
-                removed += int(client.delete(key) or 0)
+                removed += int(cast(int, client.delete(key)) or 0)
     except redis.RedisError as exc:
         logger.warning("orphan_lock_sweep_failed", error=type(exc).__name__)
         return removed

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy.orm import Session
 
@@ -22,6 +22,7 @@ from app.api.errors import (
     SourceUnavailableError,
 )
 from app.connectors import registry
+from app.connectors.base import SourceConnector
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger
 from app.core.time import utcnow
@@ -138,7 +139,7 @@ def acquire_collection_task(
                 outcome = acquisition.acquire_collection(
                     db,
                     collection_uuid,
-                    _LocalOnlyConnector(),
+                    cast(SourceConnector, _LocalOnlyConnector()),
                     actor_type=AuditActorType.SYSTEM,
                     job_execution_id=job_uuid,
                 )

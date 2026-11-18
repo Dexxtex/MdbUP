@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -109,7 +110,7 @@ class SecurityHeadersMiddleware:
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI) -> object:
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     logger.info(
         "app_startup",

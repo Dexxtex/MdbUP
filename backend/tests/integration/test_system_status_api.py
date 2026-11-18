@@ -52,6 +52,17 @@ def test_system_status_shape(client: TestClient, admin, seeded, app_settings, tm
         "pending_approvals",
         "upcoming",
         "catalog_acquisitions",
+        "storage",
+    }
+    assert set(body["storage"]) == {
+        "snapshot_bytes",
+        "run_bytes",
+        "total_bytes",
+        "database_bytes",
+        "snapshot_rows",
+        "snapshot_item_rows",
+        "run_rows",
+        "size_supported",
     }
     assert body["health"] == {
         "api": True,

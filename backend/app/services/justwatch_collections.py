@@ -137,7 +137,7 @@ def sync_collections(
                 unverified.append(slug)
                 continue
             package = by_short.get(mapping.short_name)
-            if not _matches(package, mapping):
+            if package is None or not _matches(package, mapping):
                 unverified.append(mapping.short_name)
                 continue
             verified_slugs.append(slug)

@@ -31,6 +31,7 @@ class SnapshotSummary:
     error_count: int
     checksum: str | None
     invalid_reason: str | None
+    last_verified_at: datetime | None
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,7 @@ def snapshot_summary(snapshot: CollectionSnapshot) -> SnapshotSummary:
         error_count=snapshot.error_count,
         checksum=snapshot.checksum,
         invalid_reason=snapshot.invalid_reason,
+        last_verified_at=snapshot.last_verified_at,
     )
 
 
@@ -99,14 +101,16 @@ def list_snapshot_items(
     ``search`` matches ``Media.title`` only: provider and offer metadata are not
     searched, and unresolved items (no media row) never match.
     """
-    if snapshots_repo.get_snapshot(db, snapshot_id) is None:
+    snapshot = snapshots_repo.get_snapshot(db, snapshot_id)
+    if snapshot is None:
         raise NotFoundError("Snapshot non trovato.", details={"snapshot_id": str(snapshot_id)})
+    items_snapshot_id = snapshots_repo.items_snapshot_id(db, snapshot)
     term = (search or "").strip()
     offset = (page - 1) * page_size
     stmt = (
         select(SnapshotItem, Media)
         .outerjoin(Media, SnapshotItem.media_id == Media.id)
-        .where(SnapshotItem.snapshot_id == snapshot_id)
+        .where(SnapshotItem.snapshot_id == items_snapshot_id)
         .order_by(SnapshotItem.position)
         .limit(page_size)
         .offset(offset)
@@ -115,7 +119,7 @@ def list_snapshot_items(
         select(func.count())
         .select_from(SnapshotItem)
         .outerjoin(Media, SnapshotItem.media_id == Media.id)
-        .where(SnapshotItem.snapshot_id == snapshot_id)
+        .where(SnapshotItem.snapshot_id == items_snapshot_id)
     )
     if term:
         title_matches = Media.title.icontains(term, autoescape=True)

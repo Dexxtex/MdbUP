@@ -529,7 +529,7 @@ class JustWatchClient:
         source: str = "",
         object_type: MediaType | None = None,
     ) -> JustWatchPage:
-        flt = _build_filter(packages=None, object_type=object_type, monetization_types=None)
+        flt = _build_filter(packages=None, object_type=object_type, monetization_types=None) or {}
         flt["searchQuery"] = query
         return self._paged(
             QUERY_SEARCH_TITLES,
@@ -689,9 +689,9 @@ class JustWatchClient:
         *,
         offset: int,
         limit: int,
-        packages: list[str] | None,
-        object_type: MediaType | None,
-        monetization_types: list[str] | None,
+        packages: list[str] | None = None,
+        object_type: MediaType | None = None,
+        monetization_types: list[str] | None = None,
         operation: str,
         genres: list[str] | None = None,
         subgenres: list[str] | None = None,

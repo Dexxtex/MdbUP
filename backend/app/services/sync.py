@@ -20,9 +20,10 @@ import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import select, text
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import Session
 
 from app.api.errors import NotFoundError
@@ -175,7 +176,12 @@ class TargetLock:
     def acquire(self) -> bool:
         bind = self._db.get_bind()
         if bind.dialect.name == "postgresql":
-            connection = bind.connect()
+            if isinstance(bind, Engine):
+                connection: Connection = bind.connect()
+                owns_connection = True
+            else:
+                connection = cast(Connection, bind)
+                owns_connection = False
             try:
                 acquired = bool(
                     connection.execute(
@@ -184,10 +190,12 @@ class TargetLock:
                     ).scalar()
                 )
             except Exception:
-                connection.close()
+                if owns_connection:
+                    connection.close()
                 raise
             if not acquired:
-                connection.close()
+                if owns_connection:
+                    connection.close()
                 return False
             self._connection = connection
             self.acquired = True
@@ -1011,10 +1019,11 @@ def load_source_items(
 ) -> list[SourceItem]:
     items: list[SourceItem] = []
     now = utcnow()
+    items_snapshot_id = snapshots_repo.items_snapshot_id(db, snapshot)
     stmt = (
         select(SnapshotItem, Media)
         .outerjoin(Media, SnapshotItem.media_id == Media.id)
-        .where(SnapshotItem.snapshot_id == snapshot.id)
+        .where(SnapshotItem.snapshot_id == items_snapshot_id)
         .order_by(SnapshotItem.position)
     )
     for item, media in db.execute(stmt).all():

@@ -34,6 +34,7 @@ from app.core.time import utcnow
 from app.db.models import Collection, Media, SnapshotItem
 from app.domain.enums import EpisodeEventType, MediaType
 from app.repositories import episode_events as episode_events_repo
+from app.repositories import snapshots as snapshots_repo
 
 logger = get_logger(__name__)
 
@@ -118,11 +119,15 @@ def _show_targets(db: Session, collection: Collection, *, limit: int) -> list[_S
     snapshot_id = collection.last_valid_snapshot_id
     if snapshot_id is None:
         return []
+    snapshot = snapshots_repo.get_snapshot(db, snapshot_id)
+    if snapshot is None:
+        return []
+    items_snapshot_id = snapshots_repo.items_snapshot_id(db, snapshot)
     rows = db.execute(
         select(SnapshotItem, Media)
         .join(Media, SnapshotItem.media_id == Media.id)
         .where(
-            SnapshotItem.snapshot_id == snapshot_id,
+            SnapshotItem.snapshot_id == items_snapshot_id,
             SnapshotItem.media_id.is_not(None),
             Media.media_type == MediaType.SHOW.value,
         )
@@ -206,7 +211,8 @@ def _observe_show(
     season_events = 0
     episode_events = 0
     for season_id, season_data in observed_seasons.items():
-        season_number = int(season_data["season_number"])  # type: ignore[arg-type]
+        season_number_raw = season_data.get("season_number")
+        season_number = int(season_number_raw) if isinstance(season_number_raw, (int, str)) else 1
         previous_season = previous_seasons.get(season_id)
         if not isinstance(previous_season, dict):
             _, created = episode_events_repo.get_or_create_event(
@@ -227,7 +233,8 @@ def _observe_show(
             previous_season.get("episodes") if isinstance(previous_season, dict) else []
         )
         known_episodes = {str(value) for value in previous_episodes or []}
-        for episode_id in season_data["episodes"]:  # type: ignore[union-attr]
+        observed_episodes = season_data.get("episodes")
+        for episode_id in observed_episodes if isinstance(observed_episodes, list) else []:
             episode_number = episode_numbers.get(str(episode_id), (season_number, None))[1]
             if str(episode_id) in known_episodes:
                 continue

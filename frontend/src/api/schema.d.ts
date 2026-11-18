@@ -2228,6 +2228,8 @@ export interface components {
             checksum?: string | null;
             /** Invalid Reason */
             invalid_reason?: string | null;
+            /** Last Verified At */
+            last_verified_at?: string | null;
         };
         /** SourceHealthcheckOut */
         SourceHealthcheckOut: {
@@ -2311,6 +2313,49 @@ export interface components {
             /** Snapshot Id */
             snapshot_id?: string | null;
         };
+        /** StorageStatusOut */
+        StorageStatusOut: {
+            /**
+             * Snapshot Bytes
+             * @default 0
+             */
+            snapshot_bytes: number;
+            /**
+             * Run Bytes
+             * @default 0
+             */
+            run_bytes: number;
+            /**
+             * Total Bytes
+             * @default 0
+             */
+            total_bytes: number;
+            /**
+             * Database Bytes
+             * @default 0
+             */
+            database_bytes: number;
+            /**
+             * Snapshot Rows
+             * @default 0
+             */
+            snapshot_rows: number;
+            /**
+             * Snapshot Item Rows
+             * @default 0
+             */
+            snapshot_item_rows: number;
+            /**
+             * Run Rows
+             * @default 0
+             */
+            run_rows: number;
+            /**
+             * Size Supported
+             * @default false
+             */
+            size_supported: boolean;
+        };
         /**
          * SyncMode
          * @enum {string}
@@ -2376,6 +2421,7 @@ export interface components {
             upcoming: components["schemas"]["UpcomingRunOut"][];
             /** Catalog Acquisitions */
             catalog_acquisitions: components["schemas"]["CatalogAcquisitionOut"][];
+            storage: components["schemas"]["StorageStatusOut"];
         };
         /**
          * TargetCreateIn

@@ -19,7 +19,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import redis
 from sqlalchemy import func, select, text
@@ -32,7 +32,14 @@ from app.core.crypto import encryption_key_available
 from app.core.logging import get_logger
 from app.core.metrics import api_usage_snapshot
 from app.core.time import ensure_utc, utcnow
-from app.db.models import Collection, MdblistTarget, SyncBinding, SyncRun
+from app.db.models import (
+    Collection,
+    CollectionSnapshot,
+    MdblistTarget,
+    SnapshotItem,
+    SyncBinding,
+    SyncRun,
+)
 from app.domain.enums import SourceStatus, SyncRunStatus
 from app.repositories import sources as sources_repo
 from app.services import catalog_schedule
@@ -125,7 +132,7 @@ def queue_depths(settings: Settings) -> dict[str, int]:
         return depths
     try:
         for queue in QUEUES:
-            depths[queue] = int(client.llen(queue) or 0)
+            depths[queue] = int(cast(int, client.llen(queue)) or 0)
     except redis.RedisError as exc:
         logger.warning("system_status_queue_depth_failed", error=type(exc).__name__)
     return depths
@@ -267,6 +274,57 @@ def read_backup_status(settings: Settings, *, now: datetime | None = None) -> Ba
     )
 
 
+def storage_usage(db: Session) -> dict[str, Any]:
+    """Physical size of snapshot/run tables, when the dialect exposes it.
+
+    PostgreSQL uses ``pg_total_relation_size`` (indexes and TOAST included);
+    SQLite tests report database bytes and let the UI show a dash for the
+    per-table split.
+    """
+    bind = db.get_bind()
+    dialect = bind.dialect.name
+    snapshot_bytes = 0
+    run_bytes = 0
+    database_bytes = 0
+    size_supported = dialect == "postgresql"
+    if dialect == "postgresql":
+        row = db.execute(
+            text(
+                "SELECT "
+                "pg_total_relation_size('snapshot_item') + "
+                "pg_total_relation_size('collection_snapshot'), "
+                "pg_total_relation_size('sync_run') + "
+                "pg_total_relation_size('sync_operation') + "
+                "pg_total_relation_size('sync_run_event')"
+            )
+        ).one()
+        snapshot_bytes = int(row[0] or 0)
+        run_bytes = int(row[1] or 0)
+        database_bytes = int(
+            db.execute(text("SELECT pg_database_size(current_database())")).scalar() or 0
+        )
+    else:
+        try:
+            page_count = int(db.execute(text("PRAGMA page_count")).scalar() or 0)
+            page_size = int(db.execute(text("PRAGMA page_size")).scalar() or 0)
+            database_bytes = page_count * page_size
+        except SQLAlchemyError:
+            database_bytes = 0
+    snapshot_rows = int(db.scalar(select(func.count()).select_from(CollectionSnapshot)) or 0)
+    snapshot_item_rows = int(db.scalar(select(func.count()).select_from(SnapshotItem)) or 0)
+    run_rows = int(db.scalar(select(func.count()).select_from(SyncRun)) or 0)
+    return {
+        "snapshot_bytes": snapshot_bytes,
+        "run_bytes": run_bytes,
+        "total_bytes": snapshot_bytes + run_bytes,
+        "database_bytes": database_bytes,
+        "snapshot_rows": snapshot_rows,
+        "snapshot_item_rows": snapshot_item_rows,
+        "run_rows": run_rows,
+        "size_supported": size_supported,
+    }
+
+
 def get_system_status(
     db: Session, settings: Settings, *, now: datetime | None = None
 ) -> dict[str, Any]:
@@ -288,6 +346,7 @@ def get_system_status(
         "pending_approvals": pending_approvals(db),
         "upcoming": upcoming_bindings(db),
         "catalog_acquisitions": upcoming_catalog_acquisitions(db, now=now),
+        "storage": storage_usage(db),
     }
 
 

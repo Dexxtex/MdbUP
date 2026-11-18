@@ -168,7 +168,7 @@ def create_preview(
         )
         source_items = sync_service.load_source_items(db, snapshot, collection)
         remote_items = []
-        if client is not None:
+        if client is not None and target is not None:
             try:
                 remote = reconciliation.read_all_remote_items(client, target.remote_list_id)
                 remote_items = list(remote.items)

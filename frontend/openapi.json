@@ -6644,6 +6644,18 @@
               }
             ],
             "title": "Invalid Reason"
+          },
+          "last_verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Verified At"
           }
         },
         "type": "object",
@@ -6887,6 +6899,52 @@
         "type": "object",
         "title": "StartRunIn"
       },
+      "StorageStatusOut": {
+        "properties": {
+          "snapshot_bytes": {
+            "type": "integer",
+            "title": "Snapshot Bytes",
+            "default": 0
+          },
+          "run_bytes": {
+            "type": "integer",
+            "title": "Run Bytes",
+            "default": 0
+          },
+          "total_bytes": {
+            "type": "integer",
+            "title": "Total Bytes",
+            "default": 0
+          },
+          "database_bytes": {
+            "type": "integer",
+            "title": "Database Bytes",
+            "default": 0
+          },
+          "snapshot_rows": {
+            "type": "integer",
+            "title": "Snapshot Rows",
+            "default": 0
+          },
+          "snapshot_item_rows": {
+            "type": "integer",
+            "title": "Snapshot Item Rows",
+            "default": 0
+          },
+          "run_rows": {
+            "type": "integer",
+            "title": "Run Rows",
+            "default": 0
+          },
+          "size_supported": {
+            "type": "boolean",
+            "title": "Size Supported",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "StorageStatusOut"
+      },
       "SyncMode": {
         "type": "string",
         "enum": [
@@ -7034,6 +7092,9 @@
             },
             "type": "array",
             "title": "Catalog Acquisitions"
+          },
+          "storage": {
+            "$ref": "#/components/schemas/StorageStatusOut"
           }
         },
         "type": "object",
@@ -7045,7 +7106,8 @@
           "backup",
           "pending_approvals",
           "upcoming",
-          "catalog_acquisitions"
+          "catalog_acquisitions",
+          "storage"
         ],
         "title": "SystemStatusOut"
       },

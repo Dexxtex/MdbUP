@@ -18,6 +18,7 @@ import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from app.core.logging import get_logger
 from app.core.time import isoformat_utc, utcnow
@@ -205,7 +206,7 @@ def _verify_archive(
     age_binary: str | None,
     now: datetime | None,
 ) -> BackupVerification:
-    common = {
+    common: dict[str, Any] = {
         "file": archive.name,
         "size_bytes": size,
         "sha256": digest,

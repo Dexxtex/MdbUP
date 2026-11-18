@@ -50,7 +50,7 @@ def list_genres(
     return schemas_catalog.GenreListOut(
         media_type=media_type.value,
         items=[
-            schemas_catalog.GenreOut(id=item["id"], name=str(item["name"]))
+            schemas_catalog.GenreOut(id=int(str(item["id"])), name=str(item["name"]))
             for item in collection_admin.list_genres(media_type.value)
         ],
     )

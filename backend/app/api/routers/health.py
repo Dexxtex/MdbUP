@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal, cast
+
 import redis
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import text
@@ -74,7 +76,7 @@ def ready(
     status = "ok" if all(checks.values()) else "degraded"
     if not checks["db"]:
         response.status_code = 503
-    return schemas.ReadinessOut(status=status, checks=checks)
+    return schemas.ReadinessOut(status=cast(Literal["ok", "degraded"], status), checks=checks)
 
 
 def _metrics_token(request: Request) -> str | None:

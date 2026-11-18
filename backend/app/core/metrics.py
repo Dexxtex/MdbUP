@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Sequence
 from datetime import UTC, datetime
+from typing import Any, cast
 
 import redis
 
@@ -66,9 +68,12 @@ class ApiCallCounter:
         client = self._redis_client()
         if client is not None:
             try:
-                hour, day = client.mget(
-                    f"{self._namespace}:{hour_key}",
-                    f"{self._namespace}:{day_key}",
+                hour, day = cast(
+                    Sequence[Any],
+                    client.mget(
+                        f"{self._namespace}:{hour_key}",
+                        f"{self._namespace}:{day_key}",
+                    ),
                 )
                 return {"hour": int(hour or 0), "today": int(day or 0)}
             except redis.RedisError as exc:

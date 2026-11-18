@@ -285,3 +285,53 @@ def test_missing_collection_raises_not_found(session: Session) -> None:
     connector = FakeConnector(pages=[_page([], next_cursor=None, total_pages=1)])
     with pytest.raises(NotFoundError):
         acquisition.acquire_collection(session, uuid.uuid4(), connector)
+
+
+def test_identical_snapshot_reuses_items_and_preserves_catalog_changes(session: Session) -> None:
+    """An unchanged catalog adds a verification, not another 5k item rows."""
+    from sqlalchemy import func, select
+
+    from app.db.models import CollectionSnapshot, SnapshotItem
+    from app.services import catalog_changes
+
+    collection = _collection(session)
+    connector = FakeConnector(
+        pages=[
+            _page([_raw(101), _raw(102)], next_cursor="2", total_pages=2),
+            _page([_raw(103)], next_cursor=None, total_pages=2),
+        ]
+    )
+    first = acquisition.acquire_collection(session, collection.id, connector)
+    second = acquisition.acquire_collection(session, collection.id, connector)
+    session.flush()
+
+    first_snapshot = snapshots_repo.get_snapshot(session, first.snapshot_id)
+    second_snapshot = snapshots_repo.get_snapshot(session, second.snapshot_id)
+    assert first_snapshot is not None and second_snapshot is not None
+    assert second_snapshot.items_from_snapshot_id == first_snapshot.id
+    assert second_snapshot.last_verified_at is not None
+    assert session.scalar(select(func.count()).select_from(SnapshotItem)) == 3
+    views, total = snapshots_service.list_snapshot_items(session, second_snapshot.id)
+    assert total == 3 and len(views) == 3
+
+    # A duplicate does not create ADDED/REMOVED events on its own.
+    changes = catalog_changes.list_catalog_changes(session, window="30d")
+    assert changes.total == 0
+
+    changed_connector = FakeConnector(
+        pages=[
+            _page([_raw(101), _raw(102)], next_cursor="2", total_pages=2),
+            _page([_raw(104)], next_cursor=None, total_pages=2),
+        ]
+    )
+    third = acquisition.acquire_collection(session, collection.id, changed_connector)
+    session.flush()
+    third_snapshot = snapshots_repo.get_snapshot(session, third.snapshot_id)
+    assert third_snapshot is not None
+    assert third_snapshot.items_from_snapshot_id is None
+    changes = catalog_changes.list_catalog_changes(session, window="30d")
+    assert {(event.direction, event.title) for event in changes.items} == {
+        ("ADDED", "Titolo"),
+        ("REMOVED", "Titolo"),
+    }
+    assert session.scalar(select(func.count()).select_from(CollectionSnapshot)) == 3

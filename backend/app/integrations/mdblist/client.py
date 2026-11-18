@@ -115,7 +115,8 @@ def _counts(payload: Any) -> dict[str, int]:
 def _parse_item(entry: Any, mediatype: str) -> MdbListListItem | None:
     if not isinstance(entry, dict):
         return None
-    ids = entry.get("ids") if isinstance(entry.get("ids"), dict) else {}
+    ids_raw = entry.get("ids")
+    ids: dict[str, Any] = ids_raw if isinstance(ids_raw, dict) else {}
     imdb_id = _str_or_none(ids.get("imdb")) or _str_or_none(entry.get("imdb_id"))
     mdblist_id = ids.get("mdblist")
     return MdbListListItem(
@@ -295,7 +296,8 @@ class MdbListClient:
         payload = self._json_dict(
             self._request("GET", path, retry_429=True, retry_transient=True), path
         )
-        user = payload.get("user") if isinstance(payload.get("user"), dict) else payload
+        user_raw = payload.get("user")
+        user: dict[str, Any] = user_raw if isinstance(user_raw, dict) else payload
         return MdbListUser(
             id=_int_or_none(user.get("id")),
             user_name=_str_or_none(user.get("user_name")) or _str_or_none(user.get("username")),

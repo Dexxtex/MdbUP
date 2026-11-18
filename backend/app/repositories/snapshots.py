@@ -34,6 +34,24 @@ def get_snapshot(db: Session, snapshot_id: uuid.UUID) -> CollectionSnapshot | No
     return db.get(CollectionSnapshot, snapshot_id)
 
 
+def items_snapshot_id(db: Session, snapshot: CollectionSnapshot) -> uuid.UUID:
+    """Resolve the snapshot that physically owns the items.
+
+    A verification identical to the previous valid snapshot stores a pointer
+    instead of copying every item. Follow the pointer chain defensively: a
+    missing/self-referential pointer falls back to the current snapshot.
+    """
+    current = snapshot
+    seen: set[uuid.UUID] = set()
+    while current.items_from_snapshot_id is not None and current.id not in seen:
+        seen.add(current.id)
+        parent = db.get(CollectionSnapshot, current.items_from_snapshot_id)
+        if parent is None or parent.id in seen:
+            break
+        current = parent
+    return current.id
+
+
 def get_running_snapshot(db: Session, collection_id: uuid.UUID) -> CollectionSnapshot | None:
     return db.scalar(
         select(CollectionSnapshot).where(

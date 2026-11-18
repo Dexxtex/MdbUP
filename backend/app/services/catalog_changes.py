@@ -30,6 +30,7 @@ from app.db.models import (
 from app.domain.enums import SnapshotQuality, SnapshotStatus
 from app.repositories import collections as collections_repo
 from app.repositories import providers as providers_repo
+from app.repositories import snapshots as snapshots_repo
 from app.repositories import sources as sources_repo
 from app.services.collections import source_label
 
@@ -318,16 +319,25 @@ def _events_in_window(db: Session, *, cutoff: datetime) -> list[CatalogChange]:
 def _snapshot_media(db: Session, snapshot_ids: set[uuid.UUID]) -> dict[uuid.UUID, set[uuid.UUID]]:
     if not snapshot_ids:
         return {}
-    result: dict[uuid.UUID, set[uuid.UUID]] = defaultdict(set)
+    resolved = {
+        snapshot_id: snapshots_repo.items_snapshot_id(db, snapshot)
+        for snapshot_id in snapshot_ids
+        if (snapshot := snapshots_repo.get_snapshot(db, snapshot_id)) is not None
+    }
+    by_items_snapshot: dict[uuid.UUID, set[uuid.UUID]] = defaultdict(set)
     rows = db.execute(
         select(SnapshotItem.snapshot_id, SnapshotItem.media_id).where(
-            SnapshotItem.snapshot_id.in_(snapshot_ids),
+            SnapshotItem.snapshot_id.in_(set(resolved.values())),
             SnapshotItem.media_id.is_not(None),
         )
     ).all()
-    for snapshot_id, media_id in rows:
-        result[snapshot_id].add(media_id)
-    return result
+    for items_snapshot_id, media_id in rows:
+        if media_id is not None:
+            by_items_snapshot[items_snapshot_id].add(media_id)
+    return {
+        snapshot_id: set(by_items_snapshot.get(items_snapshot_id, set()))
+        for snapshot_id, items_snapshot_id in resolved.items()
+    }
 
 
 def _episode_events(
@@ -338,6 +348,8 @@ def _episode_events(
     result: dict[tuple[uuid.UUID, uuid.UUID], list[EpisodeEvent]] = defaultdict(list)
     rows = db.scalars(select(EpisodeEvent).where(EpisodeEvent.snapshot_id.in_(snapshot_ids))).all()
     for event in rows:
+        if event.snapshot_id is None:
+            continue
         result[(event.snapshot_id, event.show_media_id)].append(event)
     return result
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal, cast
+
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
 
@@ -33,7 +35,7 @@ def list_credentials(
                 configured=status.configured,
                 masked_hint=status.masked_hint,
                 key_version=status.key_version,
-                status=status.status,
+                status=cast(Literal["CONFIGURED", "MISSING", "UNAVAILABLE"], status.status),
                 updated_at=status.updated_at,
                 last_verified_at=status.last_verified_at,
             )

@@ -428,7 +428,7 @@ def _send(
     ok = error is None
     moment = utcnow()
     channel.last_status = "SENT" if ok else "FAILED"
-    channel.last_error = None if ok else error[:1000]
+    channel.last_error = None if ok else (error or "Errore sconosciuto")[:1000]
     # Persist the event even on failure: the retry task resends this exact
     # message after a restart, without rebuilding it from the run state.
     channel.last_event = event

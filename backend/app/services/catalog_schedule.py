@@ -241,7 +241,7 @@ def _catalog_rows(db: Session) -> list[_CatalogRow]:
             )
         ).all()
     }
-    pending_jobs = set(
+    pending_jobs: set[str] = set(
         db.scalars(
             select(JobExecution.payload["collection_id"].as_string()).where(
                 JobExecution.task_name == ACQUIRE_COLLECTION_TASK,

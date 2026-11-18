@@ -8,6 +8,7 @@ import secrets
 import threading
 import time
 from dataclasses import dataclass
+from typing import cast
 
 import redis
 from argon2 import PasswordHasher
@@ -187,7 +188,7 @@ class RateLimiter:
     ) -> RateLimitDecision:
         full_key = f"{self._namespace}:{key}"
         lockout_key = f"{full_key}:lockout"
-        lockout_ttl = int(client.ttl(lockout_key) or -1)
+        lockout_ttl = int(cast(int, client.ttl(lockout_key)) or -1)
         if lockout_ttl > 0:
             return RateLimitDecision(
                 allowed=False,

@@ -246,9 +246,13 @@ def rotate_encryption_key(
                 key=channel.kind,
                 key_version=channel.secret_key_version or 0,
             )
+            secret_ciphertext = channel.secret_ciphertext
+            secret_nonce = channel.secret_nonce
+            if secret_ciphertext is None or secret_nonce is None:
+                continue
             plaintext = cipher.decrypt(
-                channel.secret_ciphertext,
-                channel.secret_nonce,
+                secret_ciphertext,
+                secret_nonce,
                 channel.secret_key_version or 0,
                 aad=aad,
             )
@@ -465,39 +469,42 @@ def main(argv: list[str] | None = None) -> int:
         with session_scope() as db:
             token = credentials_service.get_secret(db, settings, CredentialKind.TMDB)
             with TMDbClient(token) as client:
-                outcome = detect_tv_changes(db, client, limit=args.limit)
+                tv_outcome = detect_tv_changes(db, client, limit=args.limit)
         print(
-            f"serie controllate: {outcome.checked}, "
-            f"eventi stagioni: {outcome.season_events}, "
-            f"eventi episodi: {outcome.episode_events}, errori: {outcome.errors}"
+            f"serie controllate: {tv_outcome.checked}, "
+            f"eventi stagioni: {tv_outcome.season_events}, "
+            f"eventi episodi: {tv_outcome.episode_events}, errori: {tv_outcome.errors}"
         )
         return 0
     if args.command == "justwatch-collections":
         with session_scope() as db:
-            outcome = justwatch_collections.sync_collections(
+            justwatch_outcome = justwatch_collections.sync_collections(
                 db, settings, country_code=args.country, provider_slugs=args.provider
             )
         print(
-            f"mapping verificati: {outcome.mappings}, "
-            f"collezioni create: {outcome.collections_created}, "
-            f"aggiornate: {outcome.collections_updated}, "
-            f"provider senza flatrate: {len(outcome.skipped_providers)}, "
-            f"provider non verificati: {len(outcome.unverified_providers)}"
+            f"mapping verificati: {justwatch_outcome.mappings}, "
+            f"collezioni create: {justwatch_outcome.collections_created}, "
+            f"aggiornate: {justwatch_outcome.collections_updated}, "
+            f"provider senza flatrate: {len(justwatch_outcome.skipped_providers)}, "
+            f"provider non verificati: {len(justwatch_outcome.unverified_providers)}"
         )
-        if outcome.skipped_providers:
-            print("saltati (nessun flatrate): " + ", ".join(sorted(outcome.skipped_providers)))
-        if outcome.unverified_providers:
-            print("non verificati: " + ", ".join(sorted(outcome.unverified_providers)))
-        if outcome.unmapped_packages:
-            print("package senza mapping: " + ", ".join(outcome.unmapped_packages))
+        if justwatch_outcome.skipped_providers:
+            print(
+                "saltati (nessun flatrate): "
+                + ", ".join(sorted(justwatch_outcome.skipped_providers))
+            )
+        if justwatch_outcome.unverified_providers:
+            print("non verificati: " + ", ".join(sorted(justwatch_outcome.unverified_providers)))
+        if justwatch_outcome.unmapped_packages:
+            print("package senza mapping: " + ", ".join(justwatch_outcome.unmapped_packages))
         return 0
     if args.command == "backfill-availability":
         with session_scope() as db:
-            outcome = backfill_from_snapshots(db)
+            backfill_outcome = backfill_from_snapshots(db)
         print(
-            f"snapshot analizzati: {outcome.snapshots}, "
-            f"item osservati: {outcome.items}, "
-            f"availability create/aggiornate: {outcome.created_or_updated}"
+            f"snapshot analizzati: {backfill_outcome.snapshots}, "
+            f"item osservati: {backfill_outcome.items}, "
+            f"availability create/aggiornate: {backfill_outcome.created_or_updated}"
         )
         return 0
     if args.command == "verify-providers":

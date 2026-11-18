@@ -113,4 +113,4 @@ def revoke_all_sessions(db: Session, user_id: uuid.UUID, *, at: datetime | None 
         .values(revoked_at=at or utcnow())
     )
     db.flush()
-    return int(result.rowcount or 0)
+    return int(getattr(result, "rowcount", 0) or 0)

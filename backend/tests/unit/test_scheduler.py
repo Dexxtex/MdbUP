@@ -297,6 +297,41 @@ def test_dashboard_estimates_api_usage_from_active_bindings(
     assert summary.api_usage["mdblist"]["estimated_per_day"] > 0
 
 
+def test_cleanup_protects_snapshot_that_owns_reused_items(
+    session: Session, seeded, app_settings
+) -> None:
+    from datetime import timedelta
+
+    from app.core.time import utcnow
+    from app.domain.enums import SnapshotQuality, SnapshotStatus
+
+    collection = collections_repo.get_collection_by_slug(session, "netflix-movie")
+    assert collection is not None
+    old = _snapshot(session, collection, [1])
+    old.started_at = utcnow() - timedelta(days=400)
+    old.finished_at = old.started_at
+    duplicate = CollectionSnapshot(
+        collection_id=collection.id,
+        status=SnapshotStatus.COMPLETE.value,
+        quality=SnapshotQuality.CLEAN.value,
+        is_valid=True,
+        started_at=utcnow(),
+        finished_at=utcnow(),
+        items_count=1,
+        resolved_count=1,
+        items_from_snapshot_id=old.id,
+    )
+    session.add(duplicate)
+    session.flush()
+    collection.last_valid_snapshot_id = duplicate.id
+    session.flush()
+
+    scheduler.cleanup_old_data(session, app_settings, now=utcnow())
+
+    assert session.get(CollectionSnapshot, old.id) is not None
+    assert session.get(CollectionSnapshot, duplicate.id) is not None
+
+
 def test_sweep_orphan_dispatch_locks_removes_only_inactive_targets() -> None:
     from app.core.locks import sweep_orphan_dispatch_locks
 

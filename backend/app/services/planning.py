@@ -185,16 +185,16 @@ def plan_sync(
     remote_set: set[MediaKey] = set()
     remote_duplicates: list[MediaKey] = []
     unmapped_remote: list[dict[str, Any]] = []
-    for item in remote_items:
-        key = remote_key(item)
+    for remote_item in remote_items:
+        key = remote_key(remote_item)
         if key is None:
             unmapped_remote.append(
                 {
-                    "mediatype": item.mediatype,
-                    "title": item.title,
-                    "tmdb_id": item.tmdb_id,
-                    "imdb_id": item.imdb_id,
-                    "rank": item.rank,
+                    "mediatype": remote_item.mediatype,
+                    "title": remote_item.title,
+                    "tmdb_id": remote_item.tmdb_id,
+                    "imdb_id": remote_item.imdb_id,
+                    "rank": remote_item.rank,
                 }
             )
             continue
