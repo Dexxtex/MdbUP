@@ -72,7 +72,7 @@ Nessuna scrittura MDBList.
 ## 3-bis. Verifica live di produzione (2026-11-18)
 
 - Immagine: `ghcr.io/dexxtex/mdbup:latest`, digest
-  `sha256:e8b9e05c1ddc288bd006897a87318668e09632401d661d84a382266afc65f52b`.
+  `sha256:14e44d3289b26e92554645fa11a95a830bd4feca92716a8b5d63d1efff651e69`.
 - Stack: `api`, `worker`, `postgres`, `redis` tutti **healthy**; migrazione
   `0005_snapshot_item_availability`.
 - Porte: API `0.0.0.0:28080`; PostgreSQL `127.0.0.1:5432`; Redis `127.0.0.1:6379`.
