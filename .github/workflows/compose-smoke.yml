@@ -1,0 +1,81 @@
+name: Compose smoke
+
+# Verifica opzionale ma bloccante quando eseguita: builda l'immagine unica,
+# avvia i 4 servizi con il compose della root e controlla health/porta 28080.
+# Non viene eseguita a ogni push per non duplicare la build GHCR.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compose-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: 4 servizi healthy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build immagine
+        run: docker build -f deploy/Dockerfile.api -t mdbup-api:local .
+
+      - name: Avvia stack
+        env:
+          MDBUP_IMAGE: mdbup-api:local
+          APP_BASE_URL: http://127.0.0.1:28080
+        run: docker compose up -d
+
+      - name: Attendi i 4 servizi healthy
+        env:
+          MDBUP_IMAGE: mdbup-api:local
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 90); do
+            states=""
+            for service in api worker postgres redis; do
+              cid=$(docker compose ps -q "$service" || true)
+              [ -n "$cid" ] || { states="$states $service=missing"; continue; }
+              health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$cid")
+              states="$states $service=$health"
+            done
+            echo "tentativo $i:$states"
+            if ! echo "$states" | grep -qv 'healthy'; then
+              break
+            fi
+            if [ "$i" -eq 90 ]; then
+              echo "Timeout: servizi non healthy"
+              docker compose ps
+              docker compose logs --tail=120
+              exit 1
+            fi
+            sleep 2
+          done
+          docker compose ps
+
+      - name: Verifica health e porta 28080
+        run: |
+          set -euo pipefail
+          curl -fsS http://127.0.0.1:28080/api/health | tee /tmp/health.json
+          python - <<'PY'
+          import json
+          data = json.load(open('/tmp/health.json', encoding='utf-8'))
+          assert data.get('status') == 'ok', data
+          assert data.get('version'), data
+          print('health:', data)
+          PY
+          test "$(docker compose ps --services --status running | sort | tr '\n' ' ')" = "api postgres redis worker "
+
+      - name: Log e cleanup
+        if: always()
+        env:
+          MDBUP_IMAGE: mdbup-api:local
+        run: |
+          docker compose ps || true
+          docker compose logs --tail=80 || true
+          docker compose down -v --remove-orphans || true
