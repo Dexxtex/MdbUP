@@ -20,7 +20,13 @@ from app.api.errors import NotFoundError, SourceUnavailableError
 from app.connectors import registry
 from app.core.config import Settings
 from app.db.models import AppUser
-from app.domain.enums import AuditActorType, CollectionKind, CollectionOrigin, MediaType
+from app.domain.enums import (
+    COMBINED_SOURCE_KEY,
+    AuditActorType,
+    CollectionKind,
+    CollectionOrigin,
+    MediaType,
+)
 from app.jobs import tasks
 from app.repositories import audit
 from app.repositories import collections as collections_repo
@@ -196,12 +202,13 @@ def acquire_collection(
             "Fonte della collezione non trovata.",
             details={"collection_id": str(collection_id)},
         )
-    if not registry.is_registered(source.key):
-        raise SourceUnavailableError(
-            f"Connettore non disponibile per la fonte '{source.key}'.",
-            details={"source_key": source.key},
-        )
-    registry.ensure_source_credentials(db, settings, source.key)
+    if source.key != COMBINED_SOURCE_KEY:
+        if not registry.is_registered(source.key):
+            raise SourceUnavailableError(
+                f"Connettore non disponibile per la fonte '{source.key}'.",
+                details={"source_key": source.key},
+            )
+        registry.ensure_source_credentials(db, settings, source.key)
     job = tasks.enqueue_acquire_collection(db, settings, collection.id, actor_user_id=user.id)
     audit.record(
         db,

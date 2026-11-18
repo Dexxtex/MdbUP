@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   useCreateCollection,
   useUpdateCollection,
@@ -9,11 +9,25 @@ import {
   useCollections,
   useGenres,
   useProviders,
+  useSettings,
   useSources,
 } from "../api/queries";
-import type { Collection, CollectionKind, MediaType, OfferType } from "../api/types";
+import type {
+  BuilderSource,
+  Collection,
+  CollectionKind,
+  CombineMode,
+  MediaType,
+  OfferType,
+} from "../api/types";
+import { CollectionSourceBadge } from "../components/ui/badges";
+import { SnapshotStatusPill } from "../components/ui/status-pill";
 import { collectionProviderName } from "../lib/collections";
-import { buildCollectionPayload } from "../lib/collection-builder";
+import {
+  buildCollectionPayload,
+  builderProvenanceLabel,
+  resolveDefaultSource,
+} from "../lib/collection-builder";
 import {
   JUSTWATCH_KINDS,
   isJustWatchSource,
@@ -58,6 +72,45 @@ const MONETIZATION_OPTIONS = [
   { value: "ADS", label: "Con pubblicità" },
   { value: "FREE", label: "Gratis" },
 ];
+
+const SOURCE_OPTIONS: readonly {
+  value: BuilderSource;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "justwatch",
+    label: "JustWatch",
+    description: "Aggregatore: catalogo, novità, in arrivo e classifiche.",
+  },
+  {
+    value: "tmdb",
+    label: "TMDb",
+    description: "Catalogo ufficiale TMDb con filtri locali.",
+  },
+  {
+    value: "combined",
+    label: "Combinata locale",
+    description: "Unione o intersezione di snapshot JustWatch e TMDb.",
+  },
+];
+
+const COMBINE_MODE_OPTIONS: readonly { value: CombineMode; label: string }[] = [
+  { value: "UNION", label: "Unione" },
+  { value: "INTERSECTION", label: "Intersezione" },
+];
+
+const COLLECTION_KINDS: readonly CollectionKind[] = [
+  "CATALOG",
+  "RECENTLY_ADDED",
+  "CUSTOM_FILTER",
+  "CHART",
+  "UPCOMING",
+];
+
+function isCollectionKind(value: string | null): value is CollectionKind {
+  return value != null && COLLECTION_KINDS.includes(value as CollectionKind);
+}
 
 const SORT_OPTIONS = [
   { value: "vote_average.desc", label: "Voto medio decrescente" },
@@ -110,24 +163,48 @@ function PreviewRow({ label, value }: { label: string; value: ReactNode }) {
 export default function CollectionEditPage() {
   const { collectionId } = useParams<{ collectionId: string }>();
   const isEdit = Boolean(collectionId);
+  const [searchParams] = useSearchParams();
+  const querySource = searchParams.get("source") ?? searchParams.get("source_key");
+  const initialSource: BuilderSource =
+    querySource === "tmdb" || querySource === "justwatch" || querySource === "combined"
+      ? querySource
+      : "justwatch";
+  const kindParam = searchParams.get("kind");
+  const initialKind: CollectionKind = isCollectionKind(kindParam)
+    ? kindParam
+    : initialSource === "combined"
+      ? "CUSTOM_FILTER"
+      : "CATALOG";
+  const initialMedia: MediaType =
+    searchParams.get("media_type") === "SHOW" ? "SHOW" : "MOVIE";
   const collection = useCollection(collectionId);
   const providers = useProviders("IT");
   const sources = useSources();
+  const settings = useSettings();
   const create = useCreateCollection();
   const update = useUpdateCollection(collectionId ?? "");
   const navigate = useNavigate();
 
-  const [sourceKey, setSourceKey] = useState<"tmdb" | "justwatch">("tmdb");
-  const [providerId, setProviderId] = useState("");
-  const [mediaType, setMediaType] = useState<MediaType>("MOVIE");
-  const [kind, setKind] = useState<CollectionKind>("CATALOG");
+  const [sourceKey, setSourceKey] = useState<BuilderSource>(initialSource);
+  const [sourceTouched, setSourceTouched] = useState(Boolean(querySource));
+  const [providerId, setProviderId] = useState(searchParams.get("provider") ?? "");
+  const [mediaType, setMediaType] = useState<MediaType>(initialMedia);
+  const [kind, setKind] = useState<CollectionKind>(initialKind);
+  const [combineMode, setCombineMode] = useState<CombineMode>(
+    searchParams.get("combine_mode") === "INTERSECTION" ? "INTERSECTION" : "UNION",
+  );
+  const [justWatchOfferMode, setJustWatchOfferMode] = useState<"FLATRATE" | "ALL">(
+    "FLATRATE",
+  );
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
   const [monetization, setMonetization] = useState<OfferType>("FLATRATE");
   const [genreIds, setGenreIds] = useState<number[]>([]);
   const [sourceCollectionId, setSourceCollectionId] = useState("");
-  const [sourceCollectionIds, setSourceCollectionIds] = useState<string[]>([]);
+  const [sourceCollectionIds, setSourceCollectionIds] = useState<string[]>(
+    searchParams.getAll("source_collection_ids"),
+  );
   const [sharedSnapshotId, setSharedSnapshotId] = useState("");
   const [excludeGenreIds, setExcludeGenreIds] = useState<number[]>([]);
   const [minVoteAverage, setMinVoteAverage] = useState("");
@@ -141,9 +218,17 @@ export default function CollectionEditPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [genreQuery, setGenreQuery] = useState("");
 
+  const defaultSource = resolveDefaultSource(settings.data?.default_source);
+  const isCombined = sourceKey === "combined";
+
+  useEffect(() => {
+    if (isEdit || sourceTouched || !settings.isSuccess) return;
+    setSourceKey(defaultSource);
+  }, [defaultSource, isEdit, sourceTouched, settings.isSuccess]);
+
   const genres = useGenres(mediaType);
   const collections = useCollections({
-    providerId: kind === "CUSTOM_FILTER" ? "" : providerId,
+    providerId: kind === "CUSTOM_FILTER" || isCombined ? "" : providerId,
     mediaType,
   });
   const fullCatalogs = useMemo(
@@ -154,7 +239,14 @@ export default function CollectionEditPage() {
   useEffect(() => {
     const data = collection.data;
     if (!data) return;
-    setSourceKey(data.source_key === "justwatch" ? "justwatch" : "tmdb");
+    setSourceKey(
+      data.source_key === "justwatch"
+        ? "justwatch"
+        : data.source_key === "combined"
+          ? "combined"
+          : "tmdb",
+    );
+    setSourceTouched(true);
     setProviderId(data.provider_id);
     setMediaType(data.media_type);
     setKind(data.kind);
@@ -173,6 +265,9 @@ export default function CollectionEditPage() {
       Array.isArray(data.filters?.source_collection_ids)
         ? data.filters.source_collection_ids.map(String)
         : [],
+    );
+    setCombineMode(
+      data.filters?.combine_mode === "INTERSECTION" ? "INTERSECTION" : "UNION",
     );
     setSharedSnapshotId(String(data.filters?.shared_snapshot_collection_id ?? ""));
     setExcludeGenreIds(
@@ -198,12 +293,16 @@ export default function CollectionEditPage() {
   }, [providers.data, mediaType]);
 
   const verifiedJustWatchProviders = useMemo(
-    () => (providers.data ?? []).filter(isVerifiedJustWatchProvider),
-    [providers.data],
+    () =>
+      (providers.data ?? []).filter((provider) =>
+        isVerifiedJustWatchProvider(provider, mediaType),
+      ),
+    [providers.data, mediaType],
   );
 
-  const providerOptions =
-    sourceKey === "justwatch"
+  const providerOptions = isCombined
+    ? (providers.data ?? [])
+    : sourceKey === "justwatch"
       ? verifiedJustWatchProviders
       : verifiedProviders.length > 0
         ? verifiedProviders
@@ -239,6 +338,9 @@ export default function CollectionEditPage() {
   const selectedSources = (collections.data ?? []).filter((item) =>
     sourceCollectionIds.includes(item.id),
   );
+  const sourceCollectionOptions = (collections.data ?? []).filter(
+    (item) => item.id !== collectionId,
+  );
 
   if (isEdit && collection.isPending) {
     return (
@@ -259,9 +361,24 @@ export default function CollectionEditPage() {
 
   const onSubmit = () => {
     setFormError(null);
-    if (kind !== "CUSTOM_FILTER" && !providerId) {
+    if (!isCombined && kind !== "CUSTOM_FILTER" && !providerId) {
       setFormError("Seleziona un provider.");
       return;
+    }
+    if (isCombined) {
+      const selected = (collections.data ?? []).filter((item) =>
+        sourceCollectionIds.includes(item.id),
+      );
+      const hasJustWatch = selected.some((item) =>
+        isJustWatchSource(item.source_key),
+      );
+      const hasTmdb = selected.some((item) => item.source_key === "tmdb");
+      if (sourceCollectionIds.length < 2 || !hasJustWatch || !hasTmdb) {
+        setFormError(
+          "Seleziona almeno una collezione JustWatch e una TMDb per la combinata locale.",
+        );
+        return;
+      }
     }
     if (sourceKey === "justwatch" && !providerOptions.some((item) => item.id === providerId)) {
       setFormError("Seleziona un provider con mapping JustWatch verificato.");
@@ -302,6 +419,8 @@ export default function CollectionEditPage() {
     }
     const base = buildCollectionPayload({
       sourceKey,
+      combineMode,
+      justWatchOfferMode,
       providerId,
       mediaType,
       kind,
@@ -371,38 +490,67 @@ export default function CollectionEditPage() {
             step={1}
             title="Provider e tipo di contenuto"
             description={
-              isJustWatch
-                ? "JustWatch usa un mapping provider verificato; film e serie restano separati."
-                : "Il provider determina il catalogo TMDb; film e serie restano separati."
+              isCombined
+                ? "La combinata locale fonde o interseca gli snapshot JustWatch e TMDb già acquisiti."
+                : isJustWatch
+                  ? "JustWatch usa un mapping provider verificato; film e serie restano separati."
+                  : "Il provider determina il catalogo TMDb; film e serie restano separati."
             }
           >
             <div className="mb-4">
-              <Field
-                id="collection-source"
-                label="Fonte"
-                hint={isEdit ? "La fonte di una collezione esistente non è modificabile." : undefined}
+              <p className="mb-2 text-xs font-medium text-ink-muted">Fonte</p>
+              <div
+                role="radiogroup"
+                aria-label="Fonte della collezione"
+                className="grid gap-2 sm:grid-cols-3"
               >
-                <Select
-                  id="collection-source"
-                  value={sourceKey}
-                  disabled={isEdit}
-                  onChange={(event) => {
-                    const next = event.target.value as "tmdb" | "justwatch";
-                    setSourceKey(next);
-                    setProviderId("");
-                    setKind("CATALOG");
-                    setGenreIds([]);
-                    setExcludeGenreIds([]);
-                    setSourceCollectionId("");
-                    setSourceCollectionIds([]);
-                    setSharedSnapshotId("");
-                    setMonetization("FLATRATE");
-                  }}
-                >
-                  <option value="tmdb">TMDb</option>
-                  <option value="justwatch">JustWatch</option>
-                </Select>
-              </Field>
+                {SOURCE_OPTIONS.map((option) => {
+                  const selected = sourceKey === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      disabled={isEdit}
+                      data-testid={`builder-source-${option.value}`}
+                      onClick={() => {
+                        setSourceTouched(true);
+                        setSourceKey(option.value);
+                        setProviderId("");
+                        setKind(option.value === "combined" ? "CUSTOM_FILTER" : "CATALOG");
+                        setGenreIds([]);
+                        setExcludeGenreIds([]);
+                        setSourceCollectionId("");
+                        setSourceCollectionIds([]);
+                        setSharedSnapshotId("");
+                        setMonetization("FLATRATE");
+                        setJustWatchOfferMode("FLATRATE");
+                      }}
+                      className={`flex min-h-20 flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                        selected
+                          ? "border-accent bg-accent-soft"
+                          : "border-line bg-surface hover:border-line-strong"
+                      }`}
+                    >
+                      <span className="flex w-full items-center justify-between gap-2">
+                        <span className="text-sm font-semibold text-ink">{option.label}</span>
+                        {defaultSource === option.value ? (
+                          <span className="rounded-full border border-accent/40 bg-surface px-2 py-0.5 text-[0.65rem] font-semibold text-accent">
+                            Predefinito
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="text-xs text-ink-muted">{option.description}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {isEdit ? (
+                <p className="mt-1 text-xs text-ink-muted">
+                  La fonte di una collezione esistente non è modificabile.
+                </p>
+              ) : null}
             </div>
 
             {isJustWatch ? (
@@ -413,23 +561,33 @@ export default function CollectionEditPage() {
                 </InlineNotice>
               </div>
             ) : null}
+            {isCombined ? (
+              <div className="mb-4">
+                <InlineNotice tone="info">
+                  La combinata locale usa solo snapshot già acquisiti: nessuna chiamata
+                  aggiuntiva a JustWatch o TMDb.
+                </InlineNotice>
+              </div>
+            ) : null}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 id="collection-provider"
                 label="Provider"
                 hint={
-                  isJustWatch
-                    ? providerOptions.length === 0
-                      ? "Nessun provider con mapping JustWatch verificato."
-                      : `${formatNumber(verifiedJustWatchMappings)} mapping JustWatch verificati in IT.`
-                    : undefined
+                  isCombined
+                    ? "Facoltativo: il provider principale può essere derivato dalle sorgenti."
+                    : isJustWatch
+                      ? providerOptions.length === 0
+                        ? "Nessun provider con mapping JustWatch verificato."
+                        : `${formatNumber(verifiedJustWatchMappings)} mapping JustWatch verificati in IT.`
+                      : undefined
                 }
               >
                 <Select
                   id="collection-provider"
                   value={providerId}
-                  disabled={isEdit || (!isJustWatch && kind === "CUSTOM_FILTER")}
+                  disabled={isEdit || (!isJustWatch && !isCombined && kind === "CUSTOM_FILTER")}
                   onChange={(event) => {
                     setProviderId(event.target.value);
                     setSourceCollectionId("");
@@ -454,7 +612,9 @@ export default function CollectionEditPage() {
                   disabled={isEdit}
                   onChange={(event) => setKind(event.target.value as CollectionKind)}
                 >
-                  {isJustWatch ? (
+                  {isCombined ? (
+                    <option value="CUSTOM_FILTER">Combinata locale (JustWatch + TMDb)</option>
+                  ) : isJustWatch ? (
                     <>
                       <option value="CATALOG">Catalogo</option>
                       <option value="RECENTLY_ADDED">Novità</option>
@@ -509,7 +669,7 @@ export default function CollectionEditPage() {
             </div>
           </BuilderSection>
 
-          {!isJustWatch ? (
+          {sourceKey === "tmdb" ? (
           <BuilderSection
             step={2}
             title="Generi TMDb"
@@ -590,26 +750,53 @@ export default function CollectionEditPage() {
             step={3}
             title="Filtri e finestra"
             description={
-              isJustWatch
-                ? "Tipo di offerta e anni; niente filtri TMDb o locali."
-                : "Monetizzazione, filtri locali e finestra per le liste 'Appena rilevati'."
+              isCombined
+                ? "Scegli le collezioni sorgente e come combinare i loro snapshot."
+                : isJustWatch
+                  ? "Tipo di offerta e anni; niente filtri TMDb o locali."
+                  : "Monetizzazione, filtri locali e finestra per le liste 'Appena rilevati'."
             }
           >
-            <p className="mb-2 text-xs font-medium text-ink-muted">
-              {isJustWatch ? "Tipo di offerta (default FLATRATE)" : "Monetizzazione"}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {offerOptions.map((option) => (
-                <ToggleChip
-                  key={option.value}
-                  testId={`offer-${option.value}`}
-                  pressed={monetization === option.value}
-                  onClick={() => setMonetization(option.value as OfferType)}
-                >
-                  {option.label}
-                </ToggleChip>
-              ))}
-            </div>
+            {isJustWatch ? (
+              <>
+                <p className="mb-2 text-xs font-medium text-ink-muted">
+                  Tipo di offerta (default Flatrate)
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <ToggleChip
+                    testId="justwatch-offer-flatrate"
+                    pressed={justWatchOfferMode === "FLATRATE"}
+                    onClick={() => setJustWatchOfferMode("FLATRATE")}
+                  >
+                    Flatrate
+                  </ToggleChip>
+                  <ToggleChip
+                    testId="justwatch-offer-all"
+                    pressed={justWatchOfferMode === "ALL"}
+                    onClick={() => setJustWatchOfferMode("ALL")}
+                  >
+                    Tutte le offerte
+                  </ToggleChip>
+                </div>
+              </>
+            ) : null}
+            {sourceKey === "tmdb" ? (
+              <>
+                <p className="mb-2 text-xs font-medium text-ink-muted">Monetizzazione</p>
+                <div className="flex flex-wrap gap-2">
+                  {offerOptions.map((option) => (
+                    <ToggleChip
+                      key={option.value}
+                      testId={`offer-${option.value}`}
+                      pressed={monetization === option.value}
+                      onClick={() => setMonetization(option.value as OfferType)}
+                    >
+                      {option.label}
+                    </ToggleChip>
+                  ))}
+                </div>
+              </>
+            ) : null}
 
             {isJustWatch ? (
               <div className="mt-5 grid gap-4 border-t border-line pt-4 sm:grid-cols-2">
@@ -636,7 +823,66 @@ export default function CollectionEditPage() {
               </div>
             ) : null}
 
-            {!isJustWatch && kind === "CUSTOM_FILTER" ? (
+            {isCombined ? (
+              <div className="mt-5 space-y-4 border-t border-line pt-4">
+                <div>
+                  <p className="mb-1 text-xs font-medium text-ink-muted">Modalità</p>
+                  <div className="flex flex-wrap gap-2">
+                    {COMBINE_MODE_OPTIONS.map((option) => (
+                      <ToggleChip
+                        key={option.value}
+                        testId={`combine-mode-${option.value}`}
+                        pressed={combineMode === option.value}
+                        onClick={() => setCombineMode(option.value)}
+                      >
+                        {option.label}
+                      </ToggleChip>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs font-medium text-ink-muted">
+                    Collezioni sorgente (JustWatch + TMDb)
+                  </p>
+                  <p className="mb-2 text-xs text-ink-faint">
+                    Servono almeno una collezione JustWatch e una TMDb. Lo stato mostra
+                    l&apos;ultimo snapshot valido disponibile.
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {sourceCollectionOptions.map((item) => {
+                      const snapshot = item.last_valid_snapshot ?? item.latest_snapshot;
+                      return (
+                        <ToggleChip
+                          key={item.id}
+                          testId={`source-collection-${item.id}`}
+                          pressed={sourceCollectionIds.includes(item.id)}
+                          onClick={() =>
+                            setSourceCollectionIds((current) =>
+                              current.includes(item.id)
+                                ? current.filter((value) => value !== item.id)
+                                : [...current, item.id],
+                            )
+                          }
+                          className="justify-between"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <IconLayers />
+                            {item.name} ({collectionProviderName(item)})
+                          </span>
+                          {snapshot ? (
+                            <SnapshotStatusPill status={snapshot.status} />
+                          ) : (
+                            <span className="text-ink-faint">Nessuno snapshot</span>
+                          )}
+                        </ToggleChip>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {sourceKey === "tmdb" && kind === "CUSTOM_FILTER" ? (
               <div className="mt-5 space-y-4 border-t border-line pt-4">
                 <div>
                   <p className="mb-1 text-xs font-medium text-ink-muted">
@@ -734,7 +980,7 @@ export default function CollectionEditPage() {
               </div>
             ) : null}
 
-            {!isJustWatch && kind === "RECENTLY_ADDED" ? (
+            {sourceKey === "tmdb" && kind === "RECENTLY_ADDED" ? (
               <div className="mt-5 grid gap-4 border-t border-line pt-4 sm:grid-cols-2">
                 <Field
                   id="collection-source"
@@ -782,7 +1028,7 @@ export default function CollectionEditPage() {
               </div>
             ) : null}
 
-            {!isJustWatch && kind === "CATALOG" ? (
+            {sourceKey === "tmdb" && kind === "CATALOG" ? (
               <div className="mt-5 border-t border-line pt-4">
                 <Field
                   id="collection-shared"
@@ -870,8 +1116,20 @@ export default function CollectionEditPage() {
               </span>
               <h2 className="text-sm font-semibold text-ink">Anteprima criteri</h2>
             </div>
+            <div className="mt-3 rounded-md border border-line bg-surface-muted p-3">
+              <p className="mb-1 text-xs font-medium text-ink-muted">
+                Badge di provenienza (anteprima)
+              </p>
+              <CollectionSourceBadge
+                label={builderProvenanceLabel(sourceKey, kind)}
+                tone={isCombined ? "info" : isJustWatch ? "warning" : "info"}
+              />
+            </div>
             <dl className="mt-3">
-              <PreviewRow label="Fonte" value={isJustWatch ? "JustWatch" : "TMDb"} />
+              <PreviewRow
+                label="Fonte"
+                value={isCombined ? "Combinata locale" : isJustWatch ? "JustWatch" : "TMDb"}
+              />
               <PreviewRow
                 label="Provider"
                 value={selectedProvider?.name ?? (providerId ? providerId.slice(0, 8) : "—")}
@@ -879,18 +1137,30 @@ export default function CollectionEditPage() {
               <PreviewRow label="Tipo" value={mediaType === "MOVIE" ? "Film" : "Serie TV"} />
               <PreviewRow
                 label="Costruzione"
-                value={(isJustWatch ? JUSTWATCH_KIND_LABELS : KIND_LABELS)[kind]}
-              />
-              <PreviewRow
-                label={isJustWatch ? "Offerta" : "Monetizzazione"}
                 value={
-                  MONETIZATION_OPTIONS.find((option) => option.value === monetization)
-                    ?.label ?? monetization
+                  isCombined
+                    ? "Combinata locale (JustWatch + TMDb)"
+                    : (isJustWatch ? JUSTWATCH_KIND_LABELS : KIND_LABELS)[kind]
                 }
               />
               {isJustWatch ? (
+                <PreviewRow
+                  label="Offerta"
+                  value={justWatchOfferMode === "ALL" ? "Tutte le offerte" : "Flatrate"}
+                />
+              ) : null}
+              {sourceKey === "tmdb" ? (
+                <PreviewRow
+                  label="Monetizzazione"
+                  value={
+                    MONETIZATION_OPTIONS.find((option) => option.value === monetization)
+                      ?.label ?? monetization
+                  }
+                />
+              ) : null}
+              {isJustWatch ? (
                 <PreviewRow label="Anni" value={`${yearFrom || "—"} → ${yearTo || "—"}`} />
-              ) : (
+              ) : sourceKey === "tmdb" ? (
                 <PreviewRow
                   label="Generi inclusi"
                   value={
@@ -901,8 +1171,43 @@ export default function CollectionEditPage() {
                           .join(", ")}`
                   }
                 />
-              )}
-              {kind === "CUSTOM_FILTER" ? (
+              ) : null}
+              {isCombined ? (
+                <>
+                  <PreviewRow
+                    label="Modalità"
+                    value={
+                      COMBINE_MODE_OPTIONS.find((option) => option.value === combineMode)
+                        ?.label ?? combineMode
+                    }
+                  />
+                  <PreviewRow
+                    label="Sorgenti"
+                    value={
+                      selectedSources.length === 0
+                        ? "Nessuna"
+                        : selectedSources.map((item) => item.name).join(" + ")
+                    }
+                  />
+                  {selectedSources.map((item) => {
+                    const snapshot = item.last_valid_snapshot ?? item.latest_snapshot;
+                    return (
+                      <PreviewRow
+                        key={item.id}
+                        label={item.name}
+                        value={
+                          snapshot ? (
+                            <SnapshotStatusPill status={snapshot.status} />
+                          ) : (
+                            <span className="text-ink-faint">Nessuno snapshot</span>
+                          )
+                        }
+                      />
+                    );
+                  })}
+                </>
+              ) : null}
+              {sourceKey === "tmdb" && kind === "CUSTOM_FILTER" ? (
                 <>
                   <PreviewRow
                     label="Generi esclusi"
@@ -938,7 +1243,7 @@ export default function CollectionEditPage() {
                   />
                 </>
               ) : null}
-              {kind === "RECENTLY_ADDED" ? (
+              {sourceKey === "tmdb" && kind === "RECENTLY_ADDED" ? (
                 <>
                   <PreviewRow
                     label="Baseline"
@@ -950,7 +1255,7 @@ export default function CollectionEditPage() {
                   <PreviewRow label="Finestra" value={`${windowDays} giorni`} />
                 </>
               ) : null}
-              {kind === "CATALOG" ? (
+              {sourceKey === "tmdb" && kind === "CATALOG" ? (
                 <PreviewRow
                   label="Snapshot condiviso"
                   value={
@@ -969,7 +1274,12 @@ export default function CollectionEditPage() {
                 Pipeline
                 <IconArrowRight />
               </p>
-              {isJustWatch ? (
+              {isCombined ? (
+                <p className="mt-1">
+                  Snapshot JustWatch + TMDb → {combineMode === "UNION" ? "unione" : "intersezione"}
+                  → lista MDBList. Nessuna chiamata alle fonti.
+                </p>
+              ) : isJustWatch ? (
                 <p className="mt-1">
                   Snapshot JustWatch → preview source-only. Sync MDBList disabilitata di
                   default: dry-run obbligatorio prima del primo run reale.

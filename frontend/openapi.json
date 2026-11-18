@@ -1386,6 +1386,172 @@
         }
       }
     },
+    "/api/catalog-changes": {
+      "get": {
+        "tags": [
+          "catalog-changes"
+        ],
+        "summary": "Cambi catalogo (aggiunti/rimossi) tra snapshot validi consecutivi",
+        "operationId": "list_catalog_changes_api_catalog_changes_get",
+        "parameters": [
+          {
+            "name": "window",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "24h",
+                "7d",
+                "14d",
+                "30d"
+              ],
+              "type": "string",
+              "default": "24h",
+              "title": "Window"
+            }
+          },
+          {
+            "name": "provider_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Provider Id"
+            }
+          },
+          {
+            "name": "media_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "MOVIE",
+                    "SHOW"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Media Type"
+            }
+          },
+          {
+            "name": "source_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "justwatch",
+                    "tmdb"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Key"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "ADDED",
+                    "REMOVED"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Direction"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogChangesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/snapshots/{snapshot_id}/items": {
       "get": {
         "tags": [
@@ -1426,6 +1592,25 @@
               "default": 50,
               "title": "Page Size"
             }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtro sul titolo",
+              "title": "Search"
+            },
+            "description": "Filtro sul titolo"
           }
         ],
         "responses": {
@@ -3116,6 +3301,253 @@
         ],
         "title": "BootstrapRequest"
       },
+      "CatalogAcquisitionOut": {
+        "properties": {
+          "collection_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Collection Id"
+          },
+          "collection_name": {
+            "type": "string",
+            "title": "Collection Name"
+          },
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name"
+          },
+          "next_acquire_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Next Acquire At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "collection_id",
+          "collection_name",
+          "provider_name",
+          "next_acquire_at"
+        ],
+        "title": "CatalogAcquisitionOut"
+      },
+      "CatalogChangeCountersOut": {
+        "properties": {
+          "added_today": {
+            "type": "integer",
+            "title": "Added Today"
+          },
+          "removed_today": {
+            "type": "integer",
+            "title": "Removed Today"
+          },
+          "added_window": {
+            "type": "integer",
+            "title": "Added Window"
+          },
+          "removed_window": {
+            "type": "integer",
+            "title": "Removed Window"
+          }
+        },
+        "type": "object",
+        "required": [
+          "added_today",
+          "removed_today",
+          "added_window",
+          "removed_window"
+        ],
+        "title": "CatalogChangeCountersOut"
+      },
+      "CatalogChangeOut": {
+        "properties": {
+          "media_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Media Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          },
+          "media_type": {
+            "type": "string",
+            "title": "Media Type"
+          },
+          "provider_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Provider Id"
+          },
+          "provider_slug": {
+            "type": "string",
+            "title": "Provider Slug"
+          },
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name"
+          },
+          "source_key": {
+            "type": "string",
+            "title": "Source Key"
+          },
+          "source_label": {
+            "type": "string",
+            "title": "Source Label"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "ADDED",
+              "REMOVED"
+            ],
+            "title": "Direction"
+          },
+          "detected_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Detected At"
+          },
+          "detected_at_rome": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Detected At Rome"
+          },
+          "collection_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Collection Id"
+          },
+          "collection_name": {
+            "type": "string",
+            "title": "Collection Name"
+          },
+          "collection_slug": {
+            "type": "string",
+            "title": "Collection Slug"
+          },
+          "previous_snapshot_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Previous Snapshot Id"
+          },
+          "current_snapshot_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Current Snapshot Id"
+          },
+          "season_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season Number"
+          },
+          "episode_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Episode Number"
+          },
+          "episode_event_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Episode Event Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "media_id",
+          "title",
+          "media_type",
+          "provider_id",
+          "provider_slug",
+          "provider_name",
+          "source_key",
+          "source_label",
+          "direction",
+          "detected_at",
+          "detected_at_rome",
+          "collection_id",
+          "collection_name",
+          "collection_slug",
+          "previous_snapshot_id",
+          "current_snapshot_id"
+        ],
+        "title": "CatalogChangeOut"
+      },
+      "CatalogChangesOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogChangeOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          },
+          "window": {
+            "type": "string",
+            "title": "Window"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "counters": {
+            "$ref": "#/components/schemas/CatalogChangeCountersOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "window",
+          "generated_at",
+          "counters"
+        ],
+        "title": "CatalogChangesOut"
+      },
       "ChangePasswordRequest": {
         "properties": {
           "current_password": {
@@ -3177,7 +3609,8 @@
             "type": "string",
             "enum": [
               "tmdb",
-              "justwatch"
+              "justwatch",
+              "combined"
             ],
             "title": "Source Key",
             "default": "tmdb"
@@ -3193,6 +3626,15 @@
             ],
             "title": "Kind",
             "default": "CATALOG"
+          },
+          "combine_mode": {
+            "type": "string",
+            "enum": [
+              "UNION",
+              "INTERSECTION"
+            ],
+            "title": "Combine Mode",
+            "default": "UNION"
           },
           "offer_types": {
             "anyOf": [
@@ -3649,7 +4091,8 @@
                 "type": "string",
                 "enum": [
                   "tmdb",
-                  "justwatch"
+                  "justwatch",
+                  "combined"
                 ]
               },
               {
@@ -3675,6 +4118,21 @@
               }
             ],
             "title": "Kind"
+          },
+          "combine_mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "UNION",
+                  "INTERSECTION"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Combine Mode"
           },
           "offer_types": {
             "anyOf": [
@@ -5338,6 +5796,16 @@
             "title": "Justwatch Verified",
             "default": false
           },
+          "justwatch_movie_verified": {
+            "type": "boolean",
+            "title": "Justwatch Movie Verified",
+            "default": false
+          },
+          "justwatch_tv_verified": {
+            "type": "boolean",
+            "title": "Justwatch Tv Verified",
+            "default": false
+          },
           "justwatch_monetization_types": {
             "items": {
               "type": "string"
@@ -6559,6 +7027,13 @@
             },
             "type": "array",
             "title": "Upcoming"
+          },
+          "catalog_acquisitions": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogAcquisitionOut"
+            },
+            "type": "array",
+            "title": "Catalog Acquisitions"
           }
         },
         "type": "object",
@@ -6569,7 +7044,8 @@
           "api_usage",
           "backup",
           "pending_approvals",
-          "upcoming"
+          "upcoming",
+          "catalog_acquisitions"
         ],
         "title": "SystemStatusOut"
       },

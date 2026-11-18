@@ -15,9 +15,12 @@ What the endpoint actually allows, measured against the live service:
 - introspection disabled, so the documents in ``queries.py`` are hand-verified.
 
 The client never logs the payload, never follows redirects and keeps a minimum
-interval between calls. Successful payloads are cached in-process for a short
-TTL (``JUSTWATCH_CACHE_TTL_SECONDS``, ``JUSTWATCH_CACHE_MAX_ENTRIES``); errors
-and the healthcheck are never cached, and a response whose shape drifted raises
+interval between calls. The interval is enforced by :data:`_PROCESS_PACER`, a
+process-wide pacer: the worker runs with concurrency 2 and each task builds its
+own client, so a per-instance timer would allow two requests per second.
+Successful payloads are cached in-process for a short TTL
+(``JUSTWATCH_CACHE_TTL_SECONDS``, ``JUSTWATCH_CACHE_MAX_ENTRIES``); errors and
+the healthcheck are never cached, and a response whose shape drifted raises
 :class:`JustWatchGraphQLError` instead of producing an empty ``COMPLETE`` page.
 """
 
@@ -25,6 +28,7 @@ from __future__ import annotations
 
 import copy
 import json
+import threading
 import time
 from typing import Any
 
@@ -108,6 +112,36 @@ SCHEMA_DRIFT_CODE = "SCHEMA_DRIFT"
 
 def _cache_key(query: str, variables: dict[str, Any] | None) -> str:
     return json.dumps([query, variables or {}], sort_keys=True, default=str)
+
+
+class RequestPacer:
+    """Minimum interval between calls, shareable across client instances.
+
+    ``wait`` holds the lock for the whole pause, so concurrent threads queue
+    behind the same deadline instead of all measuring the same idle gap. The
+    interval is measured start-to-start, which is what a "1 request per second"
+    budget means for the remote endpoint.
+    """
+
+    def __init__(self, *, monotonic=time.monotonic, sleep=time.sleep) -> None:
+        self._monotonic = monotonic
+        self._sleep = sleep
+        self._lock = threading.Lock()
+        self._last_call_at: float | None = None
+
+    def wait(self, min_interval_seconds: float) -> None:
+        if min_interval_seconds <= 0:
+            return
+        with self._lock:
+            if self._last_call_at is not None:
+                remaining = min_interval_seconds - (self._monotonic() - self._last_call_at)
+                if remaining > 0:
+                    self._sleep(remaining)
+            self._last_call_at = self._monotonic()
+
+
+# One pacer per process: every client built by the registry shares it.
+_PROCESS_PACER = RequestPacer()
 
 
 class ResponseCache:
@@ -289,7 +323,13 @@ class JustWatchClient:
         self.min_interval_seconds = max(0.0, min_interval_seconds)
         self._sleep = sleep
         self._monotonic = monotonic
-        self._last_call_at: float | None = None
+        # Callers injecting a clock/sleep (tests) get their own pacer; the real
+        # worker uses the process-wide one so concurrent clients share it.
+        self._pacer = (
+            _PROCESS_PACER
+            if sleep is time.sleep and monotonic is time.monotonic
+            else RequestPacer(monotonic=monotonic, sleep=sleep)
+        )
         self.cache = ResponseCache(
             ttl_seconds=cache_ttl_seconds,
             max_entries=cache_max_entries,
@@ -314,12 +354,7 @@ class JustWatchClient:
         )
 
     def _throttle(self) -> None:
-        if self.min_interval_seconds <= 0 or self._last_call_at is None:
-            return
-        elapsed = self._monotonic() - self._last_call_at
-        remaining = self.min_interval_seconds - elapsed
-        if remaining > 0:
-            self._sleep(remaining)
+        self._pacer.wait(self.min_interval_seconds)
 
     def _execute(
         self,
@@ -355,9 +390,6 @@ class JustWatchClient:
                     self._sleep(self._delay(attempt))
                     continue
                 raise JustWatchRequestError(f"Errore di rete JustWatch su {operation}.") from exc
-            finally:
-                # Count the attempt for throttling even when it failed.
-                self._last_call_at = self._monotonic()
 
             if response.status_code == 429:
                 retry_after = _retry_after_seconds(response)

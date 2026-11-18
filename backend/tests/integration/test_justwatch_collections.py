@@ -75,8 +75,22 @@ def test_sync_creates_mappings_and_collections(db, seeded, app_settings) -> None
         )
         assert netflix_mapping is not None
         assert netflix_mapping.is_verified is True
-        assert netflix_mapping.metadata_json["technical_name"] == "netflix"
-        assert netflix_mapping.metadata_json["monetization_types"] == ["FLATRATE"]
+        metadata = netflix_mapping.metadata_json
+        assert metadata["technical_name"] == "netflix"
+        assert metadata["clear_name"] == "Netflix"
+        assert metadata["monetization_types"] == ["FLATRATE"]
+        assert metadata["verified_at"]
+        assert metadata["movie_external_id"] == "nfx"
+        assert metadata["tv_external_id"] == "nfx"
+        assert metadata["movie_verified"] is True
+        assert metadata["tv_verified"] is True
+        # One row per external id: the per-type ids live in metadata.
+        nfx_rows = session.scalar(
+            select(func.count())
+            .select_from(ProviderMapping)
+            .where(ProviderMapping.external_provider_id == "nfx")
+        )
+        assert nfx_rows == 1
         justwatch = session.scalars(
             select(Collection).where(Collection.slug.like("%-justwatch%"))
         ).all()
@@ -154,6 +168,10 @@ def test_sync_skips_packages_whose_technical_name_does_not_match(db, seeded, app
             select(Collection).where(Collection.slug.like("%-justwatch%"))
         ).all()
         assert justwatch == []
+        mapping = session.scalar(
+            select(ProviderMapping).where(ProviderMapping.external_provider_id == "nfx")
+        )
+        assert mapping is None
 
 
 @respx.mock

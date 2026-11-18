@@ -1,8 +1,38 @@
 import type { CollectionCreatePayload } from "../api/mutations";
-import type { CollectionKind, MediaType, OfferType } from "../api/types";
+import type {
+  BuilderSource,
+  CollectionKind,
+  CombineMode,
+  DefaultSource,
+  MediaType,
+  OfferType,
+} from "../api/types";
+
+export const COMBINED_SOURCE_LABEL = "Combinata locale (JustWatch + TMDb)";
+export const JUSTWATCH_SOURCE_LABEL = "Fonte: JustWatch (Aggregatore)";
+export const JUSTWATCH_CHART_SOURCE_LABEL = "Classifica JustWatch";
+
+/** `settings.default_source` può mancare o essere invalido: JustWatch vince. */
+export function resolveDefaultSource(value: unknown): DefaultSource {
+  return value === "tmdb" ? "tmdb" : "justwatch";
+}
+
+/** Anteprima esatta del `source_label` che il backend restituirà. */
+export function builderProvenanceLabel(
+  sourceKey: BuilderSource,
+  kind: CollectionKind,
+): string {
+  if (sourceKey === "combined") return COMBINED_SOURCE_LABEL;
+  if (sourceKey === "justwatch") {
+    return kind === "CHART" ? JUSTWATCH_CHART_SOURCE_LABEL : JUSTWATCH_SOURCE_LABEL;
+  }
+  return "TMDb";
+}
 
 export interface CollectionBuilderInput {
-  sourceKey: "tmdb" | "justwatch";
+  sourceKey: BuilderSource;
+  combineMode?: CombineMode;
+  justWatchOfferMode?: "FLATRATE" | "ALL";
   providerId: string;
   mediaType: MediaType;
   kind: CollectionKind;
@@ -47,11 +77,23 @@ export function buildCollectionPayload(input: CollectionBuilderInput): Collectio
     is_active: input.isActive,
   };
 
+  if (input.sourceKey === "combined") {
+    return {
+      ...identity,
+      kind: "CUSTOM_FILTER",
+      source_key: "combined",
+      combine_mode: input.combineMode ?? "UNION",
+      source_collection_ids: input.sourceCollectionIds,
+      monetization_type: "FLATRATE",
+      genre_ids: [],
+    };
+  }
+
   if (input.sourceKey === "justwatch") {
     return {
       ...identity,
       source_key: "justwatch",
-      offer_types: [input.offerType],
+      offer_types: input.justWatchOfferMode === "ALL" ? [] : [input.offerType],
       monetization_type: input.offerType,
       genre_ids: [],
       year_from: optionalNumber(input.yearFrom),

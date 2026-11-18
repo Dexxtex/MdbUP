@@ -7,6 +7,7 @@ dispatching, so a second tick cannot create a duplicate run for the same slot.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -70,6 +71,7 @@ def enqueue_due_bindings(
     skipped = 0
     run_ids: list[uuid.UUID] = []
     dispatch_lock = build_dispatch_lock(settings.redis_url)
+    target_owner = target_binding_owner(bindings_repo.list_bindings(db, enabled=True))
     for binding in due:
         token = dispatch_lock.acquire(f"target:{binding.target_id}")
         if token is None:
@@ -84,6 +86,19 @@ def enqueue_due_bindings(
                     binding.schedule_cron, binding.timezone, now=moment
                 )
             bindings_repo.set_next_run_at(db, binding, next_run_at)
+            owner_id = target_owner.get(binding.target_id)
+            if owner_id is not None and owner_id != binding.id:
+                # The API refuses a second enabled binding per target; a legacy
+                # or imported row must never get a scheduled run of its own.
+                logger.warning(
+                    "scheduler_target_binding_conflict",
+                    target_id=str(binding.target_id),
+                    binding_id=str(binding.id),
+                    owner_binding_id=str(owner_id),
+                )
+                skipped += 1
+                db.commit()
+                continue
             if (
                 runs_repo.get_active_run_for_binding(db, binding.id) is not None
                 or runs_repo.get_active_run_for_target(db, binding.target_id) is not None
@@ -148,6 +163,24 @@ def enqueue_due_bindings(
         finally:
             dispatch_lock.release(f"target:{binding.target_id}", token)
     return SchedulerOutcome(enqueued=enqueued, skipped=skipped, run_ids=run_ids)
+
+
+def target_binding_owner(bindings: Iterable[SyncBinding]) -> dict[uuid.UUID, uuid.UUID]:
+    """Enabled binding that owns each target: the oldest row wins.
+
+    The database already refuses two enabled bindings per target (partial unique
+    index) and the API raises ``TARGET_LOCKED`` before writing; this is the last
+    line of defence for rows imported or restored by hand.
+    """
+    owners: dict[uuid.UUID, SyncBinding] = {}
+    for binding in bindings:
+        current = owners.get(binding.target_id)
+        if current is None or (binding.created_at, str(binding.id)) < (
+            current.created_at,
+            str(current.id),
+        ):
+            owners[binding.target_id] = binding
+    return {target_id: binding.id for target_id, binding in owners.items()}
 
 
 def _scheduled_snapshot(

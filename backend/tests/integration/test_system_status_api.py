@@ -51,6 +51,7 @@ def test_system_status_shape(client: TestClient, admin, seeded, app_settings, tm
         "backup",
         "pending_approvals",
         "upcoming",
+        "catalog_acquisitions",
     }
     assert body["health"] == {
         "api": True,
@@ -74,6 +75,7 @@ def test_system_status_shape(client: TestClient, admin, seeded, app_settings, tm
     assert 2.5 <= body["backup"]["age_hours"] <= 3.5
     assert body["pending_approvals"] == 0
     assert body["upcoming"] == []
+    assert body["catalog_acquisitions"] == []
 
 
 def test_system_status_without_a_backup_file(
@@ -147,3 +149,51 @@ def test_system_status_lists_upcoming_bindings(
     assert item["collection_name"] == collection_name
     assert item["target_name"] == "Lista topbar"
     assert item["next_run_at"] is not None
+
+
+def test_system_status_lists_staggered_catalog_acquisitions(
+    client: TestClient, admin, seeded, app_settings, tmp_path
+) -> None:
+    from app.db.session import get_session_factory
+    from app.repositories import collections as collections_repo
+    from app.repositories import providers as providers_repo
+    from app.repositories import sources as sources_repo
+
+    app_settings.backup_status_file = str(tmp_path / "absent.json")
+    session = get_session_factory()()
+    try:
+        source = sources_repo.get_source_by_key(session, "justwatch")
+        provider = providers_repo.get_provider_by_slug(session, "netflix")
+        assert source is not None and provider is not None
+        collections_repo.upsert_collection(
+            session,
+            slug="netflix-movie-justwatch-status",
+            source_id=source.id,
+            provider_id=provider.id,
+            country_code="IT",
+            media_type="MOVIE",
+            kind="CATALOG",
+            origin="AGGREGATOR",
+            date_basis="UNKNOWN",
+            name="Netflix — Film — Catalogo JustWatch",
+            description=None,
+            source_collection_key="nfx:MOVIE",
+            source_url=None,
+            offer_types=["FLATRATE"],
+            filters={},
+            quality_flags={},
+            sort_mode="POPULARITY",
+            is_active=True,
+        )
+        session.commit()
+    finally:
+        session.close()
+
+    body = client.get("/api/system/status").json()
+
+    assert len(body["catalog_acquisitions"]) == 1
+    item = body["catalog_acquisitions"][0]
+    assert item["collection_name"] == "Netflix — Film — Catalogo JustWatch"
+    assert item["provider_name"] == "Netflix"
+    assert item["collection_id"] is not None
+    assert item["next_acquire_at"] is not None

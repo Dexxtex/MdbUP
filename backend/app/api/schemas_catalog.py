@@ -81,8 +81,10 @@ class CollectionCreateIn(BaseModel):
     media_type: Literal["MOVIE", "SHOW"]
     name: str = Field(min_length=3, max_length=300)
     slug: str = Field(min_length=3, max_length=200, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-    source_key: Literal["tmdb", "justwatch"] = "tmdb"
+    source_key: Literal["tmdb", "justwatch", "combined"] = "tmdb"
     kind: Literal["CATALOG", "RECENTLY_ADDED", "CUSTOM_FILTER", "CHART", "UPCOMING"] = "CATALOG"
+    # Only meaningful for source_key=combined.
+    combine_mode: Literal["UNION", "INTERSECTION"] = "UNION"
     offer_types: list[Literal["FLATRATE", "RENT", "BUY", "ADS", "FREE"]] | None = None
     genre_ids: list[int] = Field(default_factory=list, max_length=20)
     exclude_genre_ids: list[int] = Field(default_factory=list, max_length=20)
@@ -131,8 +133,9 @@ class CollectionCreateIn(BaseModel):
 class CollectionUpdateIn(BaseModel):
     name: str | None = Field(default=None, min_length=3, max_length=300)
     # The source of an existing collection is immutable; it is validated, not changed.
-    source_key: Literal["tmdb", "justwatch"] | None = None
+    source_key: Literal["tmdb", "justwatch", "combined"] | None = None
     kind: Literal["CATALOG", "RECENTLY_ADDED", "CUSTOM_FILTER", "CHART", "UPCOMING"] | None = None
+    combine_mode: Literal["UNION", "INTERSECTION"] | None = None
     offer_types: list[Literal["FLATRATE", "RENT", "BUY", "ADS", "FREE"]] | None = None
     genre_ids: list[int] | None = Field(default=None, max_length=20)
     exclude_genre_ids: list[int] | None = Field(default=None, max_length=20)
@@ -236,6 +239,8 @@ class ProviderOut(BaseModel):
     mapping_verified_tv: bool = False
     justwatch_provider_id: str | None = None
     justwatch_verified: bool = False
+    justwatch_movie_verified: bool = False
+    justwatch_tv_verified: bool = False
     justwatch_monetization_types: list[str] = []
     collections_count: int
     movie_collections: int

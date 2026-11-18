@@ -94,6 +94,13 @@ class UpcomingRunOut(BaseModel):
     next_run_at: datetime
 
 
+class CatalogAcquisitionOut(BaseModel):
+    collection_id: uuid.UUID
+    collection_name: str
+    provider_name: str
+    next_acquire_at: datetime
+
+
 class SystemStatusOut(BaseModel):
     health: SystemHealthOut
     queues: dict[str, int]
@@ -102,6 +109,7 @@ class SystemStatusOut(BaseModel):
     backup: BackupStatusOut
     pending_approvals: int
     upcoming: list[UpcomingRunOut]
+    catalog_acquisitions: list[CatalogAcquisitionOut]
 
 
 class SettingItemOut(BaseModel):

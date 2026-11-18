@@ -12,6 +12,7 @@ from fastapi import APIRouter
 from app.api.routers import (
     auth,
     bindings,
+    catalog_changes,
     collections,
     config,
     credentials,
@@ -42,6 +43,7 @@ api_router.include_router(dashboard.router)
 api_router.include_router(providers.router)
 api_router.include_router(sources.router)
 api_router.include_router(collections.router)
+api_router.include_router(catalog_changes.router)
 api_router.include_router(snapshots.router)
 
 # Sync (lane C).

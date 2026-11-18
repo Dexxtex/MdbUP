@@ -35,6 +35,7 @@ from app.core.time import ensure_utc, utcnow
 from app.db.models import Collection, MdblistTarget, SyncBinding, SyncRun
 from app.domain.enums import SourceStatus, SyncRunStatus
 from app.repositories import sources as sources_repo
+from app.services import catalog_schedule
 from app.services import credentials as credentials_service
 from app.services.credentials import CredentialKind
 
@@ -211,6 +212,21 @@ def upcoming_bindings(db: Session, *, limit: int = 5) -> list[dict[str, Any]]:
     ]
 
 
+def upcoming_catalog_acquisitions(
+    db: Session, *, now: datetime | None = None
+) -> list[dict[str, Any]]:
+    """Next 24h of staggered JustWatch acquisitions, one entry per collection."""
+    return [
+        {
+            "collection_id": item.collection_id,
+            "collection_name": item.collection_name,
+            "provider_name": item.provider_name,
+            "next_acquire_at": item.next_acquire_at,
+        }
+        for item in catalog_schedule.upcoming_acquisitions(db, now=now)
+    ]
+
+
 def _parse_timestamp(value: Any) -> datetime | None:
     if not isinstance(value, str) or not value.strip():
         return None
@@ -271,6 +287,7 @@ def get_system_status(
         "backup": read_backup_status(settings, now=now).as_dict(),
         "pending_approvals": pending_approvals(db),
         "upcoming": upcoming_bindings(db),
+        "catalog_acquisitions": upcoming_catalog_acquisitions(db, now=now),
     }
 
 

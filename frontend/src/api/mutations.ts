@@ -6,6 +6,7 @@ import type {
   AcquireOut,
   AppSettings,
   Binding,
+  CombineMode,
   BindingThresholds,
   Collection,
   CredentialKind,
@@ -18,6 +19,7 @@ import type {
   RunAccepted,
   SessionResponse,
   SettingsOut,
+  SourceHealthcheck,
   Target,
   User,
 } from "./types";
@@ -58,7 +60,8 @@ export interface CreateBindingPayload {
 
 export interface CollectionCreatePayload {
   provider_id?: string;
-  source_key?: "tmdb" | "justwatch";
+  source_key?: "tmdb" | "justwatch" | "combined";
+  combine_mode?: CombineMode;
   media_type: string;
   name: string;
   slug: string;
@@ -83,7 +86,8 @@ export interface CollectionCreatePayload {
 
 export interface CollectionUpdatePayload {
   name?: string;
-  source_key?: "tmdb" | "justwatch";
+  source_key?: "tmdb" | "justwatch" | "combined";
+  combine_mode?: CombineMode;
   kind?: string;
   offer_types?: OfferType[];
   genre_ids?: number[];
@@ -205,6 +209,21 @@ export function useUpdateCollection(collectionId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.collection(collectionId) });
       void queryClient.invalidateQueries({ queryKey: ["collections"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+    },
+  });
+}
+
+export function useHealthcheckSource(sourceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<SourceHealthcheck>(`/sources/${sourceId}/healthcheck`, {
+        method: "POST",
+        body: {},
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sources });
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
     },
   });

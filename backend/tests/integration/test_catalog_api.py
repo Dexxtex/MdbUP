@@ -195,6 +195,21 @@ def test_acquire_runs_eagerly_and_creates_valid_snapshot(
     assert paged["total"] == 2
     assert paged["items"][0]["position"] == 1
 
+    searched = client.get(f"/api/snapshots/{snapshot_id}/items?search=RELOADED").json()
+    assert searched["total"] == 1
+    assert searched["items"][0]["title"] == "Matrix Reloaded"
+    assert searched["items"][0]["position"] == 1
+
+    searched_page = client.get(
+        f"/api/snapshots/{snapshot_id}/items?search=matrix&page=2&page_size=1"
+    ).json()
+    assert searched_page["total"] == 2
+    assert searched_page["items"][0]["title"] == "Matrix Reloaded"
+
+    empty = client.get(f"/api/snapshots/{snapshot_id}/items?search=inesistente").json()
+    assert empty["total"] == 0
+    assert empty["items"] == []
+
     dashboard = client.get("/api/dashboard").json()
     assert dashboard["counters"]["media"] == 2
     assert dashboard["counters"]["valid_snapshots"] == 1

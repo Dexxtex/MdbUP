@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { useSearchParams } from "react-router-dom";
 import {
   useDeleteCredential,
+  useHealthcheckSource,
   useSaveCredential,
   useUpdateSettings,
   useVerifyCredential,
@@ -15,6 +16,7 @@ import type {
   CredentialKind,
   CredentialStatus,
   CredentialVerifyOut,
+  DefaultSource,
 } from "../api/types";
 import {
   EmptyState,
@@ -30,11 +32,13 @@ import {
   Field,
   Input,
   PageHeader,
+  ToggleChip,
 } from "../components/ui/primitives";
 import { StatusPill } from "../components/ui/status-pill";
 import { Timestamp } from "../components/ui/time";
 import { useToast } from "../components/ui/toast";
 import { cn } from "../lib/cn";
+import { resolveDefaultSource } from "../lib/collection-builder";
 import {
   ChangePasswordSection,
   ConfigPortabilitySection,
@@ -482,8 +486,47 @@ function CredentialsPanel() {
 }
 
 function ConnectorsPanel() {
+  const toast = useToast();
   const sources = useSources();
+  const settings = useSettings();
+  const updateSettings = useUpdateSettings();
   const justwatchSource = (sources.data ?? []).find((source) => source.key === "justwatch");
+  const healthcheck = useHealthcheckSource(justwatchSource?.id ?? "");
+  const [defaultSource, setDefaultSource] = useState<DefaultSource>("justwatch");
+  const [catalogScheduleEnabled, setCatalogScheduleEnabled] = useState(false);
+
+  useEffect(() => {
+    if (!settings.data) return;
+    setDefaultSource(resolveDefaultSource(settings.data.default_source));
+    setCatalogScheduleEnabled(settings.data.catalog_schedule_enabled === true);
+  }, [settings.data]);
+
+  const saveDefaultSource = (value: DefaultSource) => {
+    setDefaultSource(value);
+    updateSettings.mutate(
+      { default_source: value },
+      {
+        onSuccess: () =>
+          toast.notify({ tone: "success", title: "Fonte predefinita aggiornata" }),
+      },
+    );
+  };
+
+  const saveCatalogSchedule = (enabled: boolean) => {
+    setCatalogScheduleEnabled(enabled);
+    updateSettings.mutate(
+      { catalog_schedule_enabled: enabled },
+      {
+        onSuccess: () =>
+          toast.notify({
+            tone: "success",
+            title: enabled
+              ? "Pianificazione catalogo attivata"
+              : "Pianificazione catalogo disattivata",
+          }),
+      },
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -495,6 +538,45 @@ function ConnectorsPanel() {
           Stato runtime, rate-limit, cache e mapping verificati delle fonti non TMDb.
           Le credenziali restano nella scheda Credenziali.
         </p>
+
+        <Card className="mb-4" testId="default-source-settings">
+          <h3 className="text-base font-semibold text-ink">Fonte predefinita</h3>
+          <p className="text-sm text-ink-muted">
+            Il builder propone questa fonte per le nuove collezioni.
+          </p>
+          {settings.isPending ? <TableSkeleton rows={1} /> : null}
+          {settings.isError ? (
+            <ErrorState error={settings.error} onRetry={() => void settings.refetch()} />
+          ) : null}
+          {settings.isSuccess ? (
+            <div className="mt-3 space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <ToggleChip
+                  testId="default-source-justwatch"
+                  pressed={defaultSource === "justwatch"}
+                  onClick={() => saveDefaultSource("justwatch")}
+                >
+                  JustWatch
+                </ToggleChip>
+                <ToggleChip
+                  testId="default-source-tmdb"
+                  pressed={defaultSource === "tmdb"}
+                  onClick={() => saveDefaultSource("tmdb")}
+                >
+                  TMDb
+                </ToggleChip>
+              </div>
+              <Checkbox
+                id="catalog-schedule-enabled"
+                label="Pianifica acquisizioni catalogo scaglionate nelle 24 ore"
+                checked={catalogScheduleEnabled}
+                onChange={(event) => saveCatalogSchedule(event.target.checked)}
+              />
+              {updateSettings.isError ? <ErrorState error={updateSettings.error} /> : null}
+            </div>
+          ) : null}
+        </Card>
+
         {sources.isPending ? <TableSkeleton rows={2} /> : null}
         {sources.isError ? (
           <ErrorState error={sources.error} onRetry={() => void sources.refetch()} />
@@ -505,6 +587,40 @@ function ConnectorsPanel() {
             description="La fonte non è registrata nel backend."
           />
         ) : null}
+
+        {justwatchSource ? (
+          <Card className="mb-4" testId="justwatch-healthcheck">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-ink">Test connettività JustWatch</h3>
+                <p className="text-sm text-ink-muted">
+                  Verifica la raggiungibilità della fonte aggregatore. I mapping verificati
+                  restano visibili nella card qui sotto.
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => healthcheck.mutate()}
+                busy={healthcheck.isPending}
+                data-testid="justwatch-healthcheck-button"
+              >
+                Test connettività JustWatch
+              </Button>
+            </div>
+            {healthcheck.isError ? <ErrorState error={healthcheck.error} /> : null}
+            {healthcheck.isSuccess ? (
+              <div className="mt-3">
+                <InlineNotice tone={healthcheck.data.ok ? "success" : "warning"}>
+                  {healthcheck.data.message}
+                  {healthcheck.data.latency_ms != null
+                    ? ` · ${healthcheck.data.latency_ms} ms`
+                    : ""}
+                </InlineNotice>
+              </div>
+            ) : null}
+          </Card>
+        ) : null}
+
         {justwatchSource ? <JustWatchConnectorCard source={justwatchSource} /> : null}
       </section>
     </div>

@@ -506,6 +506,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/catalog-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cambi catalogo (aggiunti/rimossi) tra snapshot validi consecutivi */
+        get: operations["list_catalog_changes_api_catalog_changes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/snapshots/{snapshot_id}/items": {
         parameters: {
             query?: never;
@@ -1001,6 +1018,120 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** CatalogAcquisitionOut */
+        CatalogAcquisitionOut: {
+            /**
+             * Collection Id
+             * Format: uuid
+             */
+            collection_id: string;
+            /** Collection Name */
+            collection_name: string;
+            /** Provider Name */
+            provider_name: string;
+            /**
+             * Next Acquire At
+             * Format: date-time
+             */
+            next_acquire_at: string;
+        };
+        /** CatalogChangeCountersOut */
+        CatalogChangeCountersOut: {
+            /** Added Today */
+            added_today: number;
+            /** Removed Today */
+            removed_today: number;
+            /** Added Window */
+            added_window: number;
+            /** Removed Window */
+            removed_window: number;
+        };
+        /** CatalogChangeOut */
+        CatalogChangeOut: {
+            /**
+             * Media Id
+             * Format: uuid
+             */
+            media_id: string;
+            /** Title */
+            title: string;
+            /** Year */
+            year?: number | null;
+            /** Media Type */
+            media_type: string;
+            /**
+             * Provider Id
+             * Format: uuid
+             */
+            provider_id: string;
+            /** Provider Slug */
+            provider_slug: string;
+            /** Provider Name */
+            provider_name: string;
+            /** Source Key */
+            source_key: string;
+            /** Source Label */
+            source_label: string;
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "ADDED" | "REMOVED";
+            /**
+             * Detected At
+             * Format: date-time
+             */
+            detected_at: string;
+            /**
+             * Detected At Rome
+             * Format: date-time
+             */
+            detected_at_rome: string;
+            /**
+             * Collection Id
+             * Format: uuid
+             */
+            collection_id: string;
+            /** Collection Name */
+            collection_name: string;
+            /** Collection Slug */
+            collection_slug: string;
+            /**
+             * Previous Snapshot Id
+             * Format: uuid
+             */
+            previous_snapshot_id: string;
+            /**
+             * Current Snapshot Id
+             * Format: uuid
+             */
+            current_snapshot_id: string;
+            /** Season Number */
+            season_number?: number | null;
+            /** Episode Number */
+            episode_number?: number | null;
+            /** Episode Event Type */
+            episode_event_type?: string | null;
+        };
+        /** CatalogChangesOut */
+        CatalogChangesOut: {
+            /** Items */
+            items: components["schemas"]["CatalogChangeOut"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Window */
+            window: string;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            counters: components["schemas"]["CatalogChangeCountersOut"];
+        };
         /** ChangePasswordRequest */
         ChangePasswordRequest: {
             /** Current Password */
@@ -1026,13 +1157,19 @@ export interface components {
              * @default tmdb
              * @enum {string}
              */
-            source_key: "tmdb" | "justwatch";
+            source_key: "tmdb" | "justwatch" | "combined";
             /**
              * Kind
              * @default CATALOG
              * @enum {string}
              */
             kind: "CATALOG" | "RECENTLY_ADDED" | "CUSTOM_FILTER" | "CHART" | "UPCOMING";
+            /**
+             * Combine Mode
+             * @default UNION
+             * @enum {string}
+             */
+            combine_mode: "UNION" | "INTERSECTION";
             /** Offer Types */
             offer_types?: ("FLATRATE" | "RENT" | "BUY" | "ADS" | "FREE")[] | null;
             /** Genre Ids */
@@ -1180,9 +1317,11 @@ export interface components {
             /** Name */
             name?: string | null;
             /** Source Key */
-            source_key?: ("tmdb" | "justwatch") | null;
+            source_key?: ("tmdb" | "justwatch" | "combined") | null;
             /** Kind */
             kind?: ("CATALOG" | "RECENTLY_ADDED" | "CUSTOM_FILTER" | "CHART" | "UPCOMING") | null;
+            /** Combine Mode */
+            combine_mode?: ("UNION" | "INTERSECTION") | null;
             /** Offer Types */
             offer_types?: ("FLATRATE" | "RENT" | "BUY" | "ADS" | "FREE")[] | null;
             /** Genre Ids */
@@ -1732,6 +1871,16 @@ export interface components {
              */
             justwatch_verified: boolean;
             /**
+             * Justwatch Movie Verified
+             * @default false
+             */
+            justwatch_movie_verified: boolean;
+            /**
+             * Justwatch Tv Verified
+             * @default false
+             */
+            justwatch_tv_verified: boolean;
+            /**
              * Justwatch Monetization Types
              * @default []
              */
@@ -2225,6 +2374,8 @@ export interface components {
             pending_approvals: number;
             /** Upcoming */
             upcoming: components["schemas"]["UpcomingRunOut"][];
+            /** Catalog Acquisitions */
+            catalog_acquisitions: components["schemas"]["CatalogAcquisitionOut"][];
         };
         /**
          * TargetCreateIn
@@ -3390,11 +3541,51 @@ export interface operations {
             };
         };
     };
+    list_catalog_changes_api_catalog_changes_get: {
+        parameters: {
+            query?: {
+                window?: "24h" | "7d" | "14d" | "30d";
+                provider_id?: string | null;
+                media_type?: ("MOVIE" | "SHOW") | null;
+                source_key?: ("justwatch" | "tmdb") | null;
+                direction?: ("ADDED" | "REMOVED") | null;
+                search?: string | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogChangesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_snapshot_items_api_snapshots__snapshot_id__items_get: {
         parameters: {
             query?: {
                 page?: number;
                 page_size?: number;
+                /** @description Filtro sul titolo */
+                search?: string | null;
             };
             header?: never;
             path: {

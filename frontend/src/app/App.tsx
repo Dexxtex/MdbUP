@@ -5,6 +5,7 @@ import BindingEditPage from "../pages/BindingEditPage";
 import BindingWizardPage from "../pages/BindingWizardPage";
 import BindingsPage from "../pages/BindingsPage";
 import BootstrapPage from "../pages/BootstrapPage";
+import CatalogChangesPage from "../pages/CatalogChangesPage";
 import CollectionDetailPage from "../pages/CollectionDetailPage";
 import CollectionEditPage from "../pages/CollectionEditPage";
 import CollectionsPage from "../pages/CollectionsPage";
@@ -31,6 +32,7 @@ export default function App() {
           }
         >
           <Route index element={<DashboardPage />} />
+          <Route path="catalog-changes" element={<CatalogChangesPage />} />
           <Route path="providers" element={<ProvidersPage />} />
           <Route path="collections" element={<CollectionsPage />} />
           <Route path="collections/:collectionId" element={<CollectionDetailPage />} />

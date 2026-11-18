@@ -92,9 +92,16 @@ def list_snapshot_items(
     *,
     page: int = 1,
     page_size: int = 50,
+    search: str | None = None,
 ) -> tuple[list[SnapshotItemView], int]:
+    """Paginated items, optionally filtered by a case-insensitive title match.
+
+    ``search`` matches ``Media.title`` only: provider and offer metadata are not
+    searched, and unresolved items (no media row) never match.
+    """
     if snapshots_repo.get_snapshot(db, snapshot_id) is None:
         raise NotFoundError("Snapshot non trovato.", details={"snapshot_id": str(snapshot_id)})
+    term = (search or "").strip()
     offset = (page - 1) * page_size
     stmt = (
         select(SnapshotItem, Media)
@@ -104,6 +111,16 @@ def list_snapshot_items(
         .limit(page_size)
         .offset(offset)
     )
+    count_stmt = (
+        select(func.count())
+        .select_from(SnapshotItem)
+        .outerjoin(Media, SnapshotItem.media_id == Media.id)
+        .where(SnapshotItem.snapshot_id == snapshot_id)
+    )
+    if term:
+        title_matches = Media.title.icontains(term, autoescape=True)
+        stmt = stmt.where(title_matches)
+        count_stmt = count_stmt.where(title_matches)
     views: list[SnapshotItemView] = []
     for item, media in db.execute(stmt).all():
         payload = item.source_payload or {}
@@ -125,12 +142,5 @@ def list_snapshot_items(
                 source_offer_types=_offer_types(payload),
             )
         )
-    total = int(
-        db.scalar(
-            select(func.count())
-            .select_from(SnapshotItem)
-            .where(SnapshotItem.snapshot_id == snapshot_id)
-        )
-        or 0
-    )
+    total = int(db.scalar(count_stmt) or 0)
     return views, total

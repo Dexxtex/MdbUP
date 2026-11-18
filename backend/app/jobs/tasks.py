@@ -9,6 +9,7 @@ pretending the job was queued.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -26,7 +27,7 @@ from app.core.logging import get_logger
 from app.core.time import utcnow
 from app.db.models import JobExecution
 from app.db.session import session_scope
-from app.domain.enums import AuditActorType, JobStatus, SyncRunStatus
+from app.domain.enums import COMBINED_SOURCE_KEY, AuditActorType, JobStatus, SyncRunStatus
 from app.repositories import collections as collections_repo
 from app.repositories import runs as runs_repo
 from app.repositories import sources as sources_repo
@@ -40,6 +41,9 @@ ACQUISITION_QUEUE = "acquisitions"
 RUN_SYNC_TASK = "app.jobs.tasks.run_sync_task"
 RECONCILE_SYNC_RUN_TASK = "app.jobs.tasks.reconcile_sync_run_task"
 ENQUEUE_DUE_BINDINGS_TASK = "app.jobs.tasks.enqueue_due_bindings"
+ENQUEUE_SCHEDULED_CATALOG_ACQUISITIONS_TASK = (
+    "app.jobs.tasks.enqueue_scheduled_catalog_acquisitions"
+)
 CLEANUP_OLD_DATA_TASK = "app.jobs.tasks.cleanup_old_data"
 SWEEP_STALE_RUNS_TASK = "app.jobs.tasks.sweep_stale_runs"
 DETECT_TV_CHANGES_TASK = "app.jobs.tasks.detect_tv_changes"
@@ -91,6 +95,15 @@ def mark_job_finished(
     db.flush()
 
 
+class _LocalOnlyConnector:
+    """Placeholder for a source whose acquisition is entirely local."""
+
+    key = COMBINED_SOURCE_KEY
+
+    def close(self) -> None:
+        return None
+
+
 def acquire_collection_task(
     collection_id: str | uuid.UUID,
     job_execution_id: str | uuid.UUID | None = None,
@@ -121,17 +134,26 @@ def acquire_collection_task(
                     "Fonte della collezione non trovata.",
                     details={"collection_id": str(collection_uuid)},
                 )
-            connector = registry.create_connector(db, settings, source.key)
-            try:
+            if source.key == COMBINED_SOURCE_KEY:
                 outcome = acquisition.acquire_collection(
                     db,
                     collection_uuid,
-                    connector,
+                    _LocalOnlyConnector(),
                     actor_type=AuditActorType.SYSTEM,
                     job_execution_id=job_uuid,
                 )
-            finally:
-                connector.close()
+            else:
+                connector = registry.create_connector(db, settings, source.key)
+                try:
+                    outcome = acquisition.acquire_collection(
+                        db,
+                        collection_uuid,
+                        connector,
+                        actor_type=AuditActorType.SYSTEM,
+                        job_execution_id=job_uuid,
+                    )
+                finally:
+                    connector.close()
         except AppError as exc:
             db.rollback()
             if exc.code in {"CREDENTIAL_MISSING", "ENCRYPTION_KEY_MISSING"}:
@@ -490,6 +512,27 @@ def enqueue_due_bindings() -> dict[str, Any]:
         "enqueued": outcome.enqueued,
         "skipped": outcome.skipped,
         "run_ids": [str(run_id) for run_id in outcome.run_ids],
+    }
+
+
+def enqueue_scheduled_catalog_acquisitions(now: str | None = None) -> dict[str, Any]:
+    """Celery beat task: enqueue at most one staggered JustWatch acquisition.
+
+    ``now`` is an ISO timestamp used by the tests to pin the slot; production
+    leaves it empty and the task reads the clock.
+    """
+    from app.services import catalog_schedule
+
+    settings = get_settings()
+    moment = datetime.fromisoformat(now) if now else None
+    with session_scope() as db:
+        outcome = catalog_schedule.enqueue_due_catalog_acquisitions(db, settings, now=moment)
+    return {
+        "due": outcome.due,
+        "enqueued": outcome.enqueued,
+        "collection_id": str(outcome.collection_id) if outcome.collection_id else None,
+        "job_id": str(outcome.job_id) if outcome.job_id else None,
+        "reason": outcome.reason,
     }
 
 

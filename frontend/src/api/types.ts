@@ -98,7 +98,18 @@ export type User = Schemas["UserOut"];
 export type SessionResponse = Schemas["SessionOut"];
 
 /* Provider (`app/api/schemas_catalog.py`). */
-export type Provider = Schemas["ProviderOut"];
+/**
+ * Fase 9 aggiunge la verifica JustWatch per media type. I campi sono opzionali
+ * nel tipo UI per retrocompatibilità con fixture e backend precedenti;
+ * `justwatch_verified` resta il fallback.
+ */
+export type Provider = Omit<
+  Schemas["ProviderOut"],
+  "justwatch_movie_verified" | "justwatch_tv_verified"
+> & {
+  justwatch_movie_verified?: boolean;
+  justwatch_tv_verified?: boolean;
+};
 export type ProviderList = Schemas["ProviderListOut"];
 
 /**
@@ -175,6 +186,15 @@ export type SnapshotList = Omit<Schemas["SnapshotListOut"], "items"> & {
 };
 export type AvailabilityStatus = "CURRENT" | "UPCOMING" | "LEAVING";
 
+/** Fonte predefinita del builder, persistita in `settings.default_source`. */
+export type DefaultSource = "justwatch" | "tmdb";
+
+/** Fonte selezionabile nel builder: TMDb, JustWatch o combinata locale. */
+export type BuilderSource = "tmdb" | "justwatch" | "combined";
+
+/** Modalità di combinazione per `source_key=combined`. */
+export type CombineMode = "UNION" | "INTERSECTION";
+
 export type SnapshotItem = Omit<
   Schemas["SnapshotItemOut"],
   "availability_status" | "date_basis"
@@ -224,6 +244,54 @@ export type CollectionList = Omit<Schemas["CollectionListOut"], "items"> & {
 };
 
 export type AcquireOut = Schemas["AcquireOut"];
+export type SourceHealthcheck = Schemas["SourceHealthcheckOut"];
+
+/* Cambi catalogo (`GET /api/catalog-changes`, Fase 9). */
+export type CatalogChangeWindow = "24h" | "7d" | "14d" | "30d";
+
+/** Enumerazione backend serializzata come stringa (stile enums.py). */
+export type CatalogChangeDirection = "ADDED" | "REMOVED";
+
+export interface CatalogChangeItem {
+  id: string;
+  media_id: string;
+  title: string | null;
+  year: number | null;
+  media_type: MediaType;
+  provider_id: string;
+  provider_slug: string | null;
+  provider_name: string;
+  source_key: string;
+  source_label: string;
+  direction: CatalogChangeDirection;
+  detected_at: string;
+  detected_at_rome: string | null;
+  collection_id: string | null;
+  collection_name: string | null;
+  collection_slug: string | null;
+  previous_snapshot_id: string | null;
+  current_snapshot_id: string | null;
+  season_number: number | null;
+  episode_number: number | null;
+  episode_event_type: EpisodeEventType | null;
+}
+
+export interface CatalogChangeCounters {
+  added_today: number;
+  removed_today: number;
+  added_window: number;
+  removed_window: number;
+}
+
+export interface CatalogChangeResponse {
+  items: CatalogChangeItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  window: CatalogChangeWindow;
+  generated_at: string;
+  counters: CatalogChangeCounters;
+}
 
 /* Dashboard (`app/api/schemas_catalog.py` + `app/services/dashboard.py`). */
 export type DashboardCounters = Schemas["DashboardOut"]["counters"];
@@ -304,6 +372,8 @@ export type SettingsPatchRequest = Schemas["SettingsPatchRequest"];
  */
 export interface AppSettings {
   app_timezone?: string;
+  default_source?: DefaultSource;
+  catalog_schedule_enabled?: boolean;
   sync_batch_size?: number;
   sync_max_removal_absolute?: number;
   sync_max_removal_percent?: number;
@@ -456,6 +526,14 @@ export interface SystemStatusUpcoming {
   next_run_at: string;
 }
 
+/** Acquisizione catalogo scaglionata nelle prossime 24 ore (Fase 9). */
+export interface SystemStatusCatalogAcquisition {
+  collection_id: string;
+  collection_name: string;
+  provider_name: string;
+  next_acquire_at: string;
+}
+
 export interface SystemStatus {
   /** Shape of GET /api/system/status (Phase 7 backend). */
   health?: SystemStatusHealth | null;
@@ -465,6 +543,7 @@ export interface SystemStatus {
   backup?: SystemStatusBackup | null;
   pending_approvals?: number | null;
   upcoming?: SystemStatusUpcoming[] | null;
+  catalog_acquisitions?: SystemStatusCatalogAcquisition[] | null;
   /** Legacy/tolerant fields kept for older fixtures. */
   status?: string | null;
   version?: string | null;

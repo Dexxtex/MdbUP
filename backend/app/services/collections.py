@@ -52,10 +52,12 @@ def is_justwatch_collection(db: Session, collection: Collection) -> bool:
     return source is not None and source.key == "justwatch"
 
 
-def _source_label(source: Source | None, kind: str) -> str | None:
+def source_label(source: Source | None, kind: str) -> str | None:
     """Attribution label: an aggregator chart is never an official Top 10."""
     if source is None:
         return None
+    if source.key == "combined":
+        return "Combinata locale (JustWatch + TMDb)"
     if source.key == "justwatch":
         if kind == "CHART":
             return "Classifica JustWatch"
@@ -168,7 +170,7 @@ def _summary(
         kind=row.kind,
         origin=row.origin,
         date_basis=row.date_basis,
-        source_label=_source_label(source, row.kind),
+        source_label=source_label(source, row.kind),
         description=row.description,
         filters=filters,
         quality_flags=dict(row.quality_flags or {}),

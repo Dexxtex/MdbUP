@@ -8,6 +8,13 @@ answer on 2026-11-18: a mapping counts as verified only when **both** the
 ambiguous (``Apple TV`` is ``atp``/``appletvplus``, not the Apple TV Store
 ``itu``; ``Amazon Prime Video`` is not ``Amazon Prime Video with Ads``).
 
+The mapping row stays unique per ``(source, country, external id)``: the
+per-media-type ids and flags live in ``metadata`` (``movie_external_id``,
+``tv_external_id``, ``movie_verified``, ``tv_verified``), mirroring the TMDb
+mapping. JustWatch verifies one package for both types, so the two flags always
+agree today; keeping them separate lets a future package split without a
+schema change.
+
 One live package request feeds the whole sync: mappings, verification, the
 ``FLATRATE`` check and the collection plan all read the same payload. Providers
 without ``FLATRATE`` (Rakuten TV, ``wki``) are verified and reported but get no
@@ -225,6 +232,7 @@ def _upsert_mappings(
         provider = providers_repo.get_provider_by_slug(db, slug)
         if provider is None:
             continue
+        verified = _matches(package, mapping)
         providers_repo.upsert_mapping(
             db,
             provider_id=provider.id,
@@ -233,7 +241,7 @@ def _upsert_mappings(
             external_provider_id=mapping.short_name,
             external_name=package.name,
             is_primary=True,
-            is_verified=_matches(package, mapping),
+            is_verified=verified,
             metadata={
                 "seed": "app/services/justwatch_collections.py",
                 "provider_slug": slug,
@@ -242,6 +250,12 @@ def _upsert_mappings(
                 "monetization_types": list(package.monetization_types),
                 "verified_at": verified_at,
                 "verified_on": MAPPING_VERIFIED_AT,
+                # Stesso shortName per entrambi i tipi, ma salvato separatamente
+                # come per i mapping TMDb: una riga sola, nessun duplicato.
+                "movie_external_id": mapping.short_name,
+                "tv_external_id": mapping.short_name,
+                "movie_verified": verified,
+                "tv_verified": verified,
             },
         )
         count += 1

@@ -28,6 +28,7 @@ class SettingSpec:
     description: str
     minimum: float | None = None
     maximum: float | None = None
+    choices: tuple[str, ...] | None = None
 
     def default_value(self, settings: Settings) -> Any:
         return getattr(settings, self.default_attr)
@@ -89,6 +90,22 @@ SETTING_SPECS: dict[str, SettingSpec] = {
             description="Paese predefinito per collezioni e mapping provider.",
         ),
         SettingSpec(
+            key="default_source",
+            type=str,
+            default_attr="default_source",
+            description="Fonte predefinita per le nuove collezioni (JustWatch o TMDb).",
+            choices=("justwatch", "tmdb"),
+        ),
+        SettingSpec(
+            key="catalog_schedule_enabled",
+            type=bool,
+            default_attr="catalog_schedule_enabled",
+            description=(
+                "Abilita le acquisizioni scaglionate del catalogo JustWatch "
+                "(una collezione alla volta, slot giornalieri)."
+            ),
+        ),
+        SettingSpec(
             key="app_timezone",
             type=str,
             default_attr="app_timezone",
@@ -144,6 +161,10 @@ def coerce_value(spec: SettingSpec, value: Any) -> Any:
         raise InvalidSettingValueError(f"'{spec.key}' deve essere >= {spec.minimum}.")
     if spec.maximum is not None and coerced > spec.maximum:
         raise InvalidSettingValueError(f"'{spec.key}' deve essere <= {spec.maximum}.")
+    if spec.choices is not None and coerced not in spec.choices:
+        raise InvalidSettingValueError(
+            f"'{spec.key}' accetta solo i valori: {', '.join(spec.choices)}."
+        )
     return coerced
 
 

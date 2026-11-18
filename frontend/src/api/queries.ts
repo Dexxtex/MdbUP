@@ -2,9 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { apiFetch, isApiError, pageItems } from "./client";
 import { queryKeys, type CollectionFilters, type RunFilters } from "./query-keys";
 import { settingsFromItems } from "./settings";
+import { catalogChangesQuery, type CatalogChangeFilters } from "../lib/catalog-changes";
 import type {
   AppSettings,
   Binding,
+  CatalogChangeResponse,
   BindingList,
   Collection,
   CollectionList,
@@ -62,6 +64,19 @@ export function useDashboard() {
     queryFn: ({ signal }) => apiFetch<DashboardResponse>("/dashboard", { signal }),
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
+  });
+}
+
+export function useCatalogChanges(filters: CatalogChangeFilters) {
+  return useQuery({
+    queryKey: queryKeys.catalogChanges(filters),
+    queryFn: ({ signal }) =>
+      apiFetch<CatalogChangeResponse>(
+        `/catalog-changes${catalogChangesQuery(filters)}`,
+        { signal },
+      ),
+    staleTime: 15_000,
+    retry: false,
   });
 }
 
@@ -163,14 +178,25 @@ export function useCollectionEpisodeEvents(
   });
 }
 
-export function useSnapshotItems(snapshotId: string | undefined, pageSize = 50) {
+export function useSnapshotItems(
+  snapshotId: string | undefined,
+  pageSize = 50,
+  search = "",
+) {
+  const needle = search.trim();
   return useQuery({
-    queryKey: queryKeys.snapshotItems(snapshotId ?? ""),
-    queryFn: ({ signal }) =>
-      apiFetch<SnapshotItemList>(
-        `/snapshots/${snapshotId}/items?page=1&page_size=${pageSize}`,
+    queryKey: queryKeys.snapshotItems(snapshotId ?? "", needle),
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams({
+        page: "1",
+        page_size: String(pageSize),
+      });
+      if (needle) params.set("search", needle);
+      return apiFetch<SnapshotItemList>(
+        `/snapshots/${snapshotId}/items?${params.toString()}`,
         { signal },
-      ),
+      );
+    },
     enabled: Boolean(snapshotId),
   });
 }

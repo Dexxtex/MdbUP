@@ -41,6 +41,7 @@ test("crea una collezione CUSTOM_FILTER multi-provider dalla UI", async ({ page 
   await page.goto("/app/collections/new");
   await expect(page.getByTestId("collection-builder")).toBeVisible();
 
+  await page.getByTestId("builder-source-tmdb").click();
   await page.locator("#collection-kind").selectOption("CUSTOM_FILTER");
   await page.getByTestId("media-type-MOVIE").click();
 

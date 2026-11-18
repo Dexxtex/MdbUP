@@ -1,4 +1,4 @@
-import type { CollectionKind, Provider } from "../api/types";
+import type { CollectionKind, MediaType, Provider } from "../api/types";
 import type { Tone } from "./status";
 
 /** Tipi di collezione che il backend JustWatch accetta (`_JUSTWATCH_KINDS`). */
@@ -13,8 +13,22 @@ export function isJustWatchSource(sourceKey?: string | null): boolean {
   return sourceKey === "justwatch";
 }
 
-export function isVerifiedJustWatchProvider(provider: Provider): boolean {
-  return provider.justwatch_verified === true && Boolean(provider.justwatch_provider_id);
+export function isVerifiedJustWatchProvider(
+  provider: Provider,
+  mediaType?: MediaType,
+): boolean {
+  const specific =
+    mediaType === "MOVIE"
+      ? provider.justwatch_movie_verified
+      : mediaType === "SHOW"
+        ? provider.justwatch_tv_verified
+        : undefined;
+  const verified =
+    specific ??
+    (provider.justwatch_verified === true ||
+      provider.justwatch_movie_verified === true ||
+      provider.justwatch_tv_verified === true);
+  return verified && Boolean(provider.justwatch_provider_id);
 }
 
 export interface JustWatchCapability {

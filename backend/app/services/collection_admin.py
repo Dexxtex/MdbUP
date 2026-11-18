@@ -18,6 +18,8 @@ from app.api.schemas_catalog import CollectionCreateIn, CollectionUpdateIn
 from app.core.config import Settings
 from app.db.models import Collection, ProviderMapping
 from app.domain.enums import (
+    COMBINED_DERIVATION,
+    COMBINED_SOURCE_KEY,
     AuditActorType,
     CollectionKind,
     CollectionOrigin,
@@ -223,6 +225,35 @@ def _validate_local_sources(
     return sources
 
 
+def _validate_combined_sources(
+    db: Session,
+    source_collection_ids: list[uuid.UUID],
+    *,
+    media_type: str,
+) -> list[Collection]:
+    """Combined collections need at least two sources, each with a valid snapshot."""
+    if len(source_collection_ids) < 2:
+        raise ValidationError(
+            "Una collezione combinata richiede almeno due collezioni sorgente.",
+            code="COMBINED_LOCAL_SOURCES_MIN",
+            details={"source_collection_ids": [str(item) for item in source_collection_ids]},
+        )
+    sources = _validate_local_sources(db, source_collection_ids, media_type=media_type)
+    for source in sources:
+        snapshot = (
+            snapshots_repo.get_snapshot(db, source.last_valid_snapshot_id)
+            if source.last_valid_snapshot_id is not None
+            else None
+        )
+        if snapshot is None or not snapshot.is_valid:
+            raise ValidationError(
+                "Ogni collezione sorgente combinata deve avere uno snapshot valido.",
+                code="COMBINED_LOCAL_SOURCE_INVALID",
+                details={"source_collection_slug": source.slug},
+            )
+    return sources
+
+
 def _provider_external_id(db: Session, provider_id: uuid.UUID, media_type: str) -> str:
     source = sources_repo.get_source_by_key(db, "tmdb")
     if source is None:
@@ -310,10 +341,12 @@ def _build_filters(
     year_to: int | None = None,
     original_language: str | None = None,
     local_sort_by: str = "vote_average.desc",
+    derivation: str = "LOCAL_FILTER",
+    combine_mode: str | None = None,
 ) -> dict[str, object]:
     if kind == CollectionKind.CUSTOM_FILTER.value:
         filters: dict[str, object] = {
-            "derivation": "LOCAL_FILTER",
+            "derivation": derivation,
             "source_collection_ids": [str(source.id) for source in source_collections or []],
             "provider_ids": [
                 str(provider_id)
@@ -325,6 +358,8 @@ def _build_filters(
             "watch_region": "IT",
             "sort_by": local_sort_by,
         }
+        if combine_mode is not None:
+            filters["combine_mode"] = combine_mode
         if genre_ids:
             filters["with_genres"] = ",".join(str(genre_id) for genre_id in genre_ids)
         if exclude_genre_ids:
@@ -381,6 +416,8 @@ def create_collection(
             code="COLLECTION_EXISTS",
             details={"slug": payload.slug},
         )
+    if payload.source_key == COMBINED_SOURCE_KEY:
+        return _create_combined_collection(db, payload, actor_user_id=actor_user_id)
     if payload.source_key == JUSTWATCH_SOURCE_KEY:
         return _create_justwatch_collection(db, payload, actor_user_id=actor_user_id)
     if payload.kind not in _TMDB_KINDS:
@@ -596,6 +633,8 @@ def update_collection(
     existing_filters = collection.filters or {}
     current_source = sources_repo.get_source(db, collection.source_id)
 
+    if current_source is not None and current_source.key == COMBINED_SOURCE_KEY:
+        return _update_combined_collection(db, collection, payload, actor_user_id=actor_user_id)
     if current_source is not None and current_source.key == JUSTWATCH_SOURCE_KEY:
         return _update_justwatch_collection(db, collection, payload, actor_user_id=actor_user_id)
     if payload.source_key is not None and payload.source_key != TMDB_SOURCE_KEY:
@@ -805,6 +844,228 @@ def update_collection(
         after={
             "slug": collection.slug,
             "kind": collection.kind,
+            "filters": collection.filters,
+            "is_active": collection.is_active,
+        },
+    )
+    db.commit()
+    return collections_service.get_collection(db, collection.id)
+
+
+def _create_combined_collection(
+    db: Session,
+    payload: CollectionCreateIn,
+    *,
+    actor_user_id: uuid.UUID | None = None,
+) -> CollectionSummary:
+    """Create a local JustWatch + TMDb combination: no external call."""
+    if payload.kind != CollectionKind.CUSTOM_FILTER.value:
+        raise ValidationError(
+            "Una collezione combinata deve essere di tipo CUSTOM_FILTER.",
+            code="COMBINED_LOCAL_KIND",
+            details={"kind": payload.kind},
+        )
+    source = sources_repo.get_source_by_key(db, COMBINED_SOURCE_KEY)
+    if source is None:
+        raise ValidationError("Fonte 'combined' non trovata.", code="SOURCE_MISSING")
+    sources = _validate_combined_sources(
+        db, payload.source_collection_ids, media_type=payload.media_type
+    )
+    provider_id = payload.provider_id or sources[0].provider_id
+    provider = providers_repo.get_provider(db, provider_id)
+    if provider is None:
+        raise NotFoundError("Provider non trovato.", details={"provider_id": str(provider_id)})
+    if provider.id not in {item.provider_id for item in sources}:
+        raise ValidationError(
+            "Il provider principale deve essere uno dei provider delle collezioni sorgente.",
+            code="COMBINED_LOCAL_PROVIDER_MISMATCH",
+        )
+    genre_ids, exclude_genre_ids = _validate_local_filters(
+        media_type=payload.media_type,
+        genre_ids=payload.genre_ids,
+        exclude_genre_ids=payload.exclude_genre_ids,
+        original_language=payload.original_language,
+        local_sort_by=payload.local_sort_by,
+    )
+    filters = _build_filters(
+        provider_external_id="",
+        media_type=payload.media_type,
+        genre_ids=genre_ids,
+        monetization_type=payload.monetization_type,
+        kind=payload.kind,
+        source_collection_id=None,
+        window_days=None,
+        shared_snapshot_collection_id=None,
+        source_collections=sources,
+        exclude_genre_ids=exclude_genre_ids,
+        min_vote_average=payload.min_vote_average,
+        min_vote_count=payload.min_vote_count,
+        year_from=payload.year_from,
+        year_to=payload.year_to,
+        original_language=payload.original_language,
+        local_sort_by=payload.local_sort_by,
+        derivation=COMBINED_DERIVATION,
+        combine_mode=payload.combine_mode,
+    )
+    quality_flags = _custom_quality_flags(sources)
+    quality_flags["combine_mode"] = payload.combine_mode
+    collection = collections_repo.upsert_collection(
+        db,
+        slug=payload.slug,
+        source_id=source.id,
+        provider_id=provider.id,
+        country_code="IT",
+        media_type=payload.media_type,
+        kind=payload.kind,
+        origin=CollectionOrigin.CUSTOM.value,
+        date_basis=DateBasis.UNKNOWN.value,
+        name=payload.name,
+        description=payload.description
+        or (
+            "Combinata locale JustWatch + TMDb costruita da "
+            f"{len(sources)} collezioni. Non è una lista ufficiale dei provider."
+        ),
+        source_collection_key=f"custom:{payload.slug}",
+        source_url=None,
+        offer_types=[payload.monetization_type],
+        filters=filters,
+        quality_flags=quality_flags,
+        sort_mode="CUSTOM",
+        is_active=payload.is_active,
+    )
+    audit.record(
+        db,
+        action="collection_created",
+        entity_type="collection",
+        entity_id=collection.id,
+        actor_user_id=actor_user_id,
+        actor_type=AuditActorType.USER if actor_user_id else AuditActorType.SYSTEM,
+        after={
+            "slug": collection.slug,
+            "kind": collection.kind,
+            "source_key": COMBINED_SOURCE_KEY,
+            "source_collections": [str(item.id) for item in sources],
+            "combine_mode": payload.combine_mode,
+        },
+    )
+    db.commit()
+    return collections_service.get_collection(db, collection.id)
+
+
+def _update_combined_collection(
+    db: Session,
+    collection: Collection,
+    payload: CollectionUpdateIn,
+    *,
+    actor_user_id: uuid.UUID | None = None,
+) -> CollectionSummary:
+    """Update a combined collection keeping its local derivation."""
+    if payload.source_key is not None and payload.source_key != COMBINED_SOURCE_KEY:
+        raise ValidationError(
+            "La fonte di una collezione esistente non può essere cambiata.",
+            code="SOURCE_KEY_IMMUTABLE",
+            details={"source_key": COMBINED_SOURCE_KEY},
+        )
+    if payload.kind is not None and payload.kind != CollectionKind.CUSTOM_FILTER.value:
+        raise ValidationError(
+            "Una collezione combinata deve essere di tipo CUSTOM_FILTER.",
+            code="COMBINED_LOCAL_KIND",
+            details={"kind": payload.kind},
+        )
+    existing_filters = collection.filters or {}
+    raw_ids = payload.source_collection_ids
+    if raw_ids is None:
+        raw_ids = [
+            uuid.UUID(str(value)) for value in existing_filters.get("source_collection_ids", [])
+        ]
+    sources = _validate_combined_sources(db, raw_ids, media_type=collection.media_type)
+    genre_ids = (
+        _validate_genres(collection.media_type, payload.genre_ids)
+        if payload.genre_ids is not None
+        else [
+            int(value)
+            for value in str(existing_filters.get("with_genres", "")).split(",")
+            if value.strip().isdigit()
+        ]
+    )
+    exclude_genre_ids = (
+        _validate_genres(collection.media_type, payload.exclude_genre_ids)
+        if payload.exclude_genre_ids is not None
+        else [
+            int(value)
+            for value in str(existing_filters.get("exclude_genres", "")).split(",")
+            if value.strip().isdigit()
+        ]
+    )
+    genre_ids, exclude_genre_ids = _validate_local_filters(
+        media_type=collection.media_type,
+        genre_ids=genre_ids,
+        exclude_genre_ids=exclude_genre_ids,
+        original_language=payload.original_language
+        if payload.original_language is not None
+        else existing_filters.get("original_language"),
+        local_sort_by=payload.local_sort_by
+        or str(existing_filters.get("sort_by", "vote_average.desc")),
+    )
+    combine_mode = payload.combine_mode or str(existing_filters.get("combine_mode") or "UNION")
+    collection.provider_id = sources[0].provider_id
+    collection.kind = CollectionKind.CUSTOM_FILTER.value
+    collection.origin = CollectionOrigin.CUSTOM.value
+    collection.date_basis = DateBasis.UNKNOWN.value
+    collection.name = payload.name or collection.name
+    collection.description = (
+        payload.description if payload.description is not None else collection.description
+    )
+    collection.offer_types = [
+        payload.monetization_type or str((collection.offer_types or [OfferType.FLATRATE.value])[0])
+    ]
+    collection.filters = _build_filters(
+        provider_external_id="",
+        media_type=collection.media_type,
+        genre_ids=genre_ids,
+        monetization_type=str(collection.offer_types[0]),
+        kind=collection.kind,
+        source_collection_id=None,
+        window_days=None,
+        shared_snapshot_collection_id=None,
+        source_collections=sources,
+        exclude_genre_ids=exclude_genre_ids,
+        min_vote_average=payload.min_vote_average
+        if payload.min_vote_average is not None
+        else existing_filters.get("min_vote_average"),
+        min_vote_count=payload.min_vote_count
+        if payload.min_vote_count is not None
+        else existing_filters.get("min_vote_count"),
+        year_from=payload.year_from
+        if payload.year_from is not None
+        else existing_filters.get("year_from"),
+        year_to=payload.year_to if payload.year_to is not None else existing_filters.get("year_to"),
+        original_language=payload.original_language
+        if payload.original_language is not None
+        else existing_filters.get("original_language"),
+        local_sort_by=payload.local_sort_by
+        or str(existing_filters.get("sort_by", "vote_average.desc")),
+        derivation=COMBINED_DERIVATION,
+        combine_mode=combine_mode,
+    )
+    quality_flags = _custom_quality_flags(sources)
+    quality_flags["combine_mode"] = combine_mode
+    collection.quality_flags = quality_flags
+    collection.sort_mode = "CUSTOM"
+    if payload.is_active is not None:
+        collection.is_active = payload.is_active
+    db.flush()
+    audit.record(
+        db,
+        action="collection_updated",
+        entity_type="collection",
+        entity_id=collection.id,
+        actor_user_id=actor_user_id,
+        actor_type=AuditActorType.USER if actor_user_id else AuditActorType.SYSTEM,
+        after={
+            "slug": collection.slug,
+            "kind": collection.kind,
+            "source_key": COMBINED_SOURCE_KEY,
             "filters": collection.filters,
             "is_active": collection.is_active,
         },

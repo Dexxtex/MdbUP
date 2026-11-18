@@ -29,6 +29,16 @@ class CollectionOrigin(StrEnum):
     CUSTOM = "CUSTOM"
 
 
+class CombineMode(StrEnum):
+    UNION = "UNION"
+    INTERSECTION = "INTERSECTION"
+
+
+# Local collection derived from valid snapshots of JustWatch and TMDb.
+COMBINED_SOURCE_KEY = "combined"
+COMBINED_DERIVATION = "COMBINED_LOCAL"
+
+
 class DateBasis(StrEnum):
     PROVIDER_OFFICIAL = "PROVIDER_OFFICIAL"
     AGGREGATOR_FIRST_SEEN = "AGGREGATOR_FIRST_SEEN"

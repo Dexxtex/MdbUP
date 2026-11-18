@@ -112,6 +112,10 @@ class Settings(BaseSettings):
     http_jitter_ratio: float = 0.30
 
     default_country_code: str = "IT"
+    # Fonte proposta per le nuove collezioni: JustWatch (pubblico) o TMDb.
+    default_source: str = "justwatch"
+    # Acquisizioni scaglionate del catalogo JustWatch: un solo enqueue per tick.
+    catalog_schedule_enabled: bool = True
     # Directory della SPA compilata servita dall'API (immagine Docker: /app/static).
     frontend_dist_dir: str = "/app/static"
 

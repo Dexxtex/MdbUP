@@ -240,11 +240,15 @@ def test_providers_expose_the_justwatch_mapping(client, admin, seeded, app_setti
     netflix = next(item for item in body["items"] if item["slug"] == "netflix")
     assert netflix["justwatch_provider_id"] == "nfx"
     assert netflix["justwatch_verified"] is True
+    assert netflix["justwatch_movie_verified"] is True
+    assert netflix["justwatch_tv_verified"] is True
     assert netflix["justwatch_monetization_types"] == ["FLATRATE"]
 
     mubi = next(item for item in body["items"] if item["slug"] == "mubi")
     assert mubi["justwatch_provider_id"] is None
     assert mubi["justwatch_verified"] is False
+    assert mubi["justwatch_movie_verified"] is False
+    assert mubi["justwatch_tv_verified"] is False
 
 
 @respx.mock

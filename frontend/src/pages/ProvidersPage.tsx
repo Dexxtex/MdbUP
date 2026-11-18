@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useCollections, useProviders, useSources } from "../api/queries";
+import { useBindings, useCollections, useProviders, useSources } from "../api/queries";
 import type { Collection, Provider } from "../api/types";
 import { DataTable, type Column } from "../components/ui/data-table";
 import {
@@ -22,6 +22,7 @@ import { Timestamp } from "../components/ui/time";
 import { formatNumber } from "../lib/format";
 import { IconBuilding, IconGrid, IconLayers, IconSearch } from "../components/ui/icons";
 import { JustWatchConnectorCard } from "../components/justwatch/connector-card";
+import { ProviderMatrix } from "../components/providers/provider-matrix";
 
 /** Provider italiani noti: le chip compaiono solo se il backend li espone. */
 const KNOWN_PROVIDERS = [
@@ -255,6 +256,7 @@ export default function ProvidersPage() {
   const providers = useProviders(country);
   const sources = useSources();
   const collections = useCollections({});
+  const bindings = useBindings();
   const justwatchSource = (sources.data ?? []).find((source) => source.key === "justwatch");
 
   const freshness = useMemo(
@@ -357,6 +359,16 @@ export default function ProvidersPage() {
       ) : null}
 
       {providers.isPending ? <TableSkeleton /> : null}
+
+      {providers.isSuccess ? (
+        <div className="mb-6">
+          <ProviderMatrix
+            providers={providers.data}
+            collections={collections.data ?? []}
+            bindings={bindings.data ?? []}
+          />
+        </div>
+      ) : null}
 
       {providers.isError ? (
         <ErrorState error={providers.error} onRetry={() => void providers.refetch()} />

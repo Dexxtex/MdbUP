@@ -22,6 +22,7 @@ import {
   IconLink,
   IconLogout,
   IconMenu,
+  IconRefresh,
   IconSettings,
   IconShield,
   IconX,
@@ -40,6 +41,13 @@ interface NavItem {
 
 const navigation: NavItem[] = [
   { to: "/app", label: "Dashboard", end: true, icon: IconGrid, testId: "nav-dashboard" },
+  {
+    to: "/app/catalog-changes",
+    label: "Cambi Catalogo IT",
+    end: false,
+    icon: IconRefresh,
+    testId: "nav-catalog-changes",
+  },
   {
     to: "/app/providers",
     label: "Provider",

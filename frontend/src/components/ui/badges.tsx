@@ -1,4 +1,16 @@
-import type { CollectionOrigin, DateBasis } from "../../api/types";
+import type {
+  CatalogChangeDirection,
+  CollectionOrigin,
+  DateBasis,
+  EpisodeEventType,
+} from "../../api/types";
+import {
+  catalogChangeDirectionLabel,
+  catalogChangeDirectionSign,
+  catalogChangeDirectionTone,
+  episodeEventLabel,
+  episodeEventTone,
+} from "../../lib/catalog-changes";
 import { cn } from "../../lib/cn";
 import { originPresentation, type Tone } from "../../lib/status";
 import { IconBuilding, IconFilter, IconLayers, IconNode } from "./icons";
@@ -40,6 +52,42 @@ export function OriginBadge({
     >
       <Icon />
       {presentation.label}
+    </span>
+  );
+}
+
+export function CatalogChangeDirectionBadge({
+  direction,
+}: {
+  direction: CatalogChangeDirection;
+}) {
+  const tone = catalogChangeDirectionTone(direction);
+  return (
+    <span
+      data-direction={direction}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+        toneStyles[tone],
+      )}
+    >
+      <span aria-hidden="true">{catalogChangeDirectionSign(direction)}</span>
+      {catalogChangeDirectionLabel(direction)}
+    </span>
+  );
+}
+
+/** Badge per gli eventi stagione/episodio rilevati dalla fonte. */
+export function EpisodeEventBadge({ eventType }: { eventType: EpisodeEventType }) {
+  const tone = episodeEventTone(eventType);
+  return (
+    <span
+      data-event-type={eventType}
+      className={cn(
+        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium",
+        toneStyles[tone],
+      )}
+    >
+      {episodeEventLabel(eventType)}
     </span>
   );
 }

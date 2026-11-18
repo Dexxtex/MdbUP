@@ -41,6 +41,11 @@ celery_app.conf.beat_schedule = {
         "schedule": 60.0,
         "options": {"queue": "maintenance"},
     },
+    "enqueue-scheduled-catalog-acquisitions": {
+        "task": tasks.ENQUEUE_SCHEDULED_CATALOG_ACQUISITIONS_TASK,
+        "schedule": 300.0,
+        "options": {"queue": "maintenance"},
+    },
     "cleanup-old-data": {
         "task": tasks.CLEANUP_OLD_DATA_TASK,
         "schedule": crontab(hour=3, minute=30),
@@ -82,6 +87,9 @@ celery_app.task(name=tasks.ACQUIRE_COLLECTION_TASK)(tasks.acquire_collection_tas
 celery_app.task(name=tasks.RUN_SYNC_TASK)(tasks.run_sync_task)
 celery_app.task(name=tasks.RECONCILE_SYNC_RUN_TASK)(tasks.reconcile_sync_run_task)
 celery_app.task(name=tasks.ENQUEUE_DUE_BINDINGS_TASK)(tasks.enqueue_due_bindings)
+celery_app.task(name=tasks.ENQUEUE_SCHEDULED_CATALOG_ACQUISITIONS_TASK)(
+    tasks.enqueue_scheduled_catalog_acquisitions
+)
 celery_app.task(name=tasks.CLEANUP_OLD_DATA_TASK)(tasks.cleanup_old_data)
 celery_app.task(name=tasks.SWEEP_STALE_RUNS_TASK)(tasks.sweep_stale_runs)
 celery_app.task(name=tasks.DETECT_TV_CHANGES_TASK)(tasks.detect_tv_changes)

@@ -77,7 +77,7 @@ test("crea una collezione JustWatch CATALOG e ne verifica la preview source-only
   await page.goto("/app/collections/new");
   await expect(page.getByTestId("collection-builder")).toBeVisible();
 
-  await page.locator("#collection-source").selectOption("justwatch");
+  await page.getByTestId("builder-source-justwatch").click();
 
   // Solo il provider con mapping JustWatch verificato resta selezionabile.
   const providerSelect = page.locator("#collection-provider");
@@ -97,10 +97,13 @@ test("crea una collezione JustWatch CATALOG e ne verifica la preview source-only
   await expect(page.getByTestId("media-type-MOVIE")).toHaveAttribute("aria-pressed", "true");
   await page.locator("#collection-kind").selectOption("CATALOG");
 
-  // Le offerte ammesse sono quelle del mapping: per Apple TV+ solo FLATRATE.
-  await expect(page.locator('[data-testid^="offer-"]')).toHaveCount(1);
-  await page.getByTestId("offer-FLATRATE").click();
-  await expect(page.getByTestId("offer-FLATRATE")).toHaveAttribute("aria-pressed", "true");
+  // Il builder JustWatch espone la modalità flatrate (default) e "tutte".
+  await expect(page.getByTestId("justwatch-offer-flatrate")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.getByTestId("justwatch-offer-all").click();
+  await page.getByTestId("justwatch-offer-flatrate").click();
 
   const criteria = page.getByTestId("collection-criteria-preview");
   await expect(criteria).toContainText("JustWatch");
@@ -282,8 +285,8 @@ test("una serie JustWatch mostra gli eventi stagione/episodio e gli item con dis
   await expect(
     page.getByRole("heading", { name: "Eventi stagioni ed episodi" }),
   ).toBeVisible();
-  await expect(page.getByRole("cell", { name: "Stagione aggiunta" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "Episodio aggiunto" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Nuova stagione" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Nuovo episodio" })).toBeVisible();
 
   const itemRow = page.getByRole("row").filter({ hasText: "Severance (2022)" });
   await expect(itemRow).toContainText("Disponibile");

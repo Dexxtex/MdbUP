@@ -29,6 +29,7 @@ from app.core.logging import get_logger
 from app.core.time import ensure_utc, utcnow
 from app.db.models import Availability, Collection, CollectionSnapshot, Media, SnapshotItem
 from app.domain.enums import (
+    COMBINED_DERIVATION,
     AuditActorType,
     AvailabilityStatus,
     CollectionKind,
@@ -105,7 +106,6 @@ def acquire_collection(
             "Acquisizione già in corso per questa collezione.",
             code="ACQUISITION_ALREADY_RUNNING",
         )
-    source_collection = _source_collection(db, collection)
     collection_pk = collection.id
     snapshot = snapshots_repo.create_running_snapshot(
         db, collection_pk, job_execution_id=job_execution_id
@@ -115,9 +115,12 @@ def acquire_collection(
             outcome = _acquire_recently_detected(db, collection, snapshot)
         elif _is_local_filter(collection):
             outcome = _acquire_from_local_filter(db, collection, snapshot)
+        elif _is_combined_local(collection):
+            outcome = _acquire_from_combined_local(db, collection, snapshot)
         elif (collection.filters or {}).get("shared_snapshot_collection_id"):
             outcome = _acquire_from_shared_snapshot(db, collection, snapshot)
         else:
+            source_collection = _source_collection(db, collection)
             state = _collect_pages(
                 connector, source_collection, page_size=page_size, max_pages=max_pages
             )
@@ -162,6 +165,14 @@ def _is_local_filter(collection: Collection) -> bool:
     return (
         collection.kind == CollectionKind.CUSTOM_FILTER.value
         and filters.get("derivation") == "LOCAL_FILTER"
+    )
+
+
+def _is_combined_local(collection: Collection) -> bool:
+    filters = collection.filters or {}
+    return (
+        collection.kind == CollectionKind.CUSTOM_FILTER.value
+        and filters.get("derivation") == COMBINED_DERIVATION
     )
 
 
@@ -357,6 +368,150 @@ def _acquire_from_local_filter(
         invalid_reason = "local_filter_empty"
     elif warnings:
         invalid_reason = "local_filter_sources_incomplete"
+    else:
+        invalid_reason = None
+    snapshot.invalid_reason = invalid_reason
+    if snapshot.is_valid:
+        collections_repo.set_last_valid_snapshot(db, collection, snapshot.id)
+    db.flush()
+    return AcquisitionOutcome(
+        snapshot_id=snapshot.id,
+        status=SnapshotStatus.COMPLETE,
+        quality=SnapshotQuality(snapshot.quality),
+        is_valid=snapshot.is_valid,
+        items_count=items_count,
+        resolved_count=items_count,
+        unresolved_count=0,
+        duplicate_count=0,
+        error_count=0,
+        pages_expected=1,
+        pages_fetched=1,
+        checksum=snapshot.checksum,
+        invalid_reason=invalid_reason,
+        errors=[],
+    )
+
+
+def _acquire_from_combined_local(
+    db: Session,
+    collection: Collection,
+    snapshot: CollectionSnapshot,
+) -> AcquisitionOutcome:
+    """Combine valid JustWatch/TMDb snapshots locally (no external calls).
+
+    UNION keeps every media seen in at least one source, INTERSECTION keeps only
+    media present in all available sources. Media and episodes are never
+    created here: only existing resolved snapshot items are re-used.
+    """
+    filters = collection.filters or {}
+    raw_ids = filters.get("source_collection_ids") or []
+    source_ids: list[uuid.UUID] = []
+    for raw in raw_ids:
+        try:
+            source_ids.append(uuid.UUID(str(raw)))
+        except ValueError:
+            continue
+    combine_mode = str(filters.get("combine_mode") or "UNION").upper()
+    if combine_mode not in ("UNION", "INTERSECTION"):
+        combine_mode = "UNION"
+    warnings: list[str] = []
+    sources: list[Collection] = []
+    for source_id in source_ids:
+        source = collections_repo.get_collection(db, source_id)
+        if source is None:
+            warnings.append(f"SOURCE_COLLECTION_MISSING:{source_id}")
+            continue
+        if source.media_type != collection.media_type:
+            warnings.append(f"SOURCE_MEDIA_TYPE_MISMATCH:{source.slug}")
+            continue
+        sources.append(source)
+    per_source: list[dict[uuid.UUID, tuple[SnapshotItem, Media, Collection]]] = []
+    for source in sources:
+        snapshot_id = source.last_valid_snapshot_id
+        source_snapshot = (
+            snapshots_repo.get_snapshot(db, snapshot_id) if snapshot_id is not None else None
+        )
+        if (
+            source_snapshot is None
+            or not source_snapshot.is_valid
+            or source_snapshot.items_count == 0
+        ):
+            warnings.append(f"SOURCE_SNAPSHOT_MISSING:{source.slug}")
+            continue
+        rows = db.execute(
+            select(SnapshotItem, Media)
+            .join(Media, SnapshotItem.media_id == Media.id)
+            .where(SnapshotItem.snapshot_id == source_snapshot.id)
+            .order_by(SnapshotItem.position)
+        ).all()
+        mapping: dict[uuid.UUID, tuple[SnapshotItem, Media, Collection]] = {}
+        for item, media in rows:
+            mapping.setdefault(media.id, (item, media, source))
+        per_source.append(mapping)
+    selected_ids: set[uuid.UUID]
+    if combine_mode == "INTERSECTION":
+        common: set[uuid.UUID] | None = None
+        for mapping in per_source:
+            keys = set(mapping)
+            common = keys if common is None else common & keys
+        selected_ids = common or set()
+    else:
+        union: set[uuid.UUID] = set()
+        for mapping in per_source:
+            union.update(mapping)
+        selected_ids = union
+    selected: list[tuple[SnapshotItem, Media, Collection]] = []
+    for media_id in selected_ids:
+        entry = next(mapping[media_id] for mapping in per_source if media_id in mapping)
+        if _local_filter_accepts(entry[1], entry[0].source_payload or {}, filters):
+            selected.append(entry)
+    sort_by = str(filters.get("sort_by") or "vote_average.desc")
+    selected.sort(key=lambda entry: _local_sort_key(entry, sort_by))
+    for position, (item, media, source) in enumerate(selected):
+        payload = dict(item.source_payload or {})
+        payload["combined_local"] = True
+        payload["combine_mode"] = combine_mode
+        payload["source_collection_id"] = str(source.id)
+        payload["source_collection_slug"] = source.slug
+        payload["provider_id"] = str(source.provider_id)
+        snapshots_repo.add_item(
+            db,
+            snapshot,
+            position=position,
+            media_id=media.id,
+            source_item_id=str(media.tmdb_id or media.imdb_id or media.id),
+            source_payload=payload,
+            source_date_created=None,
+            date_basis=DateBasis.UNKNOWN.value,
+            resolution_status=ResolutionStatus.RESOLVED.value,
+            resolution_error=None,
+            availability_status=item.availability_status,
+        )
+    items_count = len(selected)
+    snapshot.status = SnapshotStatus.COMPLETE.value
+    snapshot.quality = (
+        SnapshotQuality.CLEAN.value if not warnings else SnapshotQuality.WARNINGS.value
+    )
+    snapshot.is_valid = items_count > 0 and not warnings
+    snapshot.finished_at = utcnow()
+    snapshot.pages_expected = 1
+    snapshot.pages_fetched = 1
+    snapshot.items_count = items_count
+    snapshot.resolved_count = items_count
+    snapshot.unresolved_count = 0
+    snapshot.duplicate_count = 0
+    snapshot.error_count = 0
+    snapshot.errors = []
+    snapshot.warnings = ["COMBINED_LOCAL", *warnings]
+    snapshot.checksum = hashlib.sha256(
+        ",".join(sorted(str(media.id) for _item, media, _source in selected)).encode("utf-8")
+    ).hexdigest()
+    if not sources:
+        invalid_reason = "combined_local_no_sources"
+    elif items_count == 0:
+        invalid_reason = "combined_local_empty"
+    elif warnings:
+        invalid_reason = "combined_local_sources_incomplete"
     else:
         invalid_reason = None
     snapshot.invalid_reason = invalid_reason

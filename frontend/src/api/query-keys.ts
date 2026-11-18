@@ -1,3 +1,5 @@
+import type { CatalogChangeWindow } from "./types";
+
 export interface CollectionFilters {
   providerId?: string;
   mediaType?: string;
@@ -12,6 +14,17 @@ export interface RunFilters {
   mediaType?: string;
 }
 
+export interface CatalogChangeFilters {
+  window: CatalogChangeWindow;
+  providerId?: string;
+  mediaType?: string;
+  sourceKey?: string;
+  direction?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
 export const queryKeys = {
   session: ["session"] as const,
   dashboard: ["dashboard"] as const,
@@ -22,7 +35,10 @@ export const queryKeys = {
   collectionSnapshots: (id: string) => ["collection", id, "snapshots"] as const,
   collectionEpisodeEvents: (id: string, limit: number) =>
     ["collection", id, "episode-events", limit] as const,
-  snapshotItems: (id: string) => ["snapshot", id, "items"] as const,
+  snapshotItems: (id: string, search: string) =>
+    ["snapshot", id, "items", search] as const,
+  catalogChanges: (filters: CatalogChangeFilters) =>
+    ["catalog-changes", filters] as const,
   targets: (mediaType?: string) => ["targets", mediaType ?? "all"] as const,
   genres: (mediaType: string) => ["genres", mediaType] as const,
   runs: (filters: RunFilters) => ["runs", filters] as const,

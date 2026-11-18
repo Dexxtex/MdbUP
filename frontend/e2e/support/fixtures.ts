@@ -1,5 +1,6 @@
 import type {
   Binding,
+  CatalogChangeResponse,
   Collection,
   DashboardResponse,
   EpisodeEventList,
@@ -49,6 +50,8 @@ export const PROVIDER_NETFLIX: Provider = {
   mapping_verified_tv: true,
   justwatch_provider_id: "8",
   justwatch_verified: true,
+  justwatch_movie_verified: true,
+  justwatch_tv_verified: true,
   justwatch_monetization_types: ["FLATRATE"],
   collections_count: 1,
   movie_collections: 1,
@@ -71,6 +74,8 @@ export const PROVIDER_PRIME: Provider = {
   mapping_verified_tv: true,
   justwatch_provider_id: "119",
   justwatch_verified: true,
+  justwatch_movie_verified: true,
+  justwatch_tv_verified: true,
   justwatch_monetization_types: ["FLATRATE"],
   collections_count: 1,
   movie_collections: 1,
@@ -93,6 +98,8 @@ export const PROVIDER_APPLE_TV: Provider = {
   mapping_verified_tv: true,
   justwatch_provider_id: "2243",
   justwatch_verified: true,
+  justwatch_movie_verified: true,
+  justwatch_tv_verified: true,
   justwatch_monetization_types: ["FLATRATE"],
   collections_count: 1,
   movie_collections: 1,
@@ -119,6 +126,8 @@ export const PROVIDER_PARAMOUNT_UNMAPPED: Provider = {
   mapping_verified_tv: true,
   justwatch_provider_id: null,
   justwatch_verified: false,
+  justwatch_movie_verified: false,
+  justwatch_tv_verified: false,
   justwatch_monetization_types: [],
   collections_count: 0,
   movie_collections: 0,
@@ -550,7 +559,53 @@ export const SETTINGS: SettingsOut = {
       updated_at: null,
     },
     { key: "notifications_summary_hour", value: 8, description: "Ora riepilogo", updated_at: null },
+    { key: "default_source", value: "justwatch", description: "Fonte predefinita", updated_at: null },
+    {
+      key: "catalog_schedule_enabled",
+      value: true,
+      description: "Pianificazione catalogo",
+      updated_at: null,
+    },
   ],
+};
+
+export const CATALOG_CHANGES: CatalogChangeResponse = {
+  items: [
+    {
+      id: "abababab-abab-4bab-8bab-abababababab",
+      media_id: "acacacac-acac-4cac-8cac-acacacacacac",
+      title: "Dune: Parte due",
+      year: 2024,
+      media_type: "MOVIE",
+      provider_id: PROVIDER_NETFLIX.id,
+      provider_slug: PROVIDER_NETFLIX.slug,
+      provider_name: PROVIDER_NETFLIX.name,
+      source_key: "justwatch",
+      source_label: "Fonte: JustWatch (Aggregatore)",
+      direction: "ADDED",
+      detected_at: "2026-01-03T04:02:00Z",
+      detected_at_rome: "03/01/2026, 05:02",
+      collection_id: JUSTWATCH_COLLECTION_ID,
+      collection_name: "Apple TV+ film",
+      collection_slug: "justwatch-apple-tv-film",
+      previous_snapshot_id: "88888888-8888-4888-8888-888888888881",
+      current_snapshot_id: JUSTWATCH_SNAPSHOT_ID,
+      season_number: null,
+      episode_number: null,
+      episode_event_type: null,
+    },
+  ],
+  total: 1,
+  page: 1,
+  page_size: 50,
+  window: "24h",
+  generated_at: "2026-01-03T05:00:00Z",
+  counters: {
+    added_today: 42,
+    removed_today: 18,
+    added_window: 42,
+    removed_window: 18,
+  },
 };
 
 export const DASHBOARD: DashboardResponse = {
@@ -591,6 +646,14 @@ export const SYSTEM_STATUS: SystemStatus = {
   },
   pending_approvals: 0,
   upcoming: [],
+  catalog_acquisitions: [
+    {
+      collection_id: JUSTWATCH_COLLECTION_ID,
+      collection_name: "Apple TV+ film",
+      provider_name: PROVIDER_APPLE_TV.name,
+      next_acquire_at: "2026-01-03T06:00:00Z",
+    },
+  ],
   version: "0.1.0",
   environment: "test",
 };
@@ -669,6 +732,9 @@ export function mockAuthenticatedSession(api: ApiMock): void {
 export function mockAppShell(api: ApiMock): void {
   api.json("GET", "/api/dashboard", DASHBOARD);
   api.json("GET", "/api/system/status", SYSTEM_STATUS);
+  api.json("GET", "/api/sources", SOURCES);
+  api.json("GET", "/api/catalog-changes", CATALOG_CHANGES);
+  api.json("GET", "/api/settings", SETTINGS);
   api.json("GET", "/api/bindings", { items: [], total: 0, page: 1, page_size: 25, has_more: false });
   api.json("GET", "/api/runs", { items: [], total: 0, page: 1, page_size: 25, has_more: false });
 }

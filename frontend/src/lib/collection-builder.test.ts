@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCollectionPayload,
+  builderProvenanceLabel,
+  resolveDefaultSource,
   type CollectionBuilderInput,
 } from "./collection-builder";
 
@@ -30,6 +32,29 @@ function input(overrides: Partial<CollectionBuilderInput> = {}): CollectionBuild
     ...overrides,
   };
 }
+
+describe("fonte predefinita del builder", () => {
+  it("usa JustWatch come fallback e rispetta TMDb", () => {
+    expect(resolveDefaultSource(undefined)).toBe("justwatch");
+    expect(resolveDefaultSource("unknown")).toBe("justwatch");
+    expect(resolveDefaultSource("tmdb")).toBe("tmdb");
+  });
+});
+
+describe("badge di provenienza", () => {
+  it("restituisce l'etichetta esatta della combinata e di JustWatch", () => {
+    expect(builderProvenanceLabel("combined", "CUSTOM_FILTER")).toBe(
+      "Combinata locale (JustWatch + TMDb)",
+    );
+    expect(builderProvenanceLabel("justwatch", "CHART")).toBe(
+      "Classifica JustWatch",
+    );
+    expect(builderProvenanceLabel("justwatch", "CATALOG")).toBe(
+      "Fonte: JustWatch (Aggregatore)",
+    );
+    expect(builderProvenanceLabel("tmdb", "CATALOG")).toBe("TMDb");
+  });
+});
 
 describe("buildCollectionPayload", () => {
   it("costruisce un payload JustWatch con offerte, anni e source_key", () => {
@@ -65,6 +90,34 @@ describe("buildCollectionPayload", () => {
     expect(payload.source_collection_ids).toBeUndefined();
     expect(payload.exclude_genre_ids).toBeUndefined();
     expect(payload.original_language).toBeUndefined();
+  });
+
+  it("costruisce il payload della combinata locale con modo e sorgenti", () => {
+    const payload = buildCollectionPayload(
+      input({
+        sourceKey: "combined",
+        combineMode: "INTERSECTION",
+        sourceCollectionIds: ["collection-jw", "collection-tmdb"],
+        name: "Combinata Netflix",
+        slug: "combinata-netflix",
+      }),
+    );
+    expect(payload.source_key).toBe("combined");
+    expect(payload.kind).toBe("CUSTOM_FILTER");
+    expect(payload.combine_mode).toBe("INTERSECTION");
+    expect(payload.source_collection_ids).toEqual([
+      "collection-jw",
+      "collection-tmdb",
+    ]);
+    expect(payload.monetization_type).toBe("FLATRATE");
+  });
+
+  it("invia offerte vuote quando JustWatch usa tutte le offerte", () => {
+    const payload = buildCollectionPayload(
+      input({ sourceKey: "justwatch", justWatchOfferMode: "ALL" }),
+    );
+    expect(payload.offer_types).toEqual([]);
+    expect(payload.monetization_type).toBe("FLATRATE");
   });
 
   it("mantiene il payload TMDb attuale per le novità", () => {

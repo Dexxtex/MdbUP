@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useDeferredValue, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAcquireCollection, useCreatePreview } from "../api/mutations";
 import {
@@ -12,6 +12,7 @@ import type { EpisodeEvent, Snapshot, SnapshotItem } from "../api/types";
 import {
   CollectionSourceBadge,
   DateBasisBadge,
+  EpisodeEventBadge,
   OriginBadge,
   UpcomingBadge,
 } from "../components/ui/badges";
@@ -23,7 +24,7 @@ import {
   StaleBanner,
   TableSkeleton,
 } from "../components/ui/feedback";
-import { Button, Card, PageHeader } from "../components/ui/primitives";
+import { Button, Card, Input, PageHeader } from "../components/ui/primitives";
 import { StatusPill } from "../components/ui/status-pill";
 import {
   SnapshotQualityPill,
@@ -43,6 +44,7 @@ import {
   availabilityStatusTone,
   isJustWatchSource,
 } from "../lib/justwatch";
+import { IconSearch } from "../components/ui/icons";
 
 const snapshotColumns: Column<Snapshot>[] = [
   {
@@ -103,16 +105,7 @@ const episodeColumns: Column<EpisodeEvent>[] = [
   {
     key: "event",
     header: "Evento",
-    render: (event) =>
-      event.event_type === "SEASON_ADDED"
-        ? "Stagione aggiunta"
-        : event.event_type === "SEASON_REMOVED"
-          ? "Stagione rimossa"
-          : event.event_type === "EPISODE_ADDED"
-            ? "Episodio aggiunto"
-            : event.event_type === "EPISODE_REMOVED"
-              ? "Episodio rimosso"
-              : event.event_type,
+    render: (event) => <EpisodeEventBadge eventType={event.event_type} />,
   },
   {
     key: "title",
@@ -193,12 +186,18 @@ export default function CollectionDetailPage() {
   const snapshots = useCollectionSnapshots(collectionId);
   const acquire = useAcquireCollection(collectionId ?? "");
   const [sourcePreviewId, setSourcePreviewId] = useState<string | undefined>();
+  const [itemSearch, setItemSearch] = useState("");
+  const deferredItemSearch = useDeferredValue(itemSearch);
   const createSourcePreview = useCreatePreview();
   const sourcePreview = usePreview(sourcePreviewId);
   const latestSnapshotId =
     collection.data?.latest_snapshot?.id ?? collection.data?.last_valid_snapshot?.id;
   const showJustWatchData = isJustWatchSource(collection.data?.source_key);
-  const snapshotItems = useSnapshotItems(showJustWatchData ? latestSnapshotId : undefined);
+  const snapshotItems = useSnapshotItems(
+    showJustWatchData ? latestSnapshotId : undefined,
+    50,
+    deferredItemSearch,
+  );
   const showEpisodeEvents =
     collection.data?.media_type === "SHOW" && showJustWatchData;
   const episodeEvents = useCollectionEpisodeEvents(collectionId, 50, showEpisodeEvents);
@@ -289,6 +288,15 @@ export default function CollectionDetailPage() {
       />
       <StaleBanner updatedAt={collection.dataUpdatedAt} />
 
+      {isUpcomingCollection(data) ? (
+        <div className="mb-4">
+          <InlineNotice tone="warning">
+            Collezione In arrivo: i titoli UPCOMING restano fuori dal catalogo attivo e non
+            sono sincronizzabili come catalogo attivo. Usa una collezione Catalogo per la
+            sync MDBList.
+          </InlineNotice>
+        </div>
+      ) : null}
       {acquire.isSuccess ? (
         <div className="mb-4">
           <InlineNotice>
@@ -477,6 +485,19 @@ export default function CollectionDetailPage() {
         {showJustWatchData ? (
         <Card>
           <h2 className="mb-3 text-lg font-semibold text-ink">Item dello snapshot</h2>
+          <div className="relative mb-3">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint">
+              <IconSearch />
+            </span>
+            <Input
+              value={itemSearch}
+              onChange={(event) => setItemSearch(event.target.value)}
+              placeholder="Cerca un titolo nello snapshot…"
+              aria-label="Cerca un titolo nello snapshot"
+              className="pl-9"
+              data-testid="snapshot-item-search"
+            />
+          </div>
           {snapshotItems.isPending ? <TableSkeleton rows={3} /> : null}
           {snapshotItems.isError ? (
             <ErrorState

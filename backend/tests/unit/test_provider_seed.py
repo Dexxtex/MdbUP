@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from app.seed import PROVIDER_SEED, TMDB_PROVIDER_SEED
+from app.domain.enums import SourceStatus
+from app.seed import PROVIDER_SEED, SOURCE_SEED, TMDB_PROVIDER_SEED
 
 # Providers requested for the Phase 7 expansion; they must already be seeded
 # with verified TMDb ids (no invented identifiers).
@@ -28,6 +29,17 @@ def test_expected_providers_keep_their_tmdb_ids() -> None:
     for slug, (movie_id, tv_id) in EXPECTED_PROVIDERS.items():
         assert mappings[slug].external_id == movie_id
         assert mappings[slug].tv_external_id == tv_id
+
+
+def test_seed_contains_the_combined_local_source() -> None:
+    sources = {seed.key: seed for seed in SOURCE_SEED}
+    combined = sources["combined"]
+    assert combined.name == "Combinata locale"
+    assert combined.status is SourceStatus.OK
+    assert combined.origin_default.value == "CUSTOM"
+    assert combined.capabilities["catalog"] is True
+    assert combined.capabilities["combined_local"] is True
+    assert combined.requires_contract is False
 
 
 def test_every_provider_has_movie_and_tv_mapping_metadata() -> None:

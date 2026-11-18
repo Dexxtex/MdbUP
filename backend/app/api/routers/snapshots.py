@@ -24,11 +24,12 @@ def list_snapshot_items(
     snapshot_id: uuid.UUID,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
+    search: str | None = Query(None, max_length=200, description="Filtro sul titolo"),
     db: Session = Depends(get_db_dep),
     _user: AppUser = Depends(get_current_user),
 ) -> schemas_catalog.SnapshotItemListOut:
     items, total = snapshots_service.list_snapshot_items(
-        db, snapshot_id, page=page, page_size=page_size
+        db, snapshot_id, page=page, page_size=page_size, search=search
     )
     return schemas_catalog.SnapshotItemListOut(
         items=[schemas_catalog.SnapshotItemOut.model_validate(item) for item in items],

@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.db.models import Provider, Source
 from app.db.session import session_scope
 from app.domain.enums import (
+    COMBINED_SOURCE_KEY,
     CollectionKind,
     CollectionOrigin,
     DateBasis,
@@ -195,6 +196,32 @@ SOURCE_SEED: tuple[SourceSeed, ...] = (
             "requires_contract": False,
             "max_page_size": 1000,
             "notes": "Import manuale: nessuna data dichiarata dalla fonte.",
+        },
+    ),
+    # Local pseudo-source: combined collections read valid snapshots of the
+    # JustWatch and TMDb collections already in the database. It has no
+    # connector on purpose: acquisition is entirely local.
+    SourceSeed(
+        key=COMBINED_SOURCE_KEY,
+        name="Combinata locale",
+        type=SourceType.MANUAL_CSV,
+        base_url=None,
+        origin_default=CollectionOrigin.CUSTOM,
+        status=SourceStatus.OK,
+        capabilities={
+            "catalog": True,
+            "recently_added": False,
+            "upcoming": False,
+            "charts": False,
+            "ordering": True,
+            "added_dates": False,
+            "seasons_episodes": False,
+            "full_pagination": True,
+            "data_export": False,
+            "requires_credentials": False,
+            "requires_contract": False,
+            "combined_local": True,
+            "notes": "Unione/intersezione locale di snapshot JustWatch e TMDb.",
         },
     ),
 )

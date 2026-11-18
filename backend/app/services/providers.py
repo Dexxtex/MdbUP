@@ -30,6 +30,8 @@ class ProviderSummary:
     mapping_verified_tv: bool
     justwatch_provider_id: str | None
     justwatch_verified: bool
+    justwatch_movie_verified: bool
+    justwatch_tv_verified: bool
     justwatch_monetization_types: list[str]
     collections_count: int
     movie_collections: int
@@ -99,6 +101,8 @@ def list_providers(db: Session, *, country_code: str = "IT") -> list[ProviderSum
                 justwatch_verified=(
                     bool(justwatch_mapping.is_verified) if justwatch_mapping is not None else False
                 ),
+                justwatch_movie_verified=bool(justwatch_metadata.get("movie_verified")),
+                justwatch_tv_verified=bool(justwatch_metadata.get("tv_verified")),
                 justwatch_monetization_types=[
                     str(value) for value in justwatch_metadata.get("monetization_types") or []
                 ],

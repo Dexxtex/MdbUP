@@ -1,6 +1,13 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { useBindings, useDashboard, useRuns, useSystemStatus } from "../api/queries";
+import {
+  useBindings,
+  useCatalogChanges,
+  useDashboard,
+  useRuns,
+  useSources,
+  useSystemStatus,
+} from "../api/queries";
 import type {
   AlertSeverity,
   DashboardAlert,
@@ -11,6 +18,7 @@ import type {
   DashboardSyncRunRow,
 } from "../api/types";
 import { AttentionRunCard } from "../components/dashboard/attention-runs";
+import { CatalogChangeDirectionBadge } from "../components/ui/badges";
 import { DataTable, type Column } from "../components/ui/data-table";
 import {
   EmptyState,
@@ -27,8 +35,10 @@ import {
   SourceStatusPill,
 } from "../components/ui/status-pill";
 import { Timestamp } from "../components/ui/time";
+import { catalogChangeSourceLabel } from "../lib/catalog-changes";
 import { bindingScheduleLabel } from "../lib/collections";
 import { formatDate, formatNumber } from "../lib/format";
+import { justWatchThrottleLabel } from "../lib/justwatch";
 
 const severityStyles: Record<AlertSeverity, string> = {
   info: "border-accent/40 bg-accent-soft",
@@ -220,6 +230,8 @@ export default function DashboardPage() {
   const bindings = useBindings();
   const runs = useRuns({});
   const systemStatus = useSystemStatus();
+  const sourcesQuery = useSources();
+  const catalogChanges = useCatalogChanges({ window: "24h", pageSize: 5 });
 
   if (dashboard.isPending) {
     return (
@@ -265,6 +277,15 @@ export default function DashboardPage() {
     .slice(0, 6);
 
   const backup = systemStatus.data?.backup ?? null;
+  const justwatchSource = (sourcesQuery.data ?? []).find(
+    (source) => source.key === "justwatch",
+  );
+  const justwatch = justwatchSource?.justwatch ?? null;
+  const catalogAcquisitions = [...(systemStatus.data?.catalog_acquisitions ?? [])].sort(
+    (a, b) => a.next_acquire_at.localeCompare(b.next_acquire_at),
+  );
+  const recentChanges = catalogChanges.data?.items ?? [];
+  const changeCounters = catalogChanges.data?.counters;
   const apiToday = (usage.tmdb.today ?? 0) + (usage.mdblist.today ?? 0);
   const apiEstimate =
     (usage.tmdb.estimated_per_day ?? 0) + (usage.mdblist.estimated_per_day ?? 0);
@@ -334,6 +355,109 @@ export default function DashboardPage() {
             }
             testId="kpi-backup"
           />
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card testId="dashboard-catalog-changes">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-semibold text-ink">Ultimi cambi catalogo IT</h2>
+                <p className="text-sm text-ink-muted">
+                  Entrate e uscite rilevate nelle ultime 24 ore.
+                </p>
+              </div>
+              <Link
+                to="/app/catalog-changes"
+                className="text-sm font-medium text-accent underline"
+              >
+                Apri Cambi Catalogo IT
+              </Link>
+            </div>
+
+            {changeCounters ? (
+              <p className="mb-3 flex flex-wrap gap-3 text-sm">
+                <span className="font-semibold text-success">
+                  +{formatNumber(changeCounters.added_today)} entrati
+                </span>
+                <span className="font-semibold text-danger">
+                  −{formatNumber(changeCounters.removed_today)} usciti
+                </span>
+              </p>
+            ) : null}
+
+            {catalogChanges.isPending ? <TableSkeleton rows={2} /> : null}
+            {catalogChanges.isError ? (
+              <InlineNotice tone="info">
+                Endpoint cambi catalogo non disponibile in questa versione del backend.
+              </InlineNotice>
+            ) : null}
+            {catalogChanges.isSuccess && recentChanges.length === 0 ? (
+              <p className="text-sm text-ink-muted">Nessun cambio nelle ultime 24 ore.</p>
+            ) : null}
+            {recentChanges.length > 0 ? (
+              <ul className="space-y-2">
+                {recentChanges.map((change) => (
+                  <li
+                    key={change.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-surface-elevated px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-ink">
+                        {change.title ?? change.media_id.slice(0, 8)}
+                        {change.year ? (
+                          <span className="ml-1 text-xs font-normal text-ink-muted">
+                            {change.year}
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="text-xs text-ink-muted">
+                        {change.provider_name} · {catalogChangeSourceLabel(change)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CatalogChangeDirectionBadge direction={change.direction} />
+                      <Timestamp value={change.detected_at} className="text-xs" />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </Card>
+
+          <Card testId="dashboard-catalog-acquisitions">
+            <h2 className="text-lg font-semibold text-ink">Acquisizioni scaglionate 24h</h2>
+            <p className="mb-3 text-sm text-ink-muted">
+              Prossime acquisizioni dei cataloghi pianificate nelle prossime 24 ore.
+            </p>
+            {systemStatus.isPending ? <TableSkeleton rows={2} /> : null}
+            {systemStatus.isSuccess && catalogAcquisitions.length === 0 ? (
+              <p className="text-sm text-ink-muted">
+                Nessuna acquisizione programmata: abilita la pianificazione del catalogo
+                nelle impostazioni dei connettori.
+              </p>
+            ) : null}
+            {catalogAcquisitions.length > 0 ? (
+              <ol className="space-y-3">
+                {catalogAcquisitions.map((acquisition) => (
+                  <li key={acquisition.collection_id} className="flex gap-3">
+                    <div className="mt-1 flex flex-col items-center">
+                      <span className="h-2 w-2 rounded-full bg-accent" />
+                      <span className="mt-1 h-full w-px flex-1 bg-line" />
+                    </div>
+                    <div className="min-w-0 flex-1 pb-1">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <p className="truncate text-sm font-medium text-ink">
+                          {acquisition.collection_name}
+                        </p>
+                        <Timestamp value={acquisition.next_acquire_at} className="text-xs" />
+                      </div>
+                      <p className="text-xs text-ink-muted">{acquisition.provider_name}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            ) : null}
+          </Card>
         </div>
 
         <Card testId="attention-runs">
@@ -428,6 +552,57 @@ export default function DashboardPage() {
               Stima basata su {formatNumber(usage.active_bindings)} binding attivi e sulle
               dimensioni degli snapshot; il conteggio “oggi” è reale.
             </p>
+          </Card>
+
+          <Card testId="dashboard-justwatch-metrics">
+            <h2 className="text-lg font-semibold text-ink">JustWatch</h2>
+            <p className="mb-3 text-sm text-ink-muted">
+              Throttle, richieste e cache della fonte aggregatore.
+            </p>
+            {justwatch ? (
+              <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <div className="rounded-md border border-line bg-surface-elevated px-3 py-2">
+                  <dt className="text-xs text-ink-faint">Throttle</dt>
+                  <dd className="text-sm font-semibold tabular-nums text-ink">
+                    {justWatchThrottleLabel(justwatch.throttle_ms)}
+                  </dd>
+                </div>
+                <div className="rounded-md border border-line bg-surface-elevated px-3 py-2">
+                  <dt className="text-xs text-ink-faint">Richieste oggi</dt>
+                  <dd className="text-sm font-semibold tabular-nums text-ink">
+                    {formatNumber(justwatch.requests_today)}
+                  </dd>
+                </div>
+                <div className="rounded-md border border-line bg-surface-elevated px-3 py-2">
+                  <dt className="text-xs text-ink-faint">Richieste ora</dt>
+                  <dd className="text-sm font-semibold tabular-nums text-ink">
+                    {formatNumber(justwatch.requests_hour)}
+                  </dd>
+                </div>
+                <div className="rounded-md border border-line bg-surface-elevated px-3 py-2">
+                  <dt className="text-xs text-ink-faint">Cache hit</dt>
+                  <dd className="text-sm font-semibold tabular-nums text-ink">
+                    {formatNumber(justwatch.cache_hits)}
+                  </dd>
+                </div>
+                <div className="rounded-md border border-line bg-surface-elevated px-3 py-2">
+                  <dt className="text-xs text-ink-faint">Cache miss</dt>
+                  <dd className="text-sm font-semibold tabular-nums text-ink">
+                    {formatNumber(justwatch.cache_misses)}
+                  </dd>
+                </div>
+                <div className="rounded-md border border-line bg-surface-elevated px-3 py-2">
+                  <dt className="text-xs text-ink-faint">Mapping IT</dt>
+                  <dd className="text-sm font-semibold tabular-nums text-ink">
+                    {formatNumber(justwatch.mappings.length)}
+                  </dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="text-sm text-ink-muted">
+                Dati runtime JustWatch non disponibili.
+              </p>
+            )}
           </Card>
         </div>
 
