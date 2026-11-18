@@ -1,0 +1,82 @@
+# syntax=docker/dockerfile:1.7
+
+# MdbUP — immagine unica per api, worker, scheduler e migrate.
+# Una sola superficie di supply chain: i quattro servizi cambiano solo per `command`
+# (docs/phase1/08-ops-tests-risks.md §1).
+#
+# Build (contesto = radice del repository):
+#   docker build -f deploy/Dockerfile.api -t mdbup-api:local .
+
+# ---------------------------------------------------------------------------
+# Stage 0 — build della SPA: l'API la serve direttamente su /app/static.
+# ---------------------------------------------------------------------------
+FROM node:20-alpine AS frontend
+
+WORKDIR /frontend
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY frontend/ ./
+RUN npm run build
+
+# ---------------------------------------------------------------------------
+# Stage 1 — dipendenze Python in un virtualenv isolato.
+# Le dipendenze sono lette da backend/pyproject.toml: una sola fonte di verità,
+# nessun elenco duplicato da mantenere allineato.
+# ---------------------------------------------------------------------------
+FROM python:3.12-slim AS builder
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+
+WORKDIR /build
+
+COPY backend/pyproject.toml ./pyproject.toml
+RUN python -c "import pathlib, tomllib; \
+    deps = tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['dependencies']; \
+    pathlib.Path('requirements.txt').write_text('\n'.join(deps) + '\n')" \
+ && pip install --upgrade pip \
+ && pip install -r requirements.txt
+
+# ---------------------------------------------------------------------------
+# Stage 2 — runtime: solo virtualenv, sorgenti e interprete.
+# ---------------------------------------------------------------------------
+FROM python:3.12-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    PATH="/opt/venv/bin:${PATH}"
+
+# procps fornisce pgrep, usato dall'healthcheck del servizio `scheduler`.
+# `age` serve a `python -m app.cli backup-verify` per decifrare il dump e
+# controllare il magic PGDMP. Se il pacchetto non è disponibile nella base
+# image il build non fallisce: la CLI riporta "age non disponibile" e verifica
+# solo checksum e header.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends procps \
+ && (apt-get install -y --no-install-recommends age \
+     || echo "age non disponibile nella base image: backup-verify senza decifratura") \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --gid 10001 app \
+ && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin app
+
+COPY --from=builder /opt/venv /opt/venv
+
+# Sorgenti, alembic.ini e alembic/ restano in /app: `alembic upgrade head`
+# (servizio `migrate`) e `app.main:app` risolvono dalla stessa directory.
+WORKDIR /app
+COPY --chown=10001:10001 backend/ /app/
+COPY --from=frontend /frontend/dist /app/static
+
+USER 10001:10001
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

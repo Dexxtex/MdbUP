@@ -1,0 +1,318 @@
+name: CI
+
+# Gate di qualità di MdbUP (docs/phase1/08-ops-tests-risks.md §10).
+# Job bloccanti: lint, typecheck, test, migrations, build, security.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "20"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Sync backend
+        working-directory: backend
+        run: uv sync --extra dev
+
+      - name: ruff check
+        working-directory: backend
+        run: uv run ruff check .
+
+      - name: ruff format --check
+        working-directory: backend
+        run: uv run ruff format --check .
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm ci
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: eslint
+        working-directory: frontend
+        run: npm run lint
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Sync backend
+        working-directory: backend
+        run: uv sync --extra dev
+
+      - name: mypy
+        working-directory: backend
+        run: uv run mypy app
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm ci
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: tsc --noEmit
+        working-directory: frontend
+        run: npm run typecheck
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: mdbup
+          POSTGRES_USER: mdbup
+          POSTGRES_PASSWORD: mdbup
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mdbup -d mdbup"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://mdbup:mdbup@localhost:5432/mdbup
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/1
+      CELERY_RESULT_BACKEND: redis://localhost:6379/2
+      CELERY_TASK_ALWAYS_EAGER: "true"
+      APP_ENCRYPTION_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+      BOOTSTRAP_TOKEN: ci-bootstrap-token
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Sync backend
+        working-directory: backend
+        run: uv sync --extra dev
+
+      - name: Unit
+        working-directory: backend
+        run: uv run pytest tests/unit -q
+
+      - name: Integration
+        working-directory: backend
+        run: uv run pytest tests/integration -q
+
+      - name: Contract
+        working-directory: backend
+        run: uv run pytest tests/contract -q
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm ci
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: Frontend unit test (vitest)
+        working-directory: frontend
+        run: npm test
+
+  migrations:
+    name: Migrations
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: mdbup
+          POSTGRES_USER: mdbup
+          POSTGRES_PASSWORD: mdbup
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mdbup -d mdbup"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://mdbup:mdbup@localhost:5432/mdbup
+      APP_ENCRYPTION_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+      BOOTSTRAP_TOKEN: ci-bootstrap-token
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Sync backend
+        working-directory: backend
+        run: uv sync --extra dev
+
+      - name: upgrade head
+        working-directory: backend
+        run: uv run alembic upgrade head
+
+      - name: downgrade base
+        working-directory: backend
+        run: uv run alembic downgrade base
+
+      - name: upgrade head (idempotenza)
+        working-directory: backend
+        run: uv run alembic upgrade head
+
+      - name: alembic check (nessun diff)
+        working-directory: backend
+        run: uv run alembic check
+
+      - name: un solo head
+        working-directory: backend
+        run: |
+          heads=$(uv run alembic heads | grep -c '(head)')
+          echo "head trovati: ${heads}"
+          test "${heads}" -eq 1
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build immagine api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.api
+          push: false
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      - name: Build immagine frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          push: false
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm ci
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: vite build
+        working-directory: frontend
+        run: npm run build
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Sync backend
+        working-directory: backend
+        run: uv sync --extra dev
+
+      - name: pip-audit
+        working-directory: backend
+        run: uv run --with pip-audit pip-audit
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm audit (produzione)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: trivy fs (HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"

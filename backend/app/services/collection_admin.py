@@ -1,0 +1,693 @@
+"""Create/update collections from the UI without the CLI.
+
+CATALOG and RECENTLY_ADDED collections call TMDb. CUSTOM_FILTER collections are
+computed locally from already-acquired valid snapshots: they never add external
+API calls, and can union several providers (for example Netflix + Prime Video +
+Disney+).
+"""
+
+from __future__ import annotations
+
+import re
+import uuid
+
+from sqlalchemy.orm import Session
+
+from app.api.errors import ConflictError, NotFoundError, ValidationError
+from app.api.schemas_catalog import CollectionCreateIn, CollectionUpdateIn
+from app.core.config import Settings
+from app.db.models import Collection
+from app.domain.enums import (
+    AuditActorType,
+    CollectionKind,
+    CollectionOrigin,
+    DateBasis,
+    MediaType,
+    OfferType,
+)
+from app.domain.genres import genres_for
+from app.repositories import audit
+from app.repositories import collections as collections_repo
+from app.repositories import providers as providers_repo
+from app.repositories import snapshots as snapshots_repo
+from app.repositories import sources as sources_repo
+from app.services import collections as collections_service
+from app.services.collections import CollectionSummary
+
+_SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+_LANGUAGE = re.compile(r"^[a-z]{2,3}$")
+_LOCAL_SORTS = {
+    "vote_average.desc",
+    "vote_count.desc",
+    "release_date.desc",
+    "title.asc",
+    "popularity.desc",
+}
+
+
+def list_genres(media_type: str) -> list[dict[str, object]]:
+    return [{"id": genre_id, "name": name} for genre_id, name in genres_for(media_type)]
+
+
+def _validate_slug(slug: str) -> None:
+    if not _SLUG.match(slug):
+        raise ValidationError(
+            "Slug non valido: usare minuscole, numeri e trattini.",
+            code="INVALID_SLUG",
+        )
+
+
+def _validate_genres(media_type: str, genre_ids: list[int]) -> list[int]:
+    allowed = {genre_id for genre_id, _ in genres_for(media_type)}
+    invalid = [genre_id for genre_id in genre_ids if genre_id not in allowed]
+    if invalid:
+        raise ValidationError(
+            "Genere TMDb non valido per questo tipo media.",
+            code="INVALID_GENRE",
+            details={"invalid": invalid, "allowed": sorted(allowed)},
+        )
+    return list(dict.fromkeys(genre_ids))
+
+
+def _validate_local_filters(
+    *,
+    media_type: str,
+    genre_ids: list[int],
+    exclude_genre_ids: list[int],
+    original_language: str | None,
+    local_sort_by: str,
+) -> tuple[list[int], list[int]]:
+    included = _validate_genres(media_type, genre_ids)
+    excluded = _validate_genres(media_type, exclude_genre_ids)
+    overlap = sorted(set(included) & set(excluded))
+    if overlap:
+        raise ValidationError(
+            "Un genere non può essere incluso ed escluso contemporaneamente.",
+            code="LOCAL_FILTER_GENRE_CONFLICT",
+            details={"genres": overlap},
+        )
+    if original_language and not _LANGUAGE.match(original_language):
+        raise ValidationError(
+            "La lingua originale deve essere un codice ISO 639-1/639-2 (es. it, en).",
+            code="LOCAL_FILTER_LANGUAGE_INVALID",
+        )
+    if local_sort_by not in _LOCAL_SORTS:
+        raise ValidationError(
+            "Ordinamento locale non valido.",
+            code="LOCAL_FILTER_SORT_INVALID",
+            details={"allowed": sorted(_LOCAL_SORTS)},
+        )
+    return included, excluded
+
+
+def _validate_local_sources(
+    db: Session, source_collection_ids: list[uuid.UUID], *, media_type: str
+) -> list[Collection]:
+    if not source_collection_ids:
+        raise ValidationError(
+            "Una raccolta combinata richiede almeno una collezione sorgente.",
+            code="LOCAL_FILTER_SOURCES_MISSING",
+        )
+    sources: list[Collection] = []
+    for source_id in source_collection_ids:
+        source = collections_repo.get_collection(db, source_id)
+        if source is None:
+            raise ValidationError(
+                "Collezione sorgente non trovata.",
+                code="LOCAL_FILTER_SOURCE_MISSING",
+                details={"source_collection_id": str(source_id)},
+            )
+        if source.media_type != media_type:
+            raise ValidationError(
+                "Tutte le collezioni sorgente devono avere lo stesso tipo media.",
+                code="LOCAL_FILTER_SOURCE_MISMATCH",
+                details={"source_collection_id": str(source_id)},
+            )
+        sources.append(source)
+    return sources
+
+
+def _provider_external_id(db: Session, provider_id: uuid.UUID, media_type: str) -> str:
+    source = sources_repo.get_source_by_key(db, "tmdb")
+    if source is None:
+        raise ValidationError("Fonte TMDb non trovata.", code="SOURCE_MISSING")
+    mapping = providers_repo.get_mapping(
+        db, provider_id=provider_id, source_id=source.id, country_code="IT"
+    )
+    if mapping is None:
+        raise ValidationError(
+            "Mapping TMDb mancante per il provider.",
+            code="PROVIDER_NOT_VERIFIED",
+        )
+    metadata = mapping.metadata_json or {}
+    verified = bool(
+        metadata.get("tv_verified")
+        if media_type == MediaType.SHOW.value
+        else metadata.get("movie_verified")
+    )
+    if not verified:
+        raise ValidationError(
+            "Il provider non è verificato live per questo tipo media: eseguire verify-providers.",
+            code="PROVIDER_NOT_VERIFIED",
+            details={"provider_id": str(provider_id), "media_type": media_type},
+        )
+    external_id = (
+        metadata.get("tv_provider_id")
+        if media_type == MediaType.SHOW.value
+        else metadata.get("movie_provider_id")
+    )
+    if external_id is None:
+        raise ValidationError(
+            "ID TMDb mancante per questo tipo media.",
+            code="PROVIDER_NOT_VERIFIED",
+        )
+    return str(external_id)
+
+
+def _validate_source_collection(
+    db: Session,
+    source_collection_id: uuid.UUID,
+    *,
+    provider_id: uuid.UUID,
+    media_type: str,
+) -> Collection:
+    source = collections_repo.get_collection(db, source_collection_id)
+    if source is None:
+        raise ValidationError(
+            "Collezione sorgente non trovata.",
+            code="DERIVATION_SOURCE_MISSING",
+        )
+    if source.provider_id != provider_id or source.media_type != media_type:
+        raise ValidationError(
+            "La collezione sorgente deve avere lo stesso provider e tipo media.",
+            code="DERIVATION_SOURCE_MISMATCH",
+        )
+    if source.kind != CollectionKind.CATALOG.value:
+        raise ValidationError(
+            "La baseline deve essere una collezione CATALOG.",
+            code="DERIVATION_SOURCE_NOT_CATALOG",
+        )
+    filters = source.filters or {}
+    if filters.get("with_genres"):
+        raise ValidationError(
+            "La baseline deve essere il catalogo completo, non una collezione di genere.",
+            code="DERIVATION_SOURCE_NOT_FULL_CATALOG",
+        )
+    return source
+
+
+def _build_filters(
+    *,
+    provider_external_id: str,
+    media_type: str,
+    genre_ids: list[int],
+    monetization_type: str,
+    kind: str,
+    source_collection_id: uuid.UUID | None,
+    window_days: int | None,
+    shared_snapshot_collection_id: uuid.UUID | None,
+    source_collections: list[Collection] | None = None,
+    exclude_genre_ids: list[int] | None = None,
+    min_vote_average: float | None = None,
+    min_vote_count: int | None = None,
+    year_from: int | None = None,
+    year_to: int | None = None,
+    original_language: str | None = None,
+    local_sort_by: str = "vote_average.desc",
+) -> dict[str, object]:
+    if kind == CollectionKind.CUSTOM_FILTER.value:
+        filters: dict[str, object] = {
+            "derivation": "LOCAL_FILTER",
+            "source_collection_ids": [str(source.id) for source in source_collections or []],
+            "provider_ids": [
+                str(provider_id)
+                for provider_id in dict.fromkeys(
+                    source.provider_id for source in source_collections or []
+                )
+            ],
+            "media_type": media_type,
+            "watch_region": "IT",
+            "sort_by": local_sort_by,
+        }
+        if genre_ids:
+            filters["with_genres"] = ",".join(str(genre_id) for genre_id in genre_ids)
+        if exclude_genre_ids:
+            filters["exclude_genres"] = ",".join(str(genre_id) for genre_id in exclude_genre_ids)
+        if min_vote_average is not None:
+            filters["min_vote_average"] = float(min_vote_average)
+        if min_vote_count is not None:
+            filters["min_vote_count"] = int(min_vote_count)
+        if year_from is not None:
+            filters["year_from"] = int(year_from)
+        if year_to is not None:
+            filters["year_to"] = int(year_to)
+        if original_language:
+            filters["original_language"] = original_language
+        return filters
+
+    filters = {
+        "provider_id": provider_external_id,
+        "watch_region": "IT",
+        "with_watch_monetization_types": monetization_type.lower(),
+        "sort_by": "popularity.desc",
+    }
+    if genre_ids:
+        filters["with_genres"] = ",".join(str(genre_id) for genre_id in genre_ids)
+    if kind == CollectionKind.RECENTLY_ADDED.value:
+        filters["derivation"] = "RECENTLY_DETECTED"
+        filters["source_collection_id"] = str(source_collection_id)
+        filters["window_days"] = int(window_days or 14)
+    if shared_snapshot_collection_id is not None:
+        filters["shared_snapshot_collection_id"] = str(shared_snapshot_collection_id)
+    return filters
+
+
+def _custom_quality_flags(sources: list[Collection]) -> dict[str, object]:
+    return {
+        "local_filter": True,
+        "multi_provider": len({source.provider_id for source in sources}) > 1,
+        "official_provider_list": False,
+        "source_collection_slugs": [source.slug for source in sources],
+    }
+
+
+def create_collection(
+    db: Session,
+    settings: Settings,
+    payload: CollectionCreateIn,
+    *,
+    actor_user_id: uuid.UUID | None = None,
+) -> CollectionSummary:
+    _validate_slug(payload.slug)
+    if collections_repo.get_collection_by_slug(db, payload.slug) is not None:
+        raise ConflictError(
+            "Esiste già una collezione con questo slug.",
+            code="COLLECTION_EXISTS",
+            details={"slug": payload.slug},
+        )
+    source = sources_repo.get_source_by_key(db, "tmdb")
+    if source is None:
+        raise ValidationError("Fonte TMDb non trovata.", code="SOURCE_MISSING")
+
+    if payload.kind == CollectionKind.CUSTOM_FILTER.value:
+        sources = _validate_local_sources(
+            db, payload.source_collection_ids, media_type=payload.media_type
+        )
+        provider_id = payload.provider_id or sources[0].provider_id
+        provider = providers_repo.get_provider(db, provider_id)
+        if provider is None:
+            raise NotFoundError("Provider non trovato.", details={"provider_id": str(provider_id)})
+        if provider.id not in {item.provider_id for item in sources}:
+            raise ValidationError(
+                "Il provider principale deve essere uno dei provider delle collezioni sorgente.",
+                code="LOCAL_FILTER_PROVIDER_MISMATCH",
+            )
+        genre_ids, exclude_genre_ids = _validate_local_filters(
+            media_type=payload.media_type,
+            genre_ids=payload.genre_ids,
+            exclude_genre_ids=payload.exclude_genre_ids,
+            original_language=payload.original_language,
+            local_sort_by=payload.local_sort_by,
+        )
+        filters = _build_filters(
+            provider_external_id="",
+            media_type=payload.media_type,
+            genre_ids=genre_ids,
+            monetization_type=payload.monetization_type,
+            kind=payload.kind,
+            source_collection_id=None,
+            window_days=None,
+            shared_snapshot_collection_id=None,
+            source_collections=sources,
+            exclude_genre_ids=exclude_genre_ids,
+            min_vote_average=payload.min_vote_average,
+            min_vote_count=payload.min_vote_count,
+            year_from=payload.year_from,
+            year_to=payload.year_to,
+            original_language=payload.original_language,
+            local_sort_by=payload.local_sort_by,
+        )
+        collection = collections_repo.upsert_collection(
+            db,
+            slug=payload.slug,
+            source_id=source.id,
+            provider_id=provider.id,
+            country_code="IT",
+            media_type=payload.media_type,
+            kind=payload.kind,
+            origin=CollectionOrigin.CUSTOM.value,
+            date_basis=DateBasis.UNKNOWN.value,
+            name=payload.name,
+            description=payload.description
+            or (
+                "Raccolta combinata/filtrata localmente da "
+                f"{len(sources)} collezioni. Non è una lista ufficiale dei provider."
+            ),
+            source_collection_key=f"custom:{payload.slug}",
+            source_url=None,
+            offer_types=[payload.monetization_type],
+            filters=filters,
+            quality_flags=_custom_quality_flags(sources),
+            sort_mode="CUSTOM",
+            is_active=payload.is_active,
+        )
+        audit.record(
+            db,
+            action="collection_created",
+            entity_type="collection",
+            entity_id=collection.id,
+            actor_user_id=actor_user_id,
+            actor_type=AuditActorType.USER if actor_user_id else AuditActorType.SYSTEM,
+            after={
+                "slug": collection.slug,
+                "kind": collection.kind,
+                "source_collections": [str(item.id) for item in sources],
+            },
+        )
+        db.commit()
+        return collections_service.get_collection(db, collection.id)
+
+    if payload.provider_id is None:
+        raise ValidationError(
+            "provider_id è obbligatorio per una collezione catalogo o 'Appena rilevati'.",
+            code="PROVIDER_REQUIRED",
+        )
+    provider = providers_repo.get_provider(db, payload.provider_id)
+    if provider is None:
+        raise NotFoundError(
+            "Provider non trovato.", details={"provider_id": str(payload.provider_id)}
+        )
+    genre_ids = _validate_genres(payload.media_type, payload.genre_ids)
+    provider_external_id = _provider_external_id(db, provider.id, payload.media_type)
+    if payload.kind == CollectionKind.RECENTLY_ADDED.value:
+        if payload.monetization_type != OfferType.FLATRATE.value:
+            raise ValidationError(
+                "Le collezioni 'Appena rilevati' usano solo FLATRATE.",
+                code="DERIVATION_REQUIRES_FLATRATE",
+            )
+        if payload.source_collection_id is None:
+            raise ValidationError(
+                "source_collection_id è obbligatorio per 'Appena rilevati'.",
+                code="DERIVATION_SOURCE_MISSING",
+            )
+        _validate_source_collection(
+            db,
+            payload.source_collection_id,
+            provider_id=provider.id,
+            media_type=payload.media_type,
+        )
+    if payload.shared_snapshot_collection_id is not None:
+        _validate_source_collection(
+            db,
+            payload.shared_snapshot_collection_id,
+            provider_id=provider.id,
+            media_type=payload.media_type,
+        )
+    filters = _build_filters(
+        provider_external_id=provider_external_id,
+        media_type=payload.media_type,
+        genre_ids=genre_ids,
+        monetization_type=payload.monetization_type,
+        kind=payload.kind,
+        source_collection_id=payload.source_collection_id,
+        window_days=payload.window_days,
+        shared_snapshot_collection_id=payload.shared_snapshot_collection_id,
+    )
+    origin = (
+        CollectionOrigin.CUSTOM.value
+        if payload.kind == CollectionKind.RECENTLY_ADDED.value
+        else CollectionOrigin.AGGREGATOR.value
+    )
+    date_basis = (
+        DateBasis.APP_FIRST_SEEN.value
+        if payload.kind == CollectionKind.RECENTLY_ADDED.value
+        else DateBasis.UNKNOWN.value
+    )
+    collection = collections_repo.upsert_collection(
+        db,
+        slug=payload.slug,
+        source_id=source.id,
+        provider_id=provider.id,
+        country_code="IT",
+        media_type=payload.media_type,
+        kind=payload.kind,
+        origin=origin,
+        date_basis=date_basis,
+        name=payload.name,
+        description=payload.description,
+        source_collection_key=f"custom:{payload.slug}",
+        source_url=None,
+        offer_types=[payload.monetization_type],
+        filters=filters,
+        quality_flags={
+            "provider_mapping_verified": True,
+            "added_date_missing": payload.monetization_type == OfferType.FLATRATE.value,
+            "derivation": filters.get("derivation"),
+        },
+        sort_mode="POPULARITY",
+        is_active=payload.is_active,
+    )
+    audit.record(
+        db,
+        action="collection_created",
+        entity_type="collection",
+        entity_id=collection.id,
+        actor_user_id=actor_user_id,
+        actor_type=AuditActorType.USER if actor_user_id else AuditActorType.SYSTEM,
+        after={
+            "slug": collection.slug,
+            "provider_id": str(provider.id),
+            "media_type": collection.media_type,
+            "kind": collection.kind,
+        },
+    )
+    db.commit()
+    return collections_service.get_collection(db, collection.id)
+
+
+def update_collection(
+    db: Session,
+    settings: Settings,
+    collection_id: uuid.UUID,
+    payload: CollectionUpdateIn,
+    *,
+    actor_user_id: uuid.UUID | None = None,
+) -> CollectionSummary:
+    collection = collections_repo.get_collection(db, collection_id)
+    if collection is None:
+        raise NotFoundError(
+            "Collezione non trovata.", details={"collection_id": str(collection_id)}
+        )
+    if (
+        payload.kind is not None
+        and payload.kind != collection.kind
+        and snapshots_repo.count_snapshots(db, collection.id) > 0
+    ):
+        raise ConflictError(
+            "Non si può cambiare tipo a una collezione con snapshot esistenti.",
+            code="COLLECTION_HAS_SNAPSHOTS",
+        )
+    kind = payload.kind or collection.kind
+    media_type = collection.media_type
+    existing_filters = collection.filters or {}
+
+    if kind == CollectionKind.CUSTOM_FILTER.value:
+        raw_ids = payload.source_collection_ids
+        if raw_ids is None:
+            raw_ids = [
+                uuid.UUID(str(value)) for value in existing_filters.get("source_collection_ids", [])
+            ]
+        sources = _validate_local_sources(db, raw_ids, media_type=media_type)
+        genre_ids = (
+            _validate_genres(media_type, payload.genre_ids)
+            if payload.genre_ids is not None
+            else [
+                int(value)
+                for value in str(existing_filters.get("with_genres", "")).split(",")
+                if value.strip().isdigit()
+            ]
+        )
+        exclude_genre_ids = (
+            _validate_genres(media_type, payload.exclude_genre_ids)
+            if payload.exclude_genre_ids is not None
+            else [
+                int(value)
+                for value in str(existing_filters.get("exclude_genres", "")).split(",")
+                if value.strip().isdigit()
+            ]
+        )
+        genre_ids, exclude_genre_ids = _validate_local_filters(
+            media_type=media_type,
+            genre_ids=genre_ids,
+            exclude_genre_ids=exclude_genre_ids,
+            original_language=payload.original_language
+            if payload.original_language is not None
+            else existing_filters.get("original_language"),
+            local_sort_by=payload.local_sort_by
+            or str(existing_filters.get("sort_by", "vote_average.desc")),
+        )
+        collection.provider_id = sources[0].provider_id
+        collection.source_id = sources[0].source_id
+        collection.kind = kind
+        collection.origin = CollectionOrigin.CUSTOM.value
+        collection.date_basis = DateBasis.UNKNOWN.value
+        collection.name = payload.name or collection.name
+        collection.description = (
+            payload.description if payload.description is not None else collection.description
+        )
+        collection.offer_types = [
+            payload.monetization_type
+            or str((collection.offer_types or [OfferType.FLATRATE.value])[0])
+        ]
+        collection.filters = _build_filters(
+            provider_external_id="",
+            media_type=media_type,
+            genre_ids=genre_ids,
+            monetization_type=str(collection.offer_types[0]),
+            kind=kind,
+            source_collection_id=None,
+            window_days=None,
+            shared_snapshot_collection_id=None,
+            source_collections=sources,
+            exclude_genre_ids=exclude_genre_ids,
+            min_vote_average=payload.min_vote_average
+            if payload.min_vote_average is not None
+            else existing_filters.get("min_vote_average"),
+            min_vote_count=payload.min_vote_count
+            if payload.min_vote_count is not None
+            else existing_filters.get("min_vote_count"),
+            year_from=payload.year_from
+            if payload.year_from is not None
+            else existing_filters.get("year_from"),
+            year_to=payload.year_to
+            if payload.year_to is not None
+            else existing_filters.get("year_to"),
+            original_language=payload.original_language
+            if payload.original_language is not None
+            else existing_filters.get("original_language"),
+            local_sort_by=payload.local_sort_by
+            or str(existing_filters.get("sort_by", "vote_average.desc")),
+        )
+        collection.quality_flags = _custom_quality_flags(sources)
+        collection.sort_mode = "CUSTOM"
+        if payload.is_active is not None:
+            collection.is_active = payload.is_active
+        db.flush()
+        audit.record(
+            db,
+            action="collection_updated",
+            entity_type="collection",
+            entity_id=collection.id,
+            actor_user_id=actor_user_id,
+            actor_type=AuditActorType.USER if actor_user_id else AuditActorType.SYSTEM,
+            after={
+                "slug": collection.slug,
+                "kind": collection.kind,
+                "filters": collection.filters,
+                "is_active": collection.is_active,
+            },
+        )
+        db.commit()
+        return collections_service.get_collection(db, collection.id)
+
+    genre_ids = (
+        _validate_genres(media_type, payload.genre_ids)
+        if payload.genre_ids is not None
+        else [
+            int(value)
+            for value in str(existing_filters.get("with_genres", "")).split(",")
+            if value.strip().isdigit()
+        ]
+    )
+    monetization_type = payload.monetization_type or str(
+        (collection.offer_types or [OfferType.FLATRATE.value])[0]
+    )
+    source_collection_id = payload.source_collection_id
+    if source_collection_id is None and existing_filters.get("source_collection_id"):
+        source_collection_id = uuid.UUID(str(existing_filters["source_collection_id"]))
+    window_days = payload.window_days
+    if window_days is None and existing_filters.get("window_days") is not None:
+        window_days = int(existing_filters["window_days"])
+    shared_snapshot_collection_id = payload.shared_snapshot_collection_id
+    if shared_snapshot_collection_id is None and existing_filters.get(
+        "shared_snapshot_collection_id"
+    ):
+        shared_snapshot_collection_id = uuid.UUID(
+            str(existing_filters["shared_snapshot_collection_id"])
+        )
+    if kind == CollectionKind.RECENTLY_ADDED.value:
+        if monetization_type != OfferType.FLATRATE.value:
+            raise ValidationError(
+                "Le collezioni 'Appena rilevati' usano solo FLATRATE.",
+                code="DERIVATION_REQUIRES_FLATRATE",
+            )
+        if source_collection_id is None:
+            raise ValidationError(
+                "source_collection_id è obbligatorio per 'Appena rilevati'.",
+                code="DERIVATION_SOURCE_MISSING",
+            )
+        _validate_source_collection(
+            db,
+            source_collection_id,
+            provider_id=collection.provider_id,
+            media_type=media_type,
+        )
+    if shared_snapshot_collection_id is not None:
+        _validate_source_collection(
+            db,
+            shared_snapshot_collection_id,
+            provider_id=collection.provider_id,
+            media_type=media_type,
+        )
+    provider_external_id = _provider_external_id(db, collection.provider_id, media_type)
+    collection.name = payload.name or collection.name
+    collection.description = (
+        payload.description if payload.description is not None else collection.description
+    )
+    collection.kind = kind
+    collection.origin = (
+        CollectionOrigin.CUSTOM.value
+        if kind == CollectionKind.RECENTLY_ADDED.value
+        else CollectionOrigin.AGGREGATOR.value
+    )
+    collection.date_basis = (
+        DateBasis.APP_FIRST_SEEN.value
+        if kind == CollectionKind.RECENTLY_ADDED.value
+        else DateBasis.UNKNOWN.value
+    )
+    collection.offer_types = [monetization_type]
+    collection.filters = _build_filters(
+        provider_external_id=provider_external_id,
+        media_type=media_type,
+        genre_ids=genre_ids,
+        monetization_type=monetization_type,
+        kind=kind,
+        source_collection_id=source_collection_id,
+        window_days=window_days,
+        shared_snapshot_collection_id=shared_snapshot_collection_id,
+    )
+    collection.quality_flags = {
+        "provider_mapping_verified": True,
+        "added_date_missing": monetization_type == OfferType.FLATRATE.value,
+        "derivation": collection.filters.get("derivation"),
+    }
+    collection.sort_mode = "POPULARITY"
+    if payload.is_active is not None:
+        collection.is_active = payload.is_active
+    db.flush()
+    audit.record(
+        db,
+        action="collection_updated",
+        entity_type="collection",
+        entity_id=collection.id,
+        actor_user_id=actor_user_id,
+        actor_type=AuditActorType.USER if actor_user_id else AuditActorType.SYSTEM,
+        after={
+            "slug": collection.slug,
+            "kind": collection.kind,
+            "filters": collection.filters,
+            "is_active": collection.is_active,
+        },
+    )
+    db.commit()
+    return collections_service.get_collection(db, collection.id)

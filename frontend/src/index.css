@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Token del tema. `:root` è il tema scuro (default del prodotto); `.light` è
+ * l'override applicato da ThemeProvider. I valori sono canali RGB per
+ * permettere le varianti di opacità di Tailwind (`bg-surface/80`).
+ */
+@layer base {
+  :root {
+    color-scheme: dark;
+
+    --page: 8 10 14;
+    --surface: 16 19 25;
+    --surface-elevated: 22 26 34;
+    --surface-muted: 30 35 45;
+    --line: 42 48 60;
+    --line-strong: 64 73 90;
+    --ink: 233 238 246;
+    --ink-muted: 158 168 184;
+    --ink-faint: 116 126 142;
+    --ink-inverted: 7 11 19;
+    --accent: 110 168 254;
+    --accent-strong: 78 140 245;
+    --accent-soft: 26 48 84;
+    --accent-contrast: 6 12 24;
+    --success: 74 222 160;
+    --success-soft: 15 54 42;
+    --warning: 251 191 36;
+    --warning-soft: 62 45 9;
+    --danger: 248 113 113;
+    --danger-soft: 68 22 26;
+    --info: 125 211 252;
+    --info-soft: 16 50 68;
+
+    --brand-50: 24 40 68;
+    --brand-100: 30 52 88;
+    --brand-300: 96 138 208;
+    --brand-500: 110 168 254;
+    --brand-600: 78 140 245;
+    --brand-700: 158 196 255;
+    --brand-800: 200 221 255;
+  }
+
+  :root.light {
+    color-scheme: light;
+
+    --page: 246 248 251;
+    --surface: 255 255 255;
+    --surface-elevated: 255 255 255;
+    --surface-muted: 241 244 249;
+    --line: 222 228 237;
+    --line-strong: 190 200 214;
+    --ink: 15 23 42;
+    --ink-muted: 71 85 105;
+    --ink-faint: 100 116 139;
+    --ink-inverted: 255 255 255;
+    --accent: 37 99 235;
+    --accent-strong: 29 78 216;
+    --accent-soft: 219 234 254;
+    --accent-contrast: 255 255 255;
+    --success: 5 150 105;
+    --success-soft: 209 250 229;
+    --warning: 180 83 9;
+    --warning-soft: 254 243 199;
+    --danger: 190 18 60;
+    --danger-soft: 255 228 230;
+    --info: 3 105 161;
+    --info-soft: 224 242 254;
+
+    --brand-50: 239 246 255;
+    --brand-100: 219 234 254;
+    --brand-300: 147 197 253;
+    --brand-500: 59 130 246;
+    --brand-600: 37 99 235;
+    --brand-700: 29 78 216;
+    --brand-800: 30 64 175;
+  }
+
+  body {
+    @apply bg-page text-ink antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: rgb(var(--accent));
+  }
+
+  ::selection {
+    background: rgb(var(--accent) / 0.32);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
+/* Native progress bars keep CSP `style-src 'self'` (no inline width styles). */
+.meter {
+  display: block;
+  width: 100%;
+  height: 0.375rem;
+  overflow: hidden;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--surface-muted);
+  appearance: none;
+}
+.meter::-webkit-progress-bar {
+  background: var(--surface-muted);
+  border-radius: 9999px;
+}
+.meter::-webkit-progress-value {
+  background: var(--accent);
+  border-radius: 9999px;
+}
+.meter::-moz-progress-bar {
+  background: var(--accent);
+  border-radius: 9999px;
+}
+.meter-danger::-webkit-progress-value {
+  background: var(--danger);
+}
+.meter-danger::-moz-progress-bar {
+  background: var(--danger);
+}

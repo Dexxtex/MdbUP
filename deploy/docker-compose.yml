@@ -1,0 +1,209 @@
+# MdbUP — stack compatto (4 servizi) per deploy/.
+#
+#   docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
+#
+# Servizi:
+#   api      FastAPI + SPA statica + migrazioni Alembic all'avvio
+#   worker   Celery worker + beat embedded (-B)
+#   postgres PostgreSQL
+#   redis    Redis (broker/cache)
+#
+# Nessun reverse proxy è integrato: l'API espone HTTP sulla porta 28080 e
+# ognuno può metterci davanti Caddy, Nginx, Traefik, Tailscale, ecc.
+#
+# Env:
+#   - `env_file: .env` passa tutte le variabili applicative;
+#   - `environment` contiene override espliciti non segreti. Aggiungi qui le
+#     tue variabili: hanno precedenza su .env.
+#   - I segreti restano in ./secrets/ (mai nel compose).
+
+name: mdbup
+
+x-app: &app
+  image: mdbup-api:local
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile.api
+  env_file:
+    - ../.env
+  environment:
+    APP_ENV: ${APP_ENV:-production}
+    APP_BASE_URL: ${APP_BASE_URL:-http://localhost:28080}
+    APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Rome}
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    LOG_FORMAT: ${LOG_FORMAT:-json}
+    COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-mdbsync-session}
+    CSRF_COOKIE_NAME: ${CSRF_COOKIE_NAME:-mdbsync-csrf}
+    METRICS_ENABLED: ${METRICS_ENABLED:-true}
+    BACKUP_DIR: /backups
+    BACKUP_STATUS_FILE: /backups/last_backup.json
+  user: "10001:10001"
+  read_only: true
+  init: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  networks:
+    - internal
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+  deploy:
+    resources:
+      limits:
+        cpus: "1.0"
+        memory: 512M
+
+services:
+  api:
+    <<: *app
+    command: ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers"]
+    secrets:
+      - app_encryption_key
+      - bootstrap_token
+    ports:
+      - "${WEB_PORT:-28080}:8000"
+    volumes:
+      - ${BACKUP_HOST_DIR:-../backups}:/backups:ro
+    networks:
+      - edge
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    <<: *app
+    command: ["celery", "-A", "app.jobs.celery_app", "worker", "-B",
+              "-s", "/tmp/celerybeat-schedule",
+              "-Q", "acquisitions,sync,maintenance", "-c", "2",
+              "--max-tasks-per-child=200"]
+    secrets:
+      - app_encryption_key
+      - bootstrap_token
+    volumes:
+      - ${BACKUP_HOST_DIR:-../backups}:/backups:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - internal
+      - egress
+    stop_grace_period: 60s
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.jobs.celery_app inspect ping -d celery@$$HOSTNAME"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mdbup}
+      POSTGRES_USER: ${POSTGRES_USER:-mdbup}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    command: ["postgres", "-c", "shared_buffers=256MB", "-c", "max_connections=60"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb",
+              "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redisdata:/data
+    networks:
+      - internal
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 320M
+
+networks:
+  edge:
+    driver: bridge
+  egress:
+    driver: bridge
+  internal:
+    driver: bridge
+    internal: true
+
+volumes:
+  pgdata:
+  redisdata:
+
+secrets:
+  postgres_password:
+    file: ../secrets/postgres_password
+  app_encryption_key:
+    file: ../secrets/app_encryption_key
+  bootstrap_token:
+    file: ../secrets/bootstrap_token

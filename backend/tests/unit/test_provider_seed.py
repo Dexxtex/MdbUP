@@ -1,0 +1,45 @@
+"""Provider seed: the Italian providers and their movie/TV TMDb mapping metadata."""
+
+from __future__ import annotations
+
+from app.seed import PROVIDER_SEED, TMDB_PROVIDER_SEED
+
+# Providers requested for the Phase 7 expansion; they must already be seeded
+# with verified TMDb ids (no invented identifiers).
+EXPECTED_PROVIDERS = {
+    "prime-video": ("119", "119"),
+    "disney-plus": ("337", "337"),
+    "now": ("39", "39"),
+    "paramount-plus": ("531", "531"),
+    "raiplay": ("222", "222"),
+}
+
+# Infinity+ has no TV coverage in Italy: the movie id is the only mapping.
+MOVIE_ONLY_PROVIDERS = {"infinity-plus"}
+
+
+def test_seed_contains_the_phase7_providers() -> None:
+    slugs = {seed.slug for seed in PROVIDER_SEED}
+    assert set(EXPECTED_PROVIDERS) <= slugs
+
+
+def test_expected_providers_keep_their_tmdb_ids() -> None:
+    mappings = {seed.slug: seed for seed in TMDB_PROVIDER_SEED}
+    for slug, (movie_id, tv_id) in EXPECTED_PROVIDERS.items():
+        assert mappings[slug].external_id == movie_id
+        assert mappings[slug].tv_external_id == tv_id
+
+
+def test_every_provider_has_movie_and_tv_mapping_metadata() -> None:
+    providers = {seed.slug for seed in PROVIDER_SEED}
+    mappings = {seed.slug: seed for seed in TMDB_PROVIDER_SEED}
+
+    assert set(mappings) == providers
+    for slug in sorted(providers):
+        mapping = mappings[slug]
+        assert mapping.external_id.isdigit(), f"{slug}: id film TMDb mancante"
+        if slug in MOVIE_ONLY_PROVIDERS:
+            assert mapping.tv_external_id is None, f"{slug}: nessuna copertura TV attesa"
+        else:
+            assert mapping.tv_external_id is not None, f"{slug}: id serie TMDb mancante"
+            assert mapping.tv_external_id.isdigit(), f"{slug}: id serie TMDb non numerico"
