@@ -8,17 +8,23 @@ separate entity.
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.errors import NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.core.time import utcnow
 from app.db.models import Collection, CollectionSnapshot, Media, SnapshotItem
 from app.domain.enums import AuditActorType, MediaType
 from app.integrations.tmdb.client import TMDbClient, TMDbError
 from app.repositories import audit
+from app.repositories import collections as collections_repo
+from app.repositories import episode_events as episode_events_repo
+from app.repositories import sources as sources_repo
 
 logger = get_logger(__name__)
 
@@ -29,6 +35,67 @@ class TvChangeOutcome:
     season_events: int
     episode_events: int
     errors: int
+
+
+@dataclass(frozen=True)
+class EpisodeEventView:
+    media_id: uuid.UUID
+    title: str | None
+    event_type: str
+    season_number: int
+    episode_number: int | None
+    occurred_at: datetime | None
+    source_key: str | None
+
+
+def list_collection_episode_events(
+    db: Session,
+    collection_id: uuid.UUID,
+    *,
+    limit: int = 50,
+) -> tuple[list[EpisodeEventView], int]:
+    """Season/episode events of the parent shows in a SHOW collection."""
+    collection = collections_repo.get_collection(db, collection_id)
+    if collection is None:
+        raise NotFoundError(
+            "Collezione non trovata.", details={"collection_id": str(collection_id)}
+        )
+    if collection.media_type != MediaType.SHOW.value:
+        raise ValidationError(
+            "Gli eventi stagione/episodio esistono solo per le collezioni serie.",
+            code="COLLECTION_NOT_SHOW",
+            details={"media_type": collection.media_type},
+        )
+    snapshot_id = collection.last_valid_snapshot_id
+    if snapshot_id is None:
+        return [], 0
+    rows = db.execute(
+        select(Media.id, Media.title)
+        .join(SnapshotItem, SnapshotItem.media_id == Media.id)
+        .where(
+            SnapshotItem.snapshot_id == snapshot_id,
+            Media.media_type == MediaType.SHOW.value,
+        )
+        .distinct()
+    ).all()
+    titles = {media_id: title for media_id, title in rows}
+    media_ids = list(titles)
+    events = episode_events_repo.list_for_media_ids(db, media_ids, limit=limit)
+    total = episode_events_repo.count_for_media_ids(db, media_ids)
+    source_keys = {source.id: source.key for source in sources_repo.list_sources(db)}
+    views = [
+        EpisodeEventView(
+            media_id=event.show_media_id,
+            title=titles.get(event.show_media_id),
+            event_type=event.event_type,
+            season_number=event.season_number,
+            episode_number=event.episode_number,
+            occurred_at=event.occurred_at,
+            source_key=source_keys.get(event.source_id),
+        )
+        for event in events
+    ]
+    return views, total
 
 
 def _shows_in_tv_collections(db: Session, limit: int) -> list[Media]:

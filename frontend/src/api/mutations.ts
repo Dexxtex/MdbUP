@@ -13,6 +13,7 @@ import type {
   JobAccepted,
   NotificationChannel,
   NotificationTestOut,
+  OfferType,
   PreviewAccepted,
   RunAccepted,
   SessionResponse,
@@ -42,6 +43,7 @@ export interface BootstrapPayload {
 export interface CreateBindingPayload {
   collection_id: string;
   target_id: string;
+  justwatch_policy_accepted: boolean;
   mode: string;
   schedule: string;
   schedule_time: string;
@@ -56,10 +58,12 @@ export interface CreateBindingPayload {
 
 export interface CollectionCreatePayload {
   provider_id?: string;
+  source_key?: "tmdb" | "justwatch";
   media_type: string;
   name: string;
   slug: string;
   kind: string;
+  offer_types?: OfferType[];
   genre_ids: number[];
   monetization_type: string;
   window_days?: number;
@@ -79,7 +83,9 @@ export interface CollectionCreatePayload {
 
 export interface CollectionUpdatePayload {
   name?: string;
+  source_key?: "tmdb" | "justwatch";
   kind?: string;
+  offer_types?: OfferType[];
   genre_ids?: number[];
   exclude_genre_ids?: number[];
   monetization_type?: string;

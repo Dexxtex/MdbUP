@@ -47,6 +47,8 @@ class SnapshotItemView:
     source_item_id: str | None
     date_basis: str
     source_date_created: date | None
+    availability_status: str | None
+    source_offer_types: list[str]
 
 
 def snapshot_summary(snapshot: CollectionSnapshot) -> SnapshotSummary:
@@ -76,6 +78,14 @@ def get_snapshot_summary(db: Session, snapshot_id: uuid.UUID) -> SnapshotSummary
     return snapshot_summary(snapshot)
 
 
+def _offer_types(payload: dict[str, object]) -> list[str]:
+    """Offer types the source reported for the item (empty when it declares none)."""
+    raw = payload.get("_offer_types")
+    if not isinstance(raw, (list, tuple)):
+        return []
+    return [str(value) for value in raw if str(value).strip()]
+
+
 def list_snapshot_items(
     db: Session,
     snapshot_id: uuid.UUID,
@@ -96,6 +106,7 @@ def list_snapshot_items(
     )
     views: list[SnapshotItemView] = []
     for item, media in db.execute(stmt).all():
+        payload = item.source_payload or {}
         views.append(
             SnapshotItemView(
                 position=item.position,
@@ -110,6 +121,8 @@ def list_snapshot_items(
                 source_item_id=item.source_item_id,
                 date_basis=item.date_basis,
                 source_date_created=item.source_date_created,
+                availability_status=item.availability_status,
+                source_offer_types=_offer_types(payload),
             )
         )
     total = int(

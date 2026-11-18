@@ -11,6 +11,7 @@ import type {
   Credential,
   CredentialList,
   DashboardResponse,
+  EpisodeEventList,
   NotificationChannel,
   NotificationChannelList,
   Operation,
@@ -23,6 +24,7 @@ import type {
   SessionResponse,
   SettingsOut,
   Snapshot,
+  SnapshotItemList,
   SnapshotList,
   Source,
   SourceList,
@@ -142,6 +144,34 @@ export function useCollectionSnapshots(collectionId: string | undefined) {
       return pageItems<Snapshot>(payload);
     },
     enabled: Boolean(collectionId),
+  });
+}
+
+export function useCollectionEpisodeEvents(
+  collectionId: string | undefined,
+  limit = 50,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.collectionEpisodeEvents(collectionId ?? "", limit),
+    queryFn: ({ signal }) =>
+      apiFetch<EpisodeEventList>(
+        `/collections/${collectionId}/episode-events?limit=${limit}`,
+        { signal },
+      ),
+    enabled: Boolean(collectionId) && enabled,
+  });
+}
+
+export function useSnapshotItems(snapshotId: string | undefined, pageSize = 50) {
+  return useQuery({
+    queryKey: queryKeys.snapshotItems(snapshotId ?? ""),
+    queryFn: ({ signal }) =>
+      apiFetch<SnapshotItemList>(
+        `/snapshots/${snapshotId}/items?page=1&page_size=${pageSize}`,
+        { signal },
+      ),
+    enabled: Boolean(snapshotId),
   });
 }
 

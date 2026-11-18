@@ -166,3 +166,169 @@ su 5533 totali, rank e trend corretti, `tmdb`/`imdb` risolti dal nodo.
 - Preview source-only: `READY`, `to_add=5525`, `to_remove=0`, 0 unresolved.
 - Nessuna sync MDBList è stata eseguita per questa fonte.
 - Le 6 liste MDBList esistenti non sono state toccate.
+
+---
+
+## 8. Fase 8 — cache, schema drift e snapshot parziali
+
+### Cache locale delle risposte
+
+- Cache in-process con TTL (default **300 s**, `JUSTWATCH_CACHE_TTL_SECONDS`) e
+  tetto di **512** voci (`JUSTWATCH_CACHE_MAX_ENTRIES`); chiave = query + variabili.
+- I payload sono **deep-copy** in scrittura e in lettura: chi modifica una pagina non
+  inquina la cache.
+- **Mai** in cache: errori (429/5xx/timeout), healthcheck e risposte con schema drift.
+- Hit/miss sono contati con lo stesso contatore Redis di `record_api_call`, quindi
+  il processo API vede le statistiche prodotte dal worker:
+  `api_usage_snapshot()["justwatch"]` espone `hour`, `today`, `cache_hits`, `cache_misses`.
+
+### Schema drift
+
+`JustWatchGraphQLError` (code `SCHEMA_DRIFT`) viene sollevata quando:
+
+- il campo root atteso manca o non è un oggetto (`popularTitles`, `searchTitles`,
+  `newTitles`, `streamingCharts`) o non è una lista (`packages`, `genres`);
+- `pageInfo` manca dalla connessione;
+- `edges` non è una lista.
+
+La validazione avviene **prima** di scrivere in cache, quindi una risposta driftata non
+resta servita per tutto il TTL. Una pagina vuota non viene mai restituita come
+`COMPLETE`: l'errore arriva all'acquisizione.
+
+### 429 / 5xx / timeout
+
+Il retry resta limitato e con backoff progressivo; esauriti i tentativi l'errore è
+tipizzato (`JustWatchRateLimitError` con `retry_after_seconds`, `JustWatchRequestError`,
+`JustWatchAuthError`). Un 429 non viene mai nascosto.
+
+### Snapshot: `partial_on_error`
+
+La capability `partial_on_error=True` è attiva su JustWatch (connettore e seed della
+fonte). Qualunque errore — anche alla **prima** pagina — produce:
+
+| Campo | Valore |
+|---|---|
+| `status` | `INCOMPLETE` (mai `COMPLETE`/`FAILED` silenzioso) |
+| `quality` | `ANOMALY` |
+| `is_valid` | `false` |
+| `last_valid_snapshot_id` | invariato |
+
+Uno snapshot non valido non autorizza mai MIRROR.
+
+---
+
+## 9. Regole di contenuto del connettore
+
+- **Flatrate assoluto per default** su catalogo, novità e in arrivo: `monetizationTypes`
+  è passato al server *e* le pagine sono post-filtrate. `RENT`, `BUY`, `ADS`, `FREE`,
+  canali e addon sono esclusi salvo `offer_types` espliciti nella collezione o nei filtri.
+- **Post-filtro sempre attivo** su `collection.media_type`, package richiesto e offer
+  type ammesso. Motivo verificato: `newTitles(pageType: NEW)` **ignora `objectTypes`** e
+  in Italia con `objectType: SHOW` restituisce solo film. Una collezione SHOW basata sulle
+  novità resta quindi vuota e **invalida** (`empty_catalog`): non viene inventato nessun
+  show e non viene sincronizzata.
+- **Classifiche**: `streamingCharts` restituisce rank globali (es. 20, 144) e può
+  includere più package; il connettore post-filtra package + offer type e conserva il
+  rank dell'edge. L'etichetta è sempre **`Classifica JustWatch`**, mai Top 10 ufficiale.
+- **`UPCOMING`**: gli item hanno `availability_status="UPCOMING"`; catalogo, novità e
+  classifiche `CURRENT`. Le collezioni in arrivo restano separate e non alimentano
+  l'historico di disponibilità che genera i "appena rilevati".
+- Restano attivi lo split `releaseYear` (tetto 1999 per query) e lo scarto dei titoli
+  senza id TMDb/IMDb.
+
+### Timeline serie (`justwatch_tv_events`)
+
+`newTitles` non è utilizzabile per le serie, quindi la timeline si osserva sul catalogo
+SHOW JustWatch già acquisito:
+
+- cap per run: **20 show, 5 stagioni, 50 episodi**;
+- prima osservazione = baseline in `media.metadata_json["justwatch_tv"]`, **nessun evento**;
+- osservazioni successive = righe `episode_event` (`SEASON_ADDED`, `EPISODE_ADDED`)
+  collegate alla **serie madre**, mai media episodio;
+- errori TV best-effort: warning sullo snapshot, che resta valido; operazione idempotente;
+- `occurred_at` è il momento di osservazione (la fonte non pubblica date di aggiunta);
+- limite noto: il nodo stagione non espone il numero di stagione, quindi si usa il
+  `seasonNumber` del primo episodio e, in assenza di episodi, la posizione 1-based
+  nella risposta.
+
+---
+
+## 10. Mapping provider (verifica live 2026-11-18)
+
+Una sola query `packages(country: IT, platform: WEB)` (throttle 1 req/s) ha confermato
+109 package. Un mapping è **verificato** solo se `shortName` **e** `technicalName`
+coincidono; il sync salva `technical_name`, `clear_name`, `monetization_types` e il
+timestamp nel metadata del `ProviderMapping`.
+
+| slug canonico | shortName | technicalName | clearName | monetizationTypes |
+|---|---|---|---|---|
+| netflix | `nfx` | `netflix` | Netflix | FLATRATE |
+| prime-video | `prv` | `amazonprimevideo` | Amazon Prime Video | FLATRATE, FREE |
+| disney-plus | `dnp` | `disneyplus` | Disney Plus | FLATRATE |
+| apple-tv-plus | `atp` | `appletvplus` | Apple TV | FLATRATE, FREE |
+| now | `ntv` | `nowtv` | Now TV | FLATRATE, FREE |
+| paramount-plus | `pmp` | `paramountplus` | Paramount Plus | FLATRATE, FREE |
+| raiplay | `rai` | `raiplay` | Rai Play | ADS, FLATRATE, FREE |
+| mediaset-infinity | `msp` | `mediasetplay` | Mediaset Infinity | ADS, FLATRATE, FREE |
+| infinity-plus | `inf` | `infinity` | Infinity+ | FLATRATE |
+| timvision | `tvi` | `timvision` | Timvision | BUY, FLATRATE, RENT |
+| rakuten-tv | `wki` | `wuaki` | Rakuten TV | ADS, BUY, RENT |
+| mubi | `mbi` | `mubi` | MUBI | FLATRATE |
+
+`atp` è **Apple TV+** (`appletvplus`), non Apple TV Store (`itu`).
+
+Conseguenze nel sync (`justwatch-collections`):
+
+- `rakuten-tv` è verificato ma **senza FLATRATE**: viene riportato in
+  `skipped_providers` e non riceve collezioni;
+- package live senza mapping curato finiscono in `unmapped_packages`; provider il cui
+  `technicalName` non coincide finiscono in `unverified_providers` e vengono saltati;
+- `offer_types` di default è `["FLATRATE"]`;
+- l'upsert aggiorna **solo** metadati e filtri: snapshot e `last_valid_snapshot_id`
+  esistenti (per esempio `netflix-movie-justwatch`) non vengono toccati.
+
+Nomi: `— Catalogo JustWatch`, `— Novità JustWatch`, `— In arrivo JustWatch`,
+`— Classifica JustWatch`.
+Etichette API (`CollectionOut.source_label`): `Classifica JustWatch` per le chart
+JustWatch, `Fonte: JustWatch (Aggregatore)` per le altre, `TMDb` per TMDb.
+
+---
+
+## 11. Superficie API Fase 8
+
+| Endpoint / modello | Novità |
+|---|---|
+| `GET /api/sources` | blocco `justwatch`: `throttle_ms`, TTL/max cache, `cache_hits`, `cache_misses`, `requests_hour`, `requests_today`, `mappings[]` verificati (slug, nome, external id, technical/clear name, monetization, `collections_count`), `supported_kinds`, `supported_offer_types` |
+| `GET /api/providers` | `justwatch_provider_id`, `justwatch_verified`, `justwatch_monetization_types` |
+| `GET /api/collections/{id}` | `source_label` |
+| `GET /api/snapshots/{id}/items` | `availability_status`, `source_offer_types` |
+| `GET /api/collections/{id}/episode-events?limit=` | eventi stagione/episodio delle serie madri (titolo, tipo, stagione, episodio, `occurred_at`, `source_key`); 422 `COLLECTION_NOT_SHOW` su collezioni film |
+| `POST /api/collections` | `source_key` (`tmdb` default, `justwatch`), kind `CHART` e `UPCOMING`, `offer_types`; per JustWatch serve un mapping verificato e i filtri diventano `packages`/`watch_region`/`media_type`/anni/`offer_types`, `origin=AGGREGATOR`, `date_basis=UNKNOWN`; nessuna derivazione `RECENTLY_DETECTED` |
+| `PATCH /api/collections/{id}` | stessi campi; `source_key` immutabile (`SOURCE_KEY_IMMUTABLE`), kind TMDb-only rifiutati (`KIND_NOT_SUPPORTED`) |
+| `POST /api/bindings` | `justwatch_policy_accepted` (default `false`): senza accettazione esplicita → 422 `JUSTWATCH_POLICY_NOT_ACCEPTED`; i binding JustWatch nascono **sempre** `enabled=false` |
+| `POST /api/bindings/{id}/runs` | un run reale su collezione JustWatch richiede un dry-run `SUCCEEDED` per quel binding, altrimenti 409 `DRY_RUN_REQUIRED`; il dry-run resta sempre possibile |
+
+Migrazione: `0005_snapshot_item_availability` aggiunge
+`snapshot_item.availability_status` **nullable** (`CURRENT`/`UPCOMING`/`LEAVING`),
+idempotente, compatibile SQLite e PostgreSQL (su PostgreSQL aggiunge anche il CHECK).
+
+Nessun binding viene creato automaticamente e nessuna sync MDBList è stata eseguita:
+le 6 liste di produzione non sono state lette né scritte.
+
+---
+
+## 12. Test Fase 8
+
+| File | Copre |
+|---|---|
+| `tests/unit/test_justwatch_client_cache.py` | cache hit + deep copy, cache disabilitabile, errori/healthcheck mai in cache, drift per root/`pageInfo`/`edges`, payload driftato non cachato, hit/miss in `api_usage_snapshot` |
+| `tests/unit/test_justwatch_connector_rules.py` | film in collezione SHOW scartati, package obbligatorio, flatrate vs rent/buy/ads/free, `offer_types` espliciti, chart con rank globale, etichette, `UPCOMING`/`CURRENT`, capability `partial_on_error` |
+| `tests/unit/test_justwatch_partial_snapshot.py` | 429 e schema drift ⇒ `INCOMPLETE`/`ANOMALY` non valido, nessun MIRROR, collezione SHOW novità vuota invalida, `availability_status` e nessuna osservazione per UPCOMING |
+| `tests/unit/test_justwatch_tv_events.py` | baseline senza eventi, nuovi episodi/stagioni come eventi sulla serie madre, idempotenza, errori TV = warning, cap episodi |
+| `tests/unit/test_migration_0005.py` | revisione/chain e aggiunta idempotente della colonna |
+| `tests/integration/test_justwatch_api.py` | blocco `justwatch` in `/sources`, campi provider, creazione collezione JustWatch (chart/catalogo, mapping non verificato, kind TMDb-only), policy binding + binding disabilitato, `DRY_RUN_REQUIRED` poi dry-run e run reale, episode-events e 422 su film, `availability_status`/`source_offer_types` negli item |
+| `tests/integration/test_justwatch_collections.py` | mapping verificato short+technical, Rakuten saltato, package non verificati, snapshot esistenti intatti |
+
+Suite backend: **314 test verdi** (`cd backend && REDIS_URL="" APP_ENV=test uv run pytest`),
+`ruff check` e `ruff format --check` puliti.
+

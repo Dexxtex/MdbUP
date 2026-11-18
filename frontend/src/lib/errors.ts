@@ -58,6 +58,26 @@ export function describeApiError(error: unknown): ErrorPresentation {
     };
   }
 
+  if (error.code === "DRY_RUN_REQUIRED") {
+    return {
+      ...base,
+      title: "Dry-run richiesto",
+      message:
+        "Per questa collezione JustWatch serve un dry-run completato con successo prima di eseguire un run reale.",
+      retryable: false,
+    };
+  }
+
+  if (error.code === "JUSTWATCH_POLICY_NOT_ACCEPTED") {
+    return {
+      ...base,
+      title: "Policy JustWatch richiesta",
+      message:
+        "Accetta esplicitamente la policy JustWatch prima di creare il binding.",
+      retryable: false,
+    };
+  }
+
   /**
    * `429 AUTH_RATE_LIMITED` è un rate limit di autenticazione, non una sessione
    * scaduta: senza questo ramo la UI mostrerebbe "Sessione scaduta"

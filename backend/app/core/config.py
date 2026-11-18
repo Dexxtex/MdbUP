@@ -121,6 +121,9 @@ class Settings(BaseSettings):
     justwatch_base_url: str = "https://apis.justwatch.com/graphql"
     justwatch_language: str = "it"
     justwatch_min_interval_ms: int = 1000
+    # Local response cache: keyed by query + variables, deep-copied on read.
+    justwatch_cache_ttl_seconds: int = 300
+    justwatch_cache_max_entries: int = 512
 
     # Prometheus endpoint: never public. Without a token it answers 503.
     metrics_enabled: bool = True

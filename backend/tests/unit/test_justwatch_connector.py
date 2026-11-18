@@ -21,6 +21,7 @@ from app.domain.enums import (
 from app.integrations.justwatch.client import MAX_REACHABLE_ITEMS, JustWatchClient
 from app.integrations.justwatch.models import (
     JustWatchEpisode,
+    JustWatchOffer,
     JustWatchPage,
     JustWatchSeason,
     JustWatchTitle,
@@ -29,15 +30,24 @@ from app.integrations.justwatch.models import (
 BASE = "https://apis.justwatch.com/graphql"
 
 
-def _title(node_id: str) -> JustWatchTitle:
+def _offer(package: str = "nfx", monetization: str = "FLATRATE") -> JustWatchOffer:
+    return JustWatchOffer(monetization_type=monetization, package_short_name=package)
+
+
+def _title(
+    node_id: str,
+    *,
+    media_type: MediaType = MediaType.MOVIE,
+    offers: tuple[JustWatchOffer, ...] | None = None,
+) -> JustWatchTitle:
     return JustWatchTitle(
         node_id=node_id,
-        media_type=MediaType.MOVIE,
+        media_type=media_type,
         title=f"Title {node_id}",
         year=1999,
         tmdb_id=603,
         imdb_id="tt0133093",
-        offers=(),
+        offers=(_offer(),) if offers is None else offers,
         raw={"id": node_id},
     )
 

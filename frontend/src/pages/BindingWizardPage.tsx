@@ -38,6 +38,11 @@ import { Stepper } from "../components/ui/stepper";
 import { clearBindingDraft, loadBindingDraft, saveBindingDraft } from "../lib/binding-draft";
 import { formatNumber } from "../lib/format";
 import {
+  isJustWatchSource,
+  justWatchBindingNotice,
+  justWatchPolicyError,
+} from "../lib/justwatch";
+import {
   BINDING_POLICY_VERSION,
   DEFAULT_BINDING_DRAFT,
   bindingDraftSchema,
@@ -109,6 +114,7 @@ export default function BindingWizardPage() {
   const selectedCollection: Collection | undefined =
     selectedCollectionQuery.data ??
     collections.data?.find((collection) => collection.id === values.collectionId);
+  const isJustWatch = isJustWatchSource(selectedCollection?.source_key);
 
   const availableProviders = providers.data ?? [];
   const catalogSources = (sources.data ?? []).filter(
@@ -138,6 +144,14 @@ export default function BindingWizardPage() {
       setValue("previewState", preview.data.state);
     }
   }, [preview.data, getValues, setValue]);
+
+  useEffect(() => {
+    if (!selectedCollection) return;
+    const next = isJustWatchSource(selectedCollection.source_key);
+    if (getValues("justwatchCollection") !== next) {
+      setValue("justwatchCollection", next);
+    }
+  }, [selectedCollection, getValues, setValue]);
 
   const initialStepChecked = useRef(false);
   useEffect(() => {
@@ -206,6 +220,15 @@ export default function BindingWizardPage() {
       });
       return;
     }
+    const justwatch = isJustWatchSource(selectedCollection?.source_key);
+    const policyError = justWatchPolicyError(
+      selectedCollection?.source_key,
+      draft.justwatchPolicyAccepted,
+    );
+    if (policyError) {
+      setError("justwatchPolicyAccepted", { type: "manual", message: policyError });
+      return;
+    }
     try {
       let targetId = draft.targetId;
       if (draft.targetMode === "new") {
@@ -223,6 +246,7 @@ export default function BindingWizardPage() {
       await createBinding.mutateAsync({
         collection_id: draft.collectionId,
         target_id: targetId,
+        justwatch_policy_accepted: justwatch ? draft.justwatchPolicyAccepted : false,
         mode: draft.mode,
         schedule: draft.schedule,
         schedule_time: draft.scheduleTime,
@@ -234,7 +258,7 @@ export default function BindingWizardPage() {
         reorder_enabled: draft.reorderEnabled,
         schedule_policy: draft.schedulePolicy,
         require_review: draft.requireReview,
-        enabled: true,
+        enabled: !justwatch,
         policy_version: BINDING_POLICY_VERSION,
       });
       clearBindingDraft();
@@ -289,7 +313,10 @@ export default function BindingWizardPage() {
     setValue("previewState", undefined);
     setValue("targetId", undefined);
     const collection = collections.data?.find((item) => item.id === collectionId);
-    if (collection) setValue("mediaType", collection.media_type);
+    if (collection) {
+      setValue("mediaType", collection.media_type);
+      setValue("justwatchCollection", isJustWatchSource(collection.source_key));
+    }
   };
 
   const renderStep = () => {
@@ -450,6 +477,11 @@ export default function BindingWizardPage() {
                     ? `sì (${formatNumber(selectedCollectionQuery.data.latest_snapshot.items_count)} elementi)`
                     : "non disponibile"}
                 </p>
+                {isJustWatch ? (
+                  <div className="mt-3">
+                    <InlineNotice tone="warning">{justWatchBindingNotice()}</InlineNotice>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -501,6 +533,9 @@ export default function BindingWizardPage() {
           <div className="space-y-4">
             <p className="text-sm text-ink-muted">
               L&apos;anteprima calcola il piano senza scrivere nulla sulla lista remota.
+              {isJustWatch
+                ? " Per JustWatch il binding resta disabilitato finché non completa un dry-run."
+                : ""}
             </p>
             <Button onClick={() => void onComputePreview()} busy={createPreview.isPending}>
               {values.previewId ? "Ricalcola anteprima" : "Calcola anteprima"}
@@ -892,6 +927,27 @@ export default function BindingWizardPage() {
               <p role="alert" className="text-sm font-medium text-danger">
                 {errors.policyAccepted.message}
               </p>
+            ) : null}
+
+            {values.justwatchCollection ? (
+              <div className="space-y-2 rounded-md border border-warning/40 bg-warning-soft p-3">
+                <InlineNotice tone="warning">
+                  Collezione JustWatch: il binding viene creato disabilitato. Esegui un
+                  dry-run con successo dalla pagina Binding prima del primo run reale
+                  (altrimenti il server risponde DRY_RUN_REQUIRED).
+                </InlineNotice>
+                <Checkbox
+                  id="justwatchPolicyAccepted"
+                  label="Accetto la policy JustWatch: aggregatore, date non disponibili, nessuna sync automatica finché non c'è un dry-run riuscito."
+                  aria-invalid={Boolean(errors.justwatchPolicyAccepted)}
+                  {...register("justwatchPolicyAccepted")}
+                />
+                {errors.justwatchPolicyAccepted?.message ? (
+                  <p role="alert" className="text-sm font-medium text-danger">
+                    {errors.justwatchPolicyAccepted.message}
+                  </p>
+                ) : null}
+              </div>
             ) : null}
 
             {submitError ? <ErrorState error={submitError} /> : null}

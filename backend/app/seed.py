@@ -157,8 +157,9 @@ SOURCE_SEED: tuple[SourceSeed, ...] = (
             "charts": True,
             "ordering": True,
             "added_dates": False,
-            "seasons_episodes": False,
-            "full_pagination": False,
+            "seasons_episodes": True,
+            "full_pagination": True,
+            "partial_on_error": True,
             "data_export": False,
             "requires_credentials": False,
             "requires_contract": False,
@@ -167,7 +168,9 @@ SOURCE_SEED: tuple[SourceSeed, ...] = (
                 "AGGREGATOR: nessuna data di aggiunta, quindi date_basis=UNKNOWN. "
                 "Paginazione completa via partizioni releaseYear (tetto 1999 per "
                 "query), 100 elementi per pagina. Stagioni ed episodi con offerte. "
-                "Throttle locale obbligatorio: nessun rate limit esposto."
+                "Throttle locale obbligatorio (1 req/s): nessun rate limit esposto e "
+                "nessun avviso prima di un blocco. Un errore, un 429 o uno schema "
+                "drift rende lo snapshot INCOMPLETE/ANOMALY: mai valido, mai MIRROR."
             ),
         },
     ),

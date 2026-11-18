@@ -31,6 +31,7 @@ class CollectionSummary:
     kind: str
     origin: str
     date_basis: str
+    source_label: str | None
     description: str | None
     filters: dict[str, object]
     quality_flags: dict[str, object]
@@ -43,6 +44,25 @@ class CollectionSummary:
     last_valid_snapshot_id: uuid.UUID | None
     latest_snapshot: SnapshotSummary | None
     last_valid_snapshot: SnapshotSummary | None
+
+
+def is_justwatch_collection(db: Session, collection: Collection) -> bool:
+    """True when the collection is fed by the JustWatch public source."""
+    source = sources_repo.get_source(db, collection.source_id)
+    return source is not None and source.key == "justwatch"
+
+
+def _source_label(source: Source | None, kind: str) -> str | None:
+    """Attribution label: an aggregator chart is never an official Top 10."""
+    if source is None:
+        return None
+    if source.key == "justwatch":
+        if kind == "CHART":
+            return "Classifica JustWatch"
+        return "Fonte: JustWatch (Aggregatore)"
+    if source.key == "tmdb":
+        return "TMDb"
+    return source.name
 
 
 def list_collections(
@@ -148,6 +168,7 @@ def _summary(
         kind=row.kind,
         origin=row.origin,
         date_basis=row.date_basis,
+        source_label=_source_label(source, row.kind),
         description=row.description,
         filters=filters,
         quality_flags=dict(row.quality_flags or {}),

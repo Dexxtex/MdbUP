@@ -1288,6 +1288,61 @@
         }
       }
     },
+    "/api/collections/{collection_id}/episode-events": {
+      "get": {
+        "tags": [
+          "collections"
+        ],
+        "summary": "Eventi stagione/episodio delle serie madri nella collezione",
+        "operationId": "list_collection_episode_events_api_collections__collection_id__episode_events_get",
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Collection Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpisodeEventListOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/collections/{collection_id}/acquire": {
       "post": {
         "tags": [
@@ -2470,6 +2525,11 @@
             "format": "uuid",
             "title": "Target Id"
           },
+          "justwatch_policy_accepted": {
+            "type": "boolean",
+            "title": "Justwatch Policy Accepted",
+            "default": false
+          },
           "mode": {
             "$ref": "#/components/schemas/SyncMode",
             "default": "MIRROR"
@@ -3113,15 +3173,47 @@
             "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
             "title": "Slug"
           },
+          "source_key": {
+            "type": "string",
+            "enum": [
+              "tmdb",
+              "justwatch"
+            ],
+            "title": "Source Key",
+            "default": "tmdb"
+          },
           "kind": {
             "type": "string",
             "enum": [
               "CATALOG",
               "RECENTLY_ADDED",
-              "CUSTOM_FILTER"
+              "CUSTOM_FILTER",
+              "CHART",
+              "UPCOMING"
             ],
             "title": "Kind",
             "default": "CATALOG"
+          },
+          "offer_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "FLATRATE",
+                    "RENT",
+                    "BUY",
+                    "ADS",
+                    "FREE"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Types"
           },
           "genre_ids": {
             "items": {
@@ -3418,6 +3510,17 @@
             "type": "string",
             "title": "Date Basis"
           },
+          "source_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Label"
+          },
           "description": {
             "anyOf": [
               {
@@ -3540,6 +3643,21 @@
             ],
             "title": "Name"
           },
+          "source_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "tmdb",
+                  "justwatch"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Key"
+          },
           "kind": {
             "anyOf": [
               {
@@ -3547,7 +3665,9 @@
                 "enum": [
                   "CATALOG",
                   "RECENTLY_ADDED",
-                  "CUSTOM_FILTER"
+                  "CUSTOM_FILTER",
+                  "CHART",
+                  "UPCOMING"
                 ]
               },
               {
@@ -3555,6 +3675,27 @@
               }
             ],
             "title": "Kind"
+          },
+          "offer_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "FLATRATE",
+                    "RENT",
+                    "BUY",
+                    "ADS",
+                    "FREE"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Types"
           },
           "genre_ids": {
             "anyOf": [
@@ -4010,6 +4151,96 @@
           "sources"
         ],
         "title": "DashboardOut"
+      },
+      "EpisodeEventListOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EpisodeEventOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "EpisodeEventListOut"
+      },
+      "EpisodeEventOut": {
+        "properties": {
+          "media_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Media Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "event_type": {
+            "type": "string",
+            "title": "Event Type"
+          },
+          "season_number": {
+            "type": "integer",
+            "title": "Season Number"
+          },
+          "episode_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Episode Number"
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurred At"
+          },
+          "source_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "media_id",
+          "event_type",
+          "season_number"
+        ],
+        "title": "EpisodeEventOut"
       },
       "ErrorBody": {
         "properties": {
@@ -5091,6 +5322,30 @@
             "title": "Mapping Verified Tv",
             "default": false
           },
+          "justwatch_provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Justwatch Provider Id"
+          },
+          "justwatch_verified": {
+            "type": "boolean",
+            "title": "Justwatch Verified",
+            "default": false
+          },
+          "justwatch_monetization_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Justwatch Monetization Types",
+            "default": []
+          },
           "collections_count": {
             "type": "integer",
             "title": "Collections Count"
@@ -5769,6 +6024,25 @@
               }
             ],
             "title": "Source Date Created"
+          },
+          "availability_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability Status"
+          },
+          "source_offer_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Offer Types",
+            "default": []
           }
         },
         "type": "object",
@@ -6056,6 +6330,18 @@
           "connector_available": {
             "type": "boolean",
             "title": "Connector Available"
+          },
+          "justwatch": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Justwatch"
           },
           "last_healthcheck_at": {
             "anyOf": [

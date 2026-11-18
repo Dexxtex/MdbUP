@@ -29,9 +29,10 @@ router = APIRouter(tags=["sources"])
 )
 def list_sources(
     db: Session = Depends(get_db_dep),
+    settings: Settings = Depends(get_settings_dep),
     _user: AppUser = Depends(get_current_user),
 ) -> schemas_catalog.SourceListOut:
-    items = sources_service.list_sources(db)
+    items = sources_service.list_sources(db, settings)
     return schemas_catalog.SourceListOut(
         items=[schemas_catalog.SourceOut.model_validate(item) for item in items]
     )

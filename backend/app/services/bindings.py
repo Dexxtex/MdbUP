@@ -22,7 +22,7 @@ from app.repositories import collections as collections_repo
 from app.repositories import targets as targets_repo
 from app.services import collections as collections_service
 from app.services import targets as targets_service
-from app.services.collections import CollectionSummary
+from app.services.collections import CollectionSummary, is_justwatch_collection
 
 
 @dataclass(frozen=True)
@@ -221,7 +221,17 @@ def create_binding(
             code="BINDING_EXISTS",
             details={"binding_id": str(existing.id)},
         )
-    if payload.enabled:
+    justwatch = is_justwatch_collection(db, collection)
+    if justwatch and not payload.justwatch_policy_accepted:
+        raise ValidationError(
+            "Per le collezioni JustWatch la policy va accettata esplicitamente "
+            "(justwatch_policy_accepted=true).",
+            code="JUSTWATCH_POLICY_NOT_ACCEPTED",
+        )
+    # A JustWatch binding always starts disabled: a SUCCEEDED dry-run must exist
+    # before any real run can touch the MDBList list.
+    enabled = bool(payload.enabled) and not justwatch
+    if enabled:
         if not payload.policy_version:
             raise ValidationError(
                 "La policy deve essere accettata prima di abilitare il binding.",
@@ -236,7 +246,7 @@ def create_binding(
             )
 
     cron = schedule_to_cron(payload.schedule, payload.schedule_time)
-    next_run_at = compute_next_run_at(cron, settings.app_timezone) if payload.enabled else None
+    next_run_at = compute_next_run_at(cron, settings.app_timezone) if enabled else None
     binding = bindings_repo.create_binding(
         db,
         collection_id=collection.id,
@@ -245,10 +255,10 @@ def create_binding(
         mode=payload.mode.value,
         schedule_cron=cron,
         timezone=settings.app_timezone,
-        is_enabled=payload.enabled,
+        is_enabled=enabled,
         policy_version=payload.policy_version,
-        policy_accepted_at=utcnow() if payload.enabled else None,
-        policy_accepted_by=actor_user_id if payload.enabled else None,
+        policy_accepted_at=utcnow() if enabled else None,
+        policy_accepted_by=actor_user_id if enabled else None,
         max_removal_absolute=payload.thresholds.max_removal_abs,
         max_removal_percent=payload.thresholds.max_removal_pct,
         max_addition_percent=payload.thresholds.max_addition_pct,
@@ -273,6 +283,7 @@ def create_binding(
             "target_id": str(target.id),
             "mode": binding.mode,
             "enabled": binding.is_enabled,
+            "justwatch_policy_accepted": bool(justwatch and payload.justwatch_policy_accepted),
         },
     )
     db.commit()

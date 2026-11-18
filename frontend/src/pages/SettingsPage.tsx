@@ -8,7 +8,7 @@ import {
   useUpdateSettings,
   useVerifyCredential,
 } from "../api/mutations";
-import { useCredentials, useSettings } from "../api/queries";
+import { useCredentials, useSettings, useSources } from "../api/queries";
 import type {
   AppSettings,
   Credential,
@@ -51,13 +51,16 @@ import {
   IconBell,
   IconDatabase,
   IconDownload,
+  IconLink,
   IconShield,
 } from "../components/ui/icons";
+import { JustWatchConnectorCard } from "../components/justwatch/connector-card";
 
-type SettingsTab = "credentials" | "notifications" | "maintenance" | "portability";
+type SettingsTab = "credentials" | "connectors" | "notifications" | "maintenance" | "portability";
 
 const TABS: { id: SettingsTab; label: string; icon: ReactNode }[] = [
   { id: "credentials", label: "Credenziali & Sicurezza", icon: <IconShield /> },
+  { id: "connectors", label: "Connettori", icon: <IconLink /> },
   { id: "notifications", label: "Notifiche & Retry", icon: <IconBell /> },
   { id: "maintenance", label: "Backup & Manutenzione", icon: <IconDatabase /> },
   { id: "portability", label: "Portabilità JSON", icon: <IconDownload /> },
@@ -66,6 +69,7 @@ const TABS: { id: SettingsTab; label: string; icon: ReactNode }[] = [
 function isSettingsTab(value: string | null): value is SettingsTab {
   return (
     value === "credentials" ||
+    value === "connectors" ||
     value === "notifications" ||
     value === "maintenance" ||
     value === "portability"
@@ -477,6 +481,36 @@ function CredentialsPanel() {
   );
 }
 
+function ConnectorsPanel() {
+  const sources = useSources();
+  const justwatchSource = (sources.data ?? []).find((source) => source.key === "justwatch");
+
+  return (
+    <div className="space-y-6">
+      <section aria-labelledby="connectors-heading">
+        <h2 id="connectors-heading" className="mb-3 text-lg font-semibold text-ink">
+          Connettori delle fonti
+        </h2>
+        <p className="mb-4 max-w-3xl text-sm text-ink-muted">
+          Stato runtime, rate-limit, cache e mapping verificati delle fonti non TMDb.
+          Le credenziali restano nella scheda Credenziali.
+        </p>
+        {sources.isPending ? <TableSkeleton rows={2} /> : null}
+        {sources.isError ? (
+          <ErrorState error={sources.error} onRetry={() => void sources.refetch()} />
+        ) : null}
+        {sources.isSuccess && !justwatchSource ? (
+          <EmptyState
+            title="Connettore JustWatch non disponibile"
+            description="La fonte non è registrata nel backend."
+          />
+        ) : null}
+        {justwatchSource ? <JustWatchConnectorCard source={justwatchSource} /> : null}
+      </section>
+    </div>
+  );
+}
+
 function MaintenancePanel() {
   const settings = useSettings();
 
@@ -554,6 +588,7 @@ export default function SettingsPage() {
         className="focus:outline-none"
       >
         {tab === "credentials" ? <CredentialsPanel /> : null}
+        {tab === "connectors" ? <ConnectorsPanel /> : null}
         {tab === "notifications" ? <NotificationsSection /> : null}
         {tab === "maintenance" ? <MaintenancePanel /> : null}
         {tab === "portability" ? <ConfigPortabilitySection /> : null}

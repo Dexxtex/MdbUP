@@ -23,7 +23,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.time import utcnow
 from app.db.base import Base, UuidPrimaryKeyMixin, enum_check
-from app.domain.enums import DateBasis, ResolutionStatus, SnapshotQuality, SnapshotStatus
+from app.domain.enums import (
+    DateBasis,
+    ResolutionStatus,
+    SnapshotQuality,
+    SnapshotStatus,
+)
 
 
 class CollectionSnapshot(UuidPrimaryKeyMixin, Base):
@@ -92,6 +97,11 @@ class SnapshotItem(UuidPrimaryKeyMixin, Base):
         CheckConstraint(
             enum_check("resolution_status", ResolutionStatus), name="resolution_status_valid"
         ),
+        CheckConstraint(
+            "availability_status IS NULL OR availability_status IN "
+            "('CURRENT', 'UPCOMING', 'LEAVING')",
+            name="availability_status_valid",
+        ),
         UniqueConstraint("snapshot_id", "position", name="uq_snapshot_item_position"),
         Index(
             "snapshot_item_media_uq",
@@ -115,6 +125,8 @@ class SnapshotItem(UuidPrimaryKeyMixin, Base):
     date_basis: Mapped[str] = mapped_column(String(32), nullable=False)
     resolution_status: Mapped[str] = mapped_column(String(16), nullable=False)
     resolution_error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # NULL for sources that declare no availability state (TMDb, manual CSV).
+    availability_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utcnow
     )

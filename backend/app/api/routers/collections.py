@@ -27,6 +27,7 @@ from app.repositories import collections as collections_repo
 from app.repositories import sources as sources_repo
 from app.services import collection_admin
 from app.services import collections as collections_service
+from app.services import tv_events as tv_events_service
 
 router = APIRouter(tags=["collections"])
 
@@ -113,6 +114,24 @@ def list_collection_snapshots(
         total=total,
         page=page,
         page_size=page_size,
+    )
+
+
+@router.get(
+    "/collections/{collection_id}/episode-events",
+    response_model=schemas_catalog.EpisodeEventListOut,
+    summary="Eventi stagione/episodio delle serie madri nella collezione",
+)
+def list_collection_episode_events(
+    collection_id: uuid.UUID,
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db_dep),
+    _user: AppUser = Depends(get_current_user),
+) -> schemas_catalog.EpisodeEventListOut:
+    items, total = tv_events_service.list_collection_episode_events(db, collection_id, limit=limit)
+    return schemas_catalog.EpisodeEventListOut(
+        items=[schemas_catalog.EpisodeEventOut.model_validate(item) for item in items],
+        total=total,
     )
 
 

@@ -51,7 +51,8 @@ def _build_justwatch(db: Session, settings: Settings) -> SourceConnector:
 
     No credential is needed. The source is a first-class aggregator: the only
     guardrail is the local throttle, because the endpoint reports no rate limit
-    and does not warn before blocking.
+    and does not warn before blocking. The response cache keeps repeated
+    collection runs inside the same throttle budget.
     """
     client = JustWatchClient(
         settings.justwatch_base_url,
@@ -61,6 +62,8 @@ def _build_justwatch(db: Session, settings: Settings) -> SourceConnector:
         backoff_max_seconds=settings.http_backoff_max_ms / 1000,
         jitter_ratio=settings.http_jitter_ratio,
         min_interval_seconds=settings.justwatch_min_interval_ms / 1000,
+        cache_ttl_seconds=settings.justwatch_cache_ttl_seconds,
+        cache_max_entries=settings.justwatch_cache_max_entries,
     )
     return JustWatchConnector(client, language=settings.justwatch_language)
 

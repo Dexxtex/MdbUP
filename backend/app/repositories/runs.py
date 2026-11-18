@@ -190,6 +190,22 @@ def count_runs(
     return int(db.scalar(stmt) or 0)
 
 
+def has_succeeded_dry_run(db: Session, binding_id: uuid.UUID) -> bool:
+    """True when the binding already completed at least one dry-run successfully."""
+    return (
+        db.scalar(
+            select(SyncRun.id)
+            .where(
+                SyncRun.binding_id == binding_id,
+                SyncRun.is_dry_run.is_(True),
+                SyncRun.status == SyncRunStatus.SUCCEEDED.value,
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
 def get_active_run_for_binding(db: Session, binding_id: uuid.UUID) -> SyncRun | None:
     statuses = [status.value for status in ACTIVE_RUN_STATUSES]
     return db.scalar(

@@ -102,6 +102,34 @@ export type Provider = Schemas["ProviderOut"];
 export type ProviderList = Schemas["ProviderListOut"];
 
 /**
+ * `SourceOut.justwatch` è un dizionario libero nel contratto OpenAPI. I campi
+ * tipizzati sono quelli prodotti da `app/services/sources.py`; il backend
+ * include solo i mapping verificati, senza un flag per riga.
+ */
+export interface JustWatchMapping {
+  provider_slug: string;
+  provider_name: string;
+  external_id: string | null;
+  technical_name: string | null;
+  clear_name: string | null;
+  monetization_types: string[];
+  collections_count: number;
+}
+
+export interface JustWatchSourceInfo {
+  throttle_ms: number | null;
+  cache_ttl_seconds: number | null;
+  cache_max_entries: number | null;
+  cache_hits: number;
+  cache_misses: number;
+  requests_hour: number;
+  requests_today: number;
+  mappings: JustWatchMapping[];
+  supported_kinds: string[];
+  supported_offer_types: string[];
+}
+
+/**
  * `SourceOut.capabilities` è un dizionario libero: qui le chiavi note
  * (docs/phase1/07-frontend-api.md §4.3).
  */
@@ -125,12 +153,13 @@ export interface SourceCapabilities {
  */
 export type Source = Omit<
   Schemas["SourceOut"],
-  "status" | "type" | "origin_default" | "capabilities"
+  "status" | "type" | "origin_default" | "capabilities" | "justwatch"
 > & {
   status: SourceStatus;
   type: SourceType;
   origin_default: CollectionOrigin;
   capabilities: SourceCapabilities;
+  justwatch?: JustWatchSourceInfo | null;
 };
 export type SourceList = Omit<Schemas["SourceListOut"], "items"> & {
   items: Source[];
@@ -144,7 +173,31 @@ export type Snapshot = Omit<Schemas["SnapshotOut"], "status" | "quality"> & {
 export type SnapshotList = Omit<Schemas["SnapshotListOut"], "items"> & {
   items: Snapshot[];
 };
-export type SnapshotItem = Schemas["SnapshotItemOut"];
+export type AvailabilityStatus = "CURRENT" | "UPCOMING" | "LEAVING";
+
+export type SnapshotItem = Omit<
+  Schemas["SnapshotItemOut"],
+  "availability_status" | "date_basis"
+> & {
+  availability_status?: AvailabilityStatus | null;
+  date_basis: DateBasis;
+};
+export type SnapshotItemList = Omit<Schemas["SnapshotItemListOut"], "items"> & {
+  items: SnapshotItem[];
+};
+
+export type EpisodeEventType =
+  | "SEASON_ADDED"
+  | "SEASON_REMOVED"
+  | "EPISODE_ADDED"
+  | "EPISODE_REMOVED";
+
+export type EpisodeEvent = Omit<Schemas["EpisodeEventOut"], "event_type"> & {
+  event_type: EpisodeEventType;
+};
+export type EpisodeEventList = Omit<Schemas["EpisodeEventListOut"], "items"> & {
+  items: EpisodeEvent[];
+};
 
 export type Collection = Omit<
   Schemas["CollectionOut"],
@@ -160,6 +213,8 @@ export type Collection = Omit<
   kind: CollectionKind;
   origin: CollectionOrigin;
   date_basis: DateBasis;
+  /** Attribuzione calcolata dal backend (es. "Classifica JustWatch"). */
+  source_label?: string | null;
   offer_types: OfferType[];
   latest_snapshot?: Snapshot | null;
   last_valid_snapshot?: Snapshot | null;

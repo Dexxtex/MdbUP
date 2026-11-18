@@ -80,6 +80,8 @@ const baseBindingDraftSchema = z.object({
   schedulePolicy: z.enum(SCHEDULE_POLICY_VALUES),
   requireReview: z.boolean(),
   policyAccepted: z.boolean(),
+  justwatchCollection: z.boolean(),
+  justwatchPolicyAccepted: z.boolean(),
   confirmName: z.string().min(1, "Digita il nome della collezione."),
 });
 
@@ -137,6 +139,14 @@ export const bindingDraftSchema = baseBindingDraftSchema.superRefine((values, ct
       message: "Devi accettare la policy di sincronizzazione.",
     });
   }
+  if (values.justwatchCollection && !values.justwatchPolicyAccepted) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["justwatchPolicyAccepted"],
+      message:
+        "Accetta esplicitamente la policy JustWatch: il binding nasce disabilitato e richiede un dry-run.",
+    });
+  }
 });
 
 export type BindingDraft = z.infer<typeof bindingDraftSchema>;
@@ -160,6 +170,8 @@ export const DEFAULT_BINDING_DRAFT: BindingDraft = {
   schedulePolicy: "ALWAYS_APPROVE",
   requireReview: true,
   policyAccepted: false,
+  justwatchCollection: false,
+  justwatchPolicyAccepted: false,
   confirmName: "",
 };
 
@@ -182,7 +194,7 @@ export const bindingStepFields: Record<number, (keyof BindingDraft)[]> = {
     "schedulePolicy",
     "requireReview",
   ],
-  8: ["policyAccepted", "confirmName"],
+  8: ["policyAccepted", "justwatchPolicyAccepted", "confirmName"],
 };
 
 export const BINDING_POLICY_VERSION = "planning-v1";

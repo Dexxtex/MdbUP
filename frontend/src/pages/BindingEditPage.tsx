@@ -14,6 +14,7 @@ import {
   Select,
 } from "../components/ui/primitives";
 import { useToast } from "../components/ui/toast";
+import { isJustWatchSource, justWatchBindingNotice } from "../lib/justwatch";
 
 const SCHEDULE_OPTIONS: { value: ScheduleFrequency; label: string }[] = [
   { value: "MANUAL", label: "Manuale" },
@@ -81,6 +82,7 @@ export default function BindingEditPage() {
   const data = binding.data;
   if (!data) return null;
 
+  const isJustWatch = isJustWatchSource(data.collection?.source_key);
   const switchingToMirror = data.mode === "APPEND_ONLY" && mode === "MIRROR";
 
   const onSave = () => {
@@ -107,6 +109,12 @@ export default function BindingEditPage() {
     }
     if (enabled && !policyAccepted) {
       setFormError("Accetta la policy prima di abilitare il binding.");
+      return;
+    }
+    if (isJustWatch && enabled && !data.enabled) {
+      setFormError(
+        "Per un binding JustWatch l'abilitazione richiede un dry-run completato con successo: usa la pagina Binding per il dry-run.",
+      );
       return;
     }
     if (schedule === "INTERVAL") {
@@ -171,6 +179,16 @@ export default function BindingEditPage() {
       {formError ? (
         <div className="mb-4">
           <InlineNotice tone="danger">{formError}</InlineNotice>
+        </div>
+      ) : null}
+
+      {isJustWatch ? (
+        <div className="mb-4">
+          <InlineNotice tone="warning">
+            Collezione JustWatch: {justWatchBindingNotice()} Il binding resta in pausa finché
+            non esegui un dry-run con successo. Un run reale senza dry-run risponde
+            DRY_RUN_REQUIRED.
+          </InlineNotice>
         </div>
       ) : null}
 
@@ -309,8 +327,13 @@ export default function BindingEditPage() {
         <div className="mt-6 space-y-4 border-t border-line pt-4">
           <Checkbox
             id="binding-enabled"
-            label="Binding attivo"
+            label={
+              isJustWatch && !data.enabled
+                ? "Binding attivo (richiede un dry-run completato)"
+                : "Binding attivo"
+            }
             checked={enabled}
+            disabled={isJustWatch && !data.enabled}
             onChange={(event) => setEnabled(event.target.checked)}
           />
           <Checkbox

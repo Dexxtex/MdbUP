@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.api.errors import ConflictError, NotFoundError, ValidationError
 from app.api.schemas_catalog import CollectionCreateIn, CollectionUpdateIn
 from app.core.config import Settings
-from app.db.models import Collection
+from app.db.models import Collection, ProviderMapping
 from app.domain.enums import (
     AuditActorType,
     CollectionKind,
@@ -43,6 +43,102 @@ _LOCAL_SORTS = {
     "title.asc",
     "popularity.desc",
 }
+
+JUSTWATCH_SOURCE_KEY = "justwatch"
+TMDB_SOURCE_KEY = "tmdb"
+
+# Kinds JustWatch can serve. ``CUSTOM_FILTER`` stays a local, TMDb-driven concept.
+_JUSTWATCH_KINDS = {
+    CollectionKind.CATALOG.value,
+    CollectionKind.RECENTLY_ADDED.value,
+    CollectionKind.UPCOMING.value,
+    CollectionKind.CHART.value,
+}
+_TMDB_KINDS = {
+    CollectionKind.CATALOG.value,
+    CollectionKind.RECENTLY_ADDED.value,
+    CollectionKind.CUSTOM_FILTER.value,
+}
+
+_JUSTWATCH_DESCRIPTION = {
+    CollectionKind.CATALOG.value: "Catalogo JustWatch (solo flatrate) per il provider in Italia.",
+    CollectionKind.RECENTLY_ADDED.value: "Novità JustWatch: etichette relative, nessuna data.",
+    CollectionKind.UPCOMING.value: "In arrivo JustWatch: non disponibili, fuori dal catalogo.",
+    CollectionKind.CHART.value: (
+        "Classifica JustWatch: rank dell'aggregatore, non Top 10 ufficiale."
+    ),
+}
+
+
+def _justwatch_mapping(db: Session, provider_id: uuid.UUID) -> ProviderMapping:
+    """Verified JustWatch mapping for the provider, or an explicit error."""
+    source = sources_repo.get_source_by_key(db, JUSTWATCH_SOURCE_KEY)
+    if source is None:
+        raise ValidationError("Fonte JustWatch non trovata.", code="SOURCE_MISSING")
+    mapping = providers_repo.get_mapping(
+        db, provider_id=provider_id, source_id=source.id, country_code="IT"
+    )
+    if mapping is None or not mapping.is_verified:
+        raise ValidationError(
+            "Il provider non ha un mapping JustWatch verificato: eseguire 'justwatch-collections'.",
+            code="PROVIDER_NOT_VERIFIED",
+            details={"provider_id": str(provider_id), "source_key": JUSTWATCH_SOURCE_KEY},
+        )
+    return mapping
+
+
+def _justwatch_offer_types(
+    requested: list[str] | None,
+    mapping: ProviderMapping,
+) -> list[str]:
+    """Validate the requested offer types against the live package capabilities."""
+    metadata = mapping.metadata_json or {}
+    supported = {str(value).upper() for value in metadata.get("monetization_types") or []}
+    values = [str(value).upper() for value in (requested or [OfferType.FLATRATE.value])]
+    unsupported = [value for value in values if supported and value not in supported]
+    if unsupported:
+        raise ValidationError(
+            "Il provider JustWatch non offre questi tipi di offerta.",
+            code="JUSTWATCH_OFFER_TYPE_UNSUPPORTED",
+            details={"unsupported": unsupported, "supported": sorted(supported)},
+        )
+    return values
+
+
+def _justwatch_filters(
+    *,
+    external_provider_id: str,
+    media_type: str,
+    offer_types: list[str],
+    year_from: int | None = None,
+    year_to: int | None = None,
+    genres: list[str] | None = None,
+) -> dict[str, object]:
+    """Filters the connector reads: package, region, media type, offers, years."""
+    filters: dict[str, object] = {
+        "packages": [external_provider_id],
+        "watch_region": "IT",
+        "media_type": media_type,
+        "offer_types": offer_types,
+    }
+    if year_from is not None:
+        filters["year_from"] = int(year_from)
+    if year_to is not None:
+        filters["year_to"] = int(year_to)
+    if genres:
+        filters["genres"] = list(genres)
+    return filters
+
+
+def _justwatch_quality_flags(kind: str) -> dict[str, object]:
+    flags: dict[str, object] = {
+        "aggregator": True,
+        "added_date_missing": True,
+        "provider_mapping_verified": True,
+    }
+    if kind == CollectionKind.CHART.value:
+        flags["chart_label"] = "Classifica JustWatch"
+    return flags
 
 
 def list_genres(media_type: str) -> list[dict[str, object]]:
@@ -285,7 +381,15 @@ def create_collection(
             code="COLLECTION_EXISTS",
             details={"slug": payload.slug},
         )
-    source = sources_repo.get_source_by_key(db, "tmdb")
+    if payload.source_key == JUSTWATCH_SOURCE_KEY:
+        return _create_justwatch_collection(db, payload, actor_user_id=actor_user_id)
+    if payload.kind not in _TMDB_KINDS:
+        raise ValidationError(
+            "TMDb non supporta questo tipo di collezione: usare source_key=justwatch.",
+            code="KIND_NOT_SUPPORTED",
+            details={"kind": payload.kind, "source_key": TMDB_SOURCE_KEY},
+        )
+    source = sources_repo.get_source_by_key(db, TMDB_SOURCE_KEY)
     if source is None:
         raise ValidationError("Fonte TMDb non trovata.", code="SOURCE_MISSING")
 
@@ -490,6 +594,22 @@ def update_collection(
     kind = payload.kind or collection.kind
     media_type = collection.media_type
     existing_filters = collection.filters or {}
+    current_source = sources_repo.get_source(db, collection.source_id)
+
+    if current_source is not None and current_source.key == JUSTWATCH_SOURCE_KEY:
+        return _update_justwatch_collection(db, collection, payload, actor_user_id=actor_user_id)
+    if payload.source_key is not None and payload.source_key != TMDB_SOURCE_KEY:
+        raise ValidationError(
+            "La fonte di una collezione esistente non può essere cambiata.",
+            code="SOURCE_KEY_IMMUTABLE",
+            details={"source_key": current_source.key if current_source else None},
+        )
+    if kind not in _TMDB_KINDS:
+        raise ValidationError(
+            "TMDb non supporta questo tipo di collezione: usare source_key=justwatch.",
+            code="KIND_NOT_SUPPORTED",
+            details={"kind": kind, "source_key": TMDB_SOURCE_KEY},
+        )
 
     if kind == CollectionKind.CUSTOM_FILTER.value:
         raw_ids = payload.source_collection_ids
@@ -685,6 +805,159 @@ def update_collection(
         after={
             "slug": collection.slug,
             "kind": collection.kind,
+            "filters": collection.filters,
+            "is_active": collection.is_active,
+        },
+    )
+    db.commit()
+    return collections_service.get_collection(db, collection.id)
+
+
+def _create_justwatch_collection(
+    db: Session,
+    payload: CollectionCreateIn,
+    *,
+    actor_user_id: uuid.UUID | None = None,
+) -> CollectionSummary:
+    """Create a JustWatch collection: aggregator, no add dates, verified mapping."""
+    if payload.kind not in _JUSTWATCH_KINDS:
+        raise ValidationError(
+            "JustWatch supporta CATALOG, RECENTLY_ADDED, UPCOMING e CHART.",
+            code="KIND_NOT_SUPPORTED",
+            details={"kind": payload.kind, "source_key": JUSTWATCH_SOURCE_KEY},
+        )
+    if payload.genre_ids or payload.exclude_genre_ids:
+        raise ValidationError(
+            "JustWatch usa generi propri (slug), non gli id TMDb: filtro generi non applicato.",
+            code="JUSTWATCH_GENRES_UNSUPPORTED",
+        )
+    if payload.provider_id is None:
+        raise ValidationError(
+            "provider_id è obbligatorio per una collezione JustWatch.",
+            code="PROVIDER_REQUIRED",
+        )
+    provider = providers_repo.get_provider(db, payload.provider_id)
+    if provider is None:
+        raise NotFoundError(
+            "Provider non trovato.", details={"provider_id": str(payload.provider_id)}
+        )
+    source = sources_repo.get_source_by_key(db, JUSTWATCH_SOURCE_KEY)
+    if source is None:
+        raise ValidationError("Fonte JustWatch non trovata.", code="SOURCE_MISSING")
+    mapping = _justwatch_mapping(db, provider.id)
+    offer_types = _justwatch_offer_types(payload.offer_types, mapping)
+    collection = collections_repo.upsert_collection(
+        db,
+        slug=payload.slug,
+        source_id=source.id,
+        provider_id=provider.id,
+        country_code="IT",
+        media_type=payload.media_type,
+        kind=payload.kind,
+        origin=CollectionOrigin.AGGREGATOR.value,
+        date_basis=DateBasis.UNKNOWN.value,
+        name=payload.name,
+        description=payload.description or _JUSTWATCH_DESCRIPTION[payload.kind],
+        source_collection_key=f"custom:{payload.slug}",
+        source_url=None,
+        offer_types=offer_types,
+        filters=_justwatch_filters(
+            external_provider_id=mapping.external_provider_id,
+            media_type=payload.media_type,
+            offer_types=offer_types,
+            year_from=payload.year_from,
+            year_to=payload.year_to,
+        ),
+        quality_flags=_justwatch_quality_flags(payload.kind),
+        sort_mode="SOURCE_ORDER",
+        is_active=payload.is_active,
+    )
+    audit.record(
+        db,
+        action="collection_created",
+        entity_type="collection",
+        entity_id=collection.id,
+        actor_user_id=actor_user_id,
+        actor_type=AuditActorType.USER if actor_user_id else AuditActorType.SYSTEM,
+        after={
+            "slug": collection.slug,
+            "kind": collection.kind,
+            "source_key": JUSTWATCH_SOURCE_KEY,
+            "packages": [mapping.external_provider_id],
+            "offer_types": offer_types,
+        },
+    )
+    db.commit()
+    return collections_service.get_collection(db, collection.id)
+
+
+def _update_justwatch_collection(
+    db: Session,
+    collection: Collection,
+    payload: CollectionUpdateIn,
+    *,
+    actor_user_id: uuid.UUID | None = None,
+) -> CollectionSummary:
+    """Update a JustWatch collection keeping aggregator origin and UNKNOWN dates."""
+    if payload.source_key is not None and payload.source_key != JUSTWATCH_SOURCE_KEY:
+        raise ValidationError(
+            "La fonte di una collezione esistente non può essere cambiata.",
+            code="SOURCE_KEY_IMMUTABLE",
+            details={"source_key": JUSTWATCH_SOURCE_KEY},
+        )
+    if payload.genre_ids or payload.exclude_genre_ids:
+        raise ValidationError(
+            "JustWatch usa generi propri (slug), non gli id TMDb: filtro generi non applicato.",
+            code="JUSTWATCH_GENRES_UNSUPPORTED",
+        )
+    mapping = _justwatch_mapping(db, collection.provider_id)
+    kind = payload.kind or collection.kind
+    if kind not in _JUSTWATCH_KINDS:
+        raise ValidationError(
+            "JustWatch supporta CATALOG, RECENTLY_ADDED, UPCOMING e CHART.",
+            code="KIND_NOT_SUPPORTED",
+            details={"kind": kind, "source_key": JUSTWATCH_SOURCE_KEY},
+        )
+    existing_filters = collection.filters or {}
+    requested_offers = payload.offer_types or [
+        str(value) for value in (collection.offer_types or [OfferType.FLATRATE.value])
+    ]
+    offer_types = _justwatch_offer_types(requested_offers, mapping)
+    year_from = (
+        payload.year_from if payload.year_from is not None else existing_filters.get("year_from")
+    )
+    year_to = payload.year_to if payload.year_to is not None else existing_filters.get("year_to")
+    collection.name = payload.name or collection.name
+    collection.description = (
+        payload.description if payload.description is not None else collection.description
+    )
+    collection.kind = kind
+    collection.origin = CollectionOrigin.AGGREGATOR.value
+    collection.date_basis = DateBasis.UNKNOWN.value
+    collection.offer_types = offer_types
+    collection.filters = _justwatch_filters(
+        external_provider_id=mapping.external_provider_id,
+        media_type=collection.media_type,
+        offer_types=offer_types,
+        year_from=year_from,
+        year_to=year_to,
+    )
+    collection.quality_flags = _justwatch_quality_flags(kind)
+    collection.sort_mode = "SOURCE_ORDER"
+    if payload.is_active is not None:
+        collection.is_active = payload.is_active
+    db.flush()
+    audit.record(
+        db,
+        action="collection_updated",
+        entity_type="collection",
+        entity_id=collection.id,
+        actor_user_id=actor_user_id,
+        actor_type=AuditActorType.USER if actor_user_id else AuditActorType.SYSTEM,
+        after={
+            "slug": collection.slug,
+            "kind": collection.kind,
+            "source_key": JUSTWATCH_SOURCE_KEY,
             "filters": collection.filters,
             "is_active": collection.is_active,
         },

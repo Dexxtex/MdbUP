@@ -66,6 +66,9 @@ class ThresholdsIn(BaseModel):
 class BindingCreateIn(BaseModel):
     collection_id: uuid.UUID
     target_id: uuid.UUID
+    # JustWatch is an aggregator without provider-declared dates: the operator
+    # must accept that explicitly. Such bindings are always created disabled.
+    justwatch_policy_accepted: bool = False
     mode: SyncMode = SyncMode.MIRROR
     schedule: Literal["MANUAL", "DAILY", "WEEKLY"] = "MANUAL"
     schedule_time: str | None = None

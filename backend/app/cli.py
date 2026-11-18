@@ -478,13 +478,18 @@ def main(argv: list[str] | None = None) -> int:
                 db, settings, country_code=args.country, provider_slugs=args.provider
             )
         print(
-            f"mapping: {outcome.mappings}, "
+            f"mapping verificati: {outcome.mappings}, "
             f"collezioni create: {outcome.collections_created}, "
             f"aggiornate: {outcome.collections_updated}, "
-            f"provider senza mapping: {len(outcome.skipped_providers)}"
+            f"provider senza flatrate: {len(outcome.skipped_providers)}, "
+            f"provider non verificati: {len(outcome.unverified_providers)}"
         )
         if outcome.skipped_providers:
-            print("saltati: " + ", ".join(sorted(outcome.skipped_providers)))
+            print("saltati (nessun flatrate): " + ", ".join(sorted(outcome.skipped_providers)))
+        if outcome.unverified_providers:
+            print("non verificati: " + ", ".join(sorted(outcome.unverified_providers)))
+        if outcome.unmapped_packages:
+            print("package senza mapping: " + ", ".join(outcome.unmapped_packages))
         return 0
     if args.command == "backfill-availability":
         with session_scope() as db:

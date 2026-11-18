@@ -28,6 +28,9 @@ class ProviderSummary:
     mapping_verified: bool
     mapping_verified_movie: bool
     mapping_verified_tv: bool
+    justwatch_provider_id: str | None
+    justwatch_verified: bool
+    justwatch_monetization_types: list[str]
     collections_count: int
     movie_collections: int
     show_collections: int
@@ -43,10 +46,25 @@ def list_providers(db: Session, *, country_code: str = "IT") -> list[ProviderSum
         else []
     )
     mapping_by_provider = {mapping.provider_id: mapping for mapping in mappings}
+    justwatch_source = sources_repo.get_source_by_key(db, "justwatch")
+    justwatch_mapping_by_provider = {
+        mapping.provider_id: mapping
+        for mapping in (
+            providers_repo.list_mappings(
+                db, source_id=justwatch_source.id, country_code=country_code
+            )
+            if justwatch_source is not None
+            else []
+        )
+    }
     summaries: list[ProviderSummary] = []
     for provider in providers:
         mapping = mapping_by_provider.get(provider.id)
         metadata = (mapping.metadata_json or {}) if mapping is not None else {}
+        justwatch_mapping = justwatch_mapping_by_provider.get(provider.id)
+        justwatch_metadata = (
+            (justwatch_mapping.metadata_json or {}) if justwatch_mapping is not None else {}
+        )
         per_type = counts.get(provider.id, {})
         movie_count = per_type.get("MOVIE", 0)
         show_count = per_type.get("SHOW", 0)
@@ -73,6 +91,17 @@ def list_providers(db: Session, *, country_code: str = "IT") -> list[ProviderSum
                 mapping_verified=bool(mapping.is_verified) if mapping is not None else False,
                 mapping_verified_movie=bool(metadata.get("movie_verified")),
                 mapping_verified_tv=bool(metadata.get("tv_verified")),
+                justwatch_provider_id=(
+                    justwatch_mapping.external_provider_id
+                    if justwatch_mapping is not None
+                    else None
+                ),
+                justwatch_verified=(
+                    bool(justwatch_mapping.is_verified) if justwatch_mapping is not None else False
+                ),
+                justwatch_monetization_types=[
+                    str(value) for value in justwatch_metadata.get("monetization_types") or []
+                ],
                 collections_count=movie_count + show_count,
                 movie_collections=movie_count,
                 show_collections=show_count,

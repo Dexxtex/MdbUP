@@ -3,11 +3,23 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   useCreateCollection,
   useUpdateCollection,
-  type CollectionCreatePayload,
 } from "../api/mutations";
-import { useCollection, useCollections, useGenres, useProviders } from "../api/queries";
-import type { Collection, MediaType } from "../api/types";
+import {
+  useCollection,
+  useCollections,
+  useGenres,
+  useProviders,
+  useSources,
+} from "../api/queries";
+import type { Collection, CollectionKind, MediaType, OfferType } from "../api/types";
 import { collectionProviderName } from "../lib/collections";
+import { buildCollectionPayload } from "../lib/collection-builder";
+import {
+  JUSTWATCH_KINDS,
+  isJustWatchSource,
+  isVerifiedJustWatchProvider,
+  justWatchBindingNotice,
+} from "../lib/justwatch";
 import { formatNumber } from "../lib/format";
 import { ErrorState, InlineNotice, TableSkeleton } from "../components/ui/feedback";
 import {
@@ -23,12 +35,20 @@ import {
 } from "../components/ui/primitives";
 import { IconArrowRight, IconFilter, IconLayers, IconSearch } from "../components/ui/icons";
 
-type CollectionKindValue = "CATALOG" | "RECENTLY_ADDED" | "CUSTOM_FILTER";
-
-const KIND_LABELS: Record<CollectionKindValue, string> = {
+const KIND_LABELS: Record<CollectionKind, string> = {
   CATALOG: "Catalogo / genere",
   RECENTLY_ADDED: "Appena rilevati",
   CUSTOM_FILTER: "Combinata multi-provider",
+  CHART: "Classifica",
+  UPCOMING: "In arrivo",
+};
+
+const JUSTWATCH_KIND_LABELS: Record<CollectionKind, string> = {
+  CATALOG: "Catalogo",
+  RECENTLY_ADDED: "Novità",
+  CUSTOM_FILTER: "Combinata multi-provider",
+  CHART: "Classifica",
+  UPCOMING: "In arrivo",
 };
 
 const MONETIZATION_OPTIONS = [
@@ -92,17 +112,19 @@ export default function CollectionEditPage() {
   const isEdit = Boolean(collectionId);
   const collection = useCollection(collectionId);
   const providers = useProviders("IT");
+  const sources = useSources();
   const create = useCreateCollection();
   const update = useUpdateCollection(collectionId ?? "");
   const navigate = useNavigate();
 
+  const [sourceKey, setSourceKey] = useState<"tmdb" | "justwatch">("tmdb");
   const [providerId, setProviderId] = useState("");
   const [mediaType, setMediaType] = useState<MediaType>("MOVIE");
-  const [kind, setKind] = useState<CollectionKindValue>("CATALOG");
+  const [kind, setKind] = useState<CollectionKind>("CATALOG");
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
-  const [monetization, setMonetization] = useState("FLATRATE");
+  const [monetization, setMonetization] = useState<OfferType>("FLATRATE");
   const [genreIds, setGenreIds] = useState<number[]>([]);
   const [sourceCollectionId, setSourceCollectionId] = useState("");
   const [sourceCollectionIds, setSourceCollectionIds] = useState<string[]>([]);
@@ -132,19 +154,14 @@ export default function CollectionEditPage() {
   useEffect(() => {
     const data = collection.data;
     if (!data) return;
+    setSourceKey(data.source_key === "justwatch" ? "justwatch" : "tmdb");
     setProviderId(data.provider_id);
     setMediaType(data.media_type);
-    setKind(
-      data.kind === "RECENTLY_ADDED"
-        ? "RECENTLY_ADDED"
-        : data.kind === "CUSTOM_FILTER"
-          ? "CUSTOM_FILTER"
-          : "CATALOG",
-    );
+    setKind(data.kind);
     setName(data.name);
     setSlug(data.slug);
     setDescription(data.description ?? "");
-    setMonetization(data.offer_types[0] ?? "FLATRATE");
+    setMonetization((data.offer_types[0] as OfferType | undefined) ?? "FLATRATE");
     setGenreIds(
       String(data.filters?.with_genres ?? "")
         .split(",")
@@ -180,7 +197,21 @@ export default function CollectionEditPage() {
     );
   }, [providers.data, mediaType]);
 
-  const providerOptions = verifiedProviders.length > 0 ? verifiedProviders : providers.data ?? [];
+  const verifiedJustWatchProviders = useMemo(
+    () => (providers.data ?? []).filter(isVerifiedJustWatchProvider),
+    [providers.data],
+  );
+
+  const providerOptions =
+    sourceKey === "justwatch"
+      ? verifiedJustWatchProviders
+      : verifiedProviders.length > 0
+        ? verifiedProviders
+        : (providers.data ?? []);
+
+  const justwatchSource = (sources.data ?? []).find((source) => source.key === "justwatch");
+  const verifiedJustWatchMappings = justwatchSource?.justwatch?.mappings.length ?? 0;
+  const isJustWatch = isJustWatchSource(sourceKey);
 
   const genreList = useMemo(() => genres.data?.items ?? [], [genres.data]);
   const genreName = useMemo(() => {
@@ -195,6 +226,16 @@ export default function CollectionEditPage() {
     : genreList;
 
   const selectedProvider = providerOptions.find((provider) => provider.id === providerId);
+  const offerOptions = useMemo(() => {
+    if (!isJustWatch) return MONETIZATION_OPTIONS;
+    const supported = (selectedProvider?.justwatch_monetization_types ?? []).map((value) =>
+      value.toUpperCase(),
+    );
+    if (supported.length === 0) {
+      return MONETIZATION_OPTIONS.filter((option) => option.value === "FLATRATE");
+    }
+    return MONETIZATION_OPTIONS.filter((option) => supported.includes(option.value));
+  }, [isJustWatch, selectedProvider]);
   const selectedSources = (collections.data ?? []).filter((item) =>
     sourceCollectionIds.includes(item.id),
   );
@@ -222,6 +263,14 @@ export default function CollectionEditPage() {
       setFormError("Seleziona un provider.");
       return;
     }
+    if (sourceKey === "justwatch" && !providerOptions.some((item) => item.id === providerId)) {
+      setFormError("Seleziona un provider con mapping JustWatch verificato.");
+      return;
+    }
+    if (sourceKey === "justwatch" && !JUSTWATCH_KINDS.includes(kind)) {
+      setFormError("JustWatch supporta Catalogo, Novità, In arrivo e Classifica.");
+      return;
+    }
     if (!name.trim()) {
       setFormError("Inserisci un nome.");
       return;
@@ -230,48 +279,50 @@ export default function CollectionEditPage() {
       setFormError("Inserisci uno slug.");
       return;
     }
-    if (kind === "RECENTLY_ADDED" && !sourceCollectionId) {
+    if (sourceKey === "tmdb" && kind === "RECENTLY_ADDED" && !sourceCollectionId) {
       setFormError("Seleziona la collezione catalogo da usare come baseline.");
       return;
     }
-    if (kind === "CUSTOM_FILTER" && sourceCollectionIds.length === 0) {
+    if (sourceKey === "tmdb" && kind === "CUSTOM_FILTER" && sourceCollectionIds.length === 0) {
       setFormError("Seleziona almeno una collezione sorgente per la raccolta combinata.");
       return;
     }
     const days = Number(windowDays);
-    if (kind === "RECENTLY_ADDED" && (!Number.isFinite(days) || days < 1 || days > 90)) {
+    if (
+      sourceKey === "tmdb" &&
+      kind === "RECENTLY_ADDED" &&
+      (!Number.isFinite(days) || days < 1 || days > 90)
+    ) {
       setFormError("La finestra deve essere tra 1 e 90 giorni.");
       return;
     }
-    const base: CollectionCreatePayload = {
-      ...(providerId ? { provider_id: providerId } : {}),
-      media_type: mediaType,
-      name: name.trim(),
-      slug: slug.trim(),
+    if (sourceKey === "justwatch" && yearFrom && yearTo && Number(yearFrom) > Number(yearTo)) {
+      setFormError("L'anno iniziale non può superare quello finale.");
+      return;
+    }
+    const base = buildCollectionPayload({
+      sourceKey,
+      providerId,
+      mediaType,
       kind,
-      genre_ids: genreIds,
-      monetization_type: monetization,
-      description: description.trim() || undefined,
-      is_active: isActive,
-      ...(kind === "RECENTLY_ADDED"
-        ? { window_days: days, source_collection_id: sourceCollectionId }
-        : {}),
-      ...(kind === "CUSTOM_FILTER"
-        ? {
-            source_collection_ids: sourceCollectionIds,
-            exclude_genre_ids: excludeGenreIds,
-            min_vote_average: minVoteAverage ? Number(minVoteAverage) : undefined,
-            min_vote_count: minVoteCount ? Number(minVoteCount) : undefined,
-            year_from: yearFrom ? Number(yearFrom) : undefined,
-            year_to: yearTo ? Number(yearTo) : undefined,
-            original_language: originalLanguage.trim() || undefined,
-            local_sort_by: localSortBy,
-          }
-        : {}),
-      ...(kind === "CATALOG" && sharedSnapshotId
-        ? { shared_snapshot_collection_id: sharedSnapshotId }
-        : {}),
-    };
+      name,
+      slug,
+      description,
+      offerType: monetization,
+      genreIds,
+      sourceCollectionId,
+      sourceCollectionIds,
+      sharedSnapshotId,
+      excludeGenreIds,
+      minVoteAverage,
+      minVoteCount,
+      yearFrom,
+      yearTo,
+      originalLanguage,
+      localSortBy,
+      windowDays,
+      isActive,
+    });
     if (isEdit) {
       update.mutate(base, { onSuccess: () => navigate("/app/collections") });
     } else {
@@ -319,19 +370,72 @@ export default function CollectionEditPage() {
           <BuilderSection
             step={1}
             title="Provider e tipo di contenuto"
-            description="Il provider determina il catalogo TMDb; film e serie restano separati."
+            description={
+              isJustWatch
+                ? "JustWatch usa un mapping provider verificato; film e serie restano separati."
+                : "Il provider determina il catalogo TMDb; film e serie restano separati."
+            }
           >
+            <div className="mb-4">
+              <Field
+                id="collection-source"
+                label="Fonte"
+                hint={isEdit ? "La fonte di una collezione esistente non è modificabile." : undefined}
+              >
+                <Select
+                  id="collection-source"
+                  value={sourceKey}
+                  disabled={isEdit}
+                  onChange={(event) => {
+                    const next = event.target.value as "tmdb" | "justwatch";
+                    setSourceKey(next);
+                    setProviderId("");
+                    setKind("CATALOG");
+                    setGenreIds([]);
+                    setExcludeGenreIds([]);
+                    setSourceCollectionId("");
+                    setSourceCollectionIds([]);
+                    setSharedSnapshotId("");
+                    setMonetization("FLATRATE");
+                  }}
+                >
+                  <option value="tmdb">TMDb</option>
+                  <option value="justwatch">JustWatch</option>
+                </Select>
+              </Field>
+            </div>
+
+            {isJustWatch ? (
+              <div className="mb-4">
+                <InlineNotice tone="info">
+                  JustWatch è un aggregatore: niente date di aggiunta, niente Sync MDBList
+                  automatica. {justWatchBindingNotice()}
+                </InlineNotice>
+              </div>
+            ) : null}
+
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field id="collection-provider" label="Provider">
+              <Field
+                id="collection-provider"
+                label="Provider"
+                hint={
+                  isJustWatch
+                    ? providerOptions.length === 0
+                      ? "Nessun provider con mapping JustWatch verificato."
+                      : `${formatNumber(verifiedJustWatchMappings)} mapping JustWatch verificati in IT.`
+                    : undefined
+                }
+              >
                 <Select
                   id="collection-provider"
                   value={providerId}
-                  disabled={isEdit || kind === "CUSTOM_FILTER"}
+                  disabled={isEdit || (!isJustWatch && kind === "CUSTOM_FILTER")}
                   onChange={(event) => {
                     setProviderId(event.target.value);
                     setSourceCollectionId("");
                     setSourceCollectionIds([]);
                     setSharedSnapshotId("");
+                    setMonetization("FLATRATE");
                   }}
                 >
                   <option value="">Seleziona…</option>
@@ -348,11 +452,22 @@ export default function CollectionEditPage() {
                   id="collection-kind"
                   value={kind}
                   disabled={isEdit}
-                  onChange={(event) => setKind(event.target.value as CollectionKindValue)}
+                  onChange={(event) => setKind(event.target.value as CollectionKind)}
                 >
-                  <option value="CATALOG">Catalogo / genere</option>
-                  <option value="RECENTLY_ADDED">Appena rilevati (storico)</option>
-                  <option value="CUSTOM_FILTER">Combinata multi-provider</option>
+                  {isJustWatch ? (
+                    <>
+                      <option value="CATALOG">Catalogo</option>
+                      <option value="RECENTLY_ADDED">Novità</option>
+                      <option value="UPCOMING">In arrivo</option>
+                      <option value="CHART">Classifica</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="CATALOG">Catalogo / genere</option>
+                      <option value="RECENTLY_ADDED">Appena rilevati (storico)</option>
+                      <option value="CUSTOM_FILTER">Combinata multi-provider</option>
+                    </>
+                  )}
                 </Select>
               </Field>
             </div>
@@ -394,6 +509,7 @@ export default function CollectionEditPage() {
             </div>
           </BuilderSection>
 
+          {!isJustWatch ? (
           <BuilderSection
             step={2}
             title="Generi TMDb"
@@ -468,25 +584,59 @@ export default function CollectionEditPage() {
             ) : null}
           </BuilderSection>
 
+          ) : null}
+
           <BuilderSection
             step={3}
             title="Filtri e finestra"
-            description="Monetizzazione, filtri locali e finestra per le liste 'Appena rilevati'."
+            description={
+              isJustWatch
+                ? "Tipo di offerta e anni; niente filtri TMDb o locali."
+                : "Monetizzazione, filtri locali e finestra per le liste 'Appena rilevati'."
+            }
           >
-            <p className="mb-2 text-xs font-medium text-ink-muted">Monetizzazione</p>
+            <p className="mb-2 text-xs font-medium text-ink-muted">
+              {isJustWatch ? "Tipo di offerta (default FLATRATE)" : "Monetizzazione"}
+            </p>
             <div className="flex flex-wrap gap-2">
-              {MONETIZATION_OPTIONS.map((option) => (
+              {offerOptions.map((option) => (
                 <ToggleChip
                   key={option.value}
+                  testId={`offer-${option.value}`}
                   pressed={monetization === option.value}
-                  onClick={() => setMonetization(option.value)}
+                  onClick={() => setMonetization(option.value as OfferType)}
                 >
                   {option.label}
                 </ToggleChip>
               ))}
             </div>
 
-            {kind === "CUSTOM_FILTER" ? (
+            {isJustWatch ? (
+              <div className="mt-5 grid gap-4 border-t border-line pt-4 sm:grid-cols-2">
+                <Field id="justwatch-year-from" label="Anno da" hint="Facoltativo.">
+                  <Input
+                    id="justwatch-year-from"
+                    type="number"
+                    min={1900}
+                    max={2100}
+                    value={yearFrom}
+                    onChange={(event) => setYearFrom(event.target.value)}
+                  />
+                </Field>
+                <Field id="justwatch-year-to" label="Anno a" hint="Facoltativo.">
+                  <Input
+                    id="justwatch-year-to"
+                    type="number"
+                    min={1900}
+                    max={2100}
+                    value={yearTo}
+                    onChange={(event) => setYearTo(event.target.value)}
+                  />
+                </Field>
+              </div>
+            ) : null}
+
+            {!isJustWatch && kind === "CUSTOM_FILTER" ? (
               <div className="mt-5 space-y-4 border-t border-line pt-4">
                 <div>
                   <p className="mb-1 text-xs font-medium text-ink-muted">
@@ -584,7 +734,7 @@ export default function CollectionEditPage() {
               </div>
             ) : null}
 
-            {kind === "RECENTLY_ADDED" ? (
+            {!isJustWatch && kind === "RECENTLY_ADDED" ? (
               <div className="mt-5 grid gap-4 border-t border-line pt-4 sm:grid-cols-2">
                 <Field
                   id="collection-source"
@@ -632,7 +782,7 @@ export default function CollectionEditPage() {
               </div>
             ) : null}
 
-            {kind === "CATALOG" ? (
+            {!isJustWatch && kind === "CATALOG" ? (
               <div className="mt-5 border-t border-line pt-4">
                 <Field
                   id="collection-shared"
@@ -721,29 +871,37 @@ export default function CollectionEditPage() {
               <h2 className="text-sm font-semibold text-ink">Anteprima criteri</h2>
             </div>
             <dl className="mt-3">
+              <PreviewRow label="Fonte" value={isJustWatch ? "JustWatch" : "TMDb"} />
               <PreviewRow
                 label="Provider"
                 value={selectedProvider?.name ?? (providerId ? providerId.slice(0, 8) : "—")}
               />
               <PreviewRow label="Tipo" value={mediaType === "MOVIE" ? "Film" : "Serie TV"} />
-              <PreviewRow label="Costruzione" value={KIND_LABELS[kind]} />
               <PreviewRow
-                label="Monetizzazione"
+                label="Costruzione"
+                value={(isJustWatch ? JUSTWATCH_KIND_LABELS : KIND_LABELS)[kind]}
+              />
+              <PreviewRow
+                label={isJustWatch ? "Offerta" : "Monetizzazione"}
                 value={
                   MONETIZATION_OPTIONS.find((option) => option.value === monetization)
                     ?.label ?? monetization
                 }
               />
-              <PreviewRow
-                label="Generi inclusi"
-                value={
-                  genreIds.length === 0
-                    ? "Tutti"
-                    : `${formatNumber(genreIds.length)}: ${genreIds
-                        .map((id) => genreName.get(id) ?? id)
-                        .join(", ")}`
-                }
-              />
+              {isJustWatch ? (
+                <PreviewRow label="Anni" value={`${yearFrom || "—"} → ${yearTo || "—"}`} />
+              ) : (
+                <PreviewRow
+                  label="Generi inclusi"
+                  value={
+                    genreIds.length === 0
+                      ? "Tutti"
+                      : `${formatNumber(genreIds.length)}: ${genreIds
+                          .map((id) => genreName.get(id) ?? id)
+                          .join(", ")}`
+                  }
+                />
+              )}
               {kind === "CUSTOM_FILTER" ? (
                 <>
                   <PreviewRow
@@ -811,10 +969,17 @@ export default function CollectionEditPage() {
                 Pipeline
                 <IconArrowRight />
               </p>
-              <p className="mt-1">
-                Snapshot TMDb → filtri locali → lista MDBList. I filtri locali non generano
-                chiamate aggiuntive.
-              </p>
+              {isJustWatch ? (
+                <p className="mt-1">
+                  Snapshot JustWatch → preview source-only. Sync MDBList disabilitata di
+                  default: dry-run obbligatorio prima del primo run reale.
+                </p>
+              ) : (
+                <p className="mt-1">
+                  Snapshot TMDb → filtri locali → lista MDBList. I filtri locali non
+                  generano chiamate aggiuntive.
+                </p>
+              )}
             </div>
 
             <Button

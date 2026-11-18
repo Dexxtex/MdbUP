@@ -66,6 +66,7 @@ def test_system_status_shape(client: TestClient, admin, seeded, app_settings, tm
     assert body["api_usage"] == {
         "tmdb": {"hour": 0, "today": 0},
         "mdblist": {"hour": 0, "today": 0},
+        "justwatch": {"hour": 0, "today": 0, "cache_hits": 0, "cache_misses": 0},
     }
     assert body["backup"]["file"] == "mdbup-20261118T100000Z.dump.age"
     assert body["backup"]["status"] == "OK"

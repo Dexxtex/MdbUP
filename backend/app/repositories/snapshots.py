@@ -105,6 +105,7 @@ def add_item(
     date_basis: str,
     resolution_status: str,
     resolution_error: str | None = None,
+    availability_status: str | None = None,
 ) -> SnapshotItem:
     item = SnapshotItem(
         snapshot_id=snapshot.id,
@@ -116,6 +117,7 @@ def add_item(
         date_basis=date_basis,
         resolution_status=resolution_status,
         resolution_error=resolution_error,
+        availability_status=availability_status,
     )
     db.add(item)
     return item

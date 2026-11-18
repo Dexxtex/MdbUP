@@ -15,18 +15,23 @@ What the endpoint actually allows, measured against the live service:
 - introspection disabled, so the documents in ``queries.py`` are hand-verified.
 
 The client never logs the payload, never follows redirects and keeps a minimum
-interval between calls.
+interval between calls. Successful payloads are cached in-process for a short
+TTL (``JUSTWATCH_CACHE_TTL_SECONDS``, ``JUSTWATCH_CACHE_MAX_ENTRIES``); errors
+and the healthcheck are never cached, and a response whose shape drifted raises
+:class:`JustWatchGraphQLError` instead of producing an empty ``COMPLETE`` page.
 """
 
 from __future__ import annotations
 
+import copy
+import json
 import time
 from typing import Any
 
 import httpx
 
 from app.connectors.base import HealthStatus
-from app.core.metrics import record_api_call
+from app.core.metrics import record_api_call, record_cache_event
 from app.core.retry import backoff_delay
 from app.domain.enums import MediaType
 from app.integrations.justwatch.models import (
@@ -56,6 +61,8 @@ DEFAULT_BASE_URL = "https://apis.justwatch.com/graphql"
 DEFAULT_TIMEOUT_SECONDS = 20.0
 DEFAULT_MAX_RETRY_WAIT_SECONDS = 5.0
 DEFAULT_MIN_INTERVAL_SECONDS = 1.0
+DEFAULT_CACHE_TTL_SECONDS = 300.0
+DEFAULT_CACHE_MAX_ENTRIES = 512
 DEFAULT_PLATFORM = "WEB"
 
 # Hard server limits, verified against the live endpoint.
@@ -84,11 +91,109 @@ class JustWatchRequestError(JustWatchError):
 
 
 class JustWatchGraphQLError(JustWatchError):
-    """The endpoint answered ``200``/``422`` with a GraphQL ``errors`` payload."""
+    """A GraphQL ``errors`` payload or a drifted response shape.
+
+    The same exception covers a missing/non-object root field, a connection
+    without ``pageInfo`` and ``edges`` that is not a list: the acquisition layer
+    must see the anomaly, never an empty ``COMPLETE`` page.
+    """
 
     def __init__(self, message: str, *, code: str | None = None) -> None:
         super().__init__(message)
         self.code = code
+
+
+SCHEMA_DRIFT_CODE = "SCHEMA_DRIFT"
+
+
+def _cache_key(query: str, variables: dict[str, Any] | None) -> str:
+    return json.dumps([query, variables or {}], sort_keys=True, default=str)
+
+
+class ResponseCache:
+    """Small TTL cache for successful GraphQL payloads.
+
+    Entries are deep-copied on write and on read, so a caller mutating a page
+    cannot poison the next call. Expired entries are dropped lazily; when the
+    cache is full the oldest insertion is evicted first.
+    """
+
+    def __init__(
+        self,
+        *,
+        ttl_seconds: float = DEFAULT_CACHE_TTL_SECONDS,
+        max_entries: int = DEFAULT_CACHE_MAX_ENTRIES,
+        monotonic=time.monotonic,
+    ) -> None:
+        self.ttl_seconds = max(0.0, float(ttl_seconds))
+        self.max_entries = max(0, int(max_entries))
+        self._monotonic = monotonic
+        self._entries: dict[str, tuple[float, dict[str, Any]]] = {}
+
+    @property
+    def enabled(self) -> bool:
+        return self.ttl_seconds > 0 and self.max_entries > 0
+
+    def get(self, key: str) -> dict[str, Any] | None:
+        entry = self._entries.get(key)
+        if entry is None:
+            return None
+        expires_at, payload = entry
+        if expires_at <= self._monotonic():
+            self._entries.pop(key, None)
+            return None
+        return copy.deepcopy(payload)
+
+    def set(self, key: str, payload: dict[str, Any]) -> None:
+        if not self.enabled:
+            return
+        self._drop_expired()
+        while len(self._entries) >= self.max_entries:
+            self._entries.pop(next(iter(self._entries)))
+        self._entries[key] = (self._monotonic() + self.ttl_seconds, copy.deepcopy(payload))
+
+    def clear(self) -> None:
+        self._entries.clear()
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    def _drop_expired(self) -> None:
+        now = self._monotonic()
+        for key in [key for key, (expires_at, _) in self._entries.items() if expires_at <= now]:
+            self._entries.pop(key, None)
+
+
+def _validate_connection(data: dict[str, Any], field: str, operation: str) -> dict[str, Any]:
+    """Raise ``JustWatchGraphQLError`` when a connection is not shaped as expected."""
+    connection = data.get(field)
+    if not isinstance(connection, dict):
+        raise JustWatchGraphQLError(
+            f"Schema JustWatch inatteso: campo '{field}' mancante o non oggetto ({operation}).",
+            code=SCHEMA_DRIFT_CODE,
+        )
+    if not isinstance(connection.get("pageInfo"), dict):
+        raise JustWatchGraphQLError(
+            f"Schema JustWatch inatteso: pageInfo mancante in '{field}' ({operation}).",
+            code=SCHEMA_DRIFT_CODE,
+        )
+    if not isinstance(connection.get("edges"), list):
+        raise JustWatchGraphQLError(
+            f"Schema JustWatch inatteso: 'edges' non è una lista in '{field}' ({operation}).",
+            code=SCHEMA_DRIFT_CODE,
+        )
+    return connection
+
+
+def _validate_sequence(data: dict[str, Any], field: str, operation: str) -> list[Any]:
+    """Raise ``JustWatchGraphQLError`` when a list root field is missing."""
+    value = data.get(field)
+    if not isinstance(value, list):
+        raise JustWatchGraphQLError(
+            f"Schema JustWatch inatteso: campo '{field}' mancante o non lista ({operation}).",
+            code=SCHEMA_DRIFT_CODE,
+        )
+    return value
 
 
 def _retry_after_seconds(response: httpx.Response) -> float:
@@ -169,6 +274,8 @@ class JustWatchClient:
         jitter_ratio: float = 0.3,
         min_interval_seconds: float = DEFAULT_MIN_INTERVAL_SECONDS,
         max_retry_wait_seconds: float = DEFAULT_MAX_RETRY_WAIT_SECONDS,
+        cache_ttl_seconds: float = DEFAULT_CACHE_TTL_SECONDS,
+        cache_max_entries: int = DEFAULT_CACHE_MAX_ENTRIES,
         client: httpx.Client | None = None,
         sleep=time.sleep,
         monotonic=time.monotonic,
@@ -183,6 +290,11 @@ class JustWatchClient:
         self._sleep = sleep
         self._monotonic = monotonic
         self._last_call_at: float | None = None
+        self.cache = ResponseCache(
+            ttl_seconds=cache_ttl_seconds,
+            max_entries=cache_max_entries,
+            monotonic=monotonic,
+        )
         self._client = client or httpx.Client(
             timeout=timeout,
             follow_redirects=False,
@@ -215,8 +327,19 @@ class JustWatchClient:
         variables: dict[str, Any] | None = None,
         *,
         operation: str,
+        cache: bool = True,
+        connection: str | None = None,
+        sequence: str | None = None,
     ) -> dict[str, Any]:
         body = {"query": query, "variables": variables or {}}
+        cache_key = _cache_key(query, variables)
+        use_cache = cache and self.cache.enabled
+        if use_cache:
+            cached = self.cache.get(cache_key)
+            if cached is not None:
+                record_cache_event("justwatch", hit=True)
+                return cached
+            record_cache_event("justwatch", hit=False)
         for attempt in range(1, self.max_retries + 1):
             self._throttle()
             record_api_call("justwatch")
@@ -276,6 +399,14 @@ class JustWatchClient:
             data = payload.get("data")
             if not isinstance(data, dict):
                 raise JustWatchRequestError(f"Payload JustWatch inatteso su {operation}.")
+            # Validate before caching: a drifted payload must never be served
+            # from the cache for the rest of its TTL.
+            if connection is not None:
+                _validate_connection(data, connection, operation)
+            if sequence is not None:
+                _validate_sequence(data, sequence, operation)
+            if use_cache:
+                self.cache.set(cache_key, data)
             return data
         raise JustWatchRequestError(f"JustWatch: tentativi esauriti su {operation}.")
 
@@ -284,7 +415,7 @@ class JustWatchClient:
         """Probe the endpoint with a trivial query; never raises."""
         started = time.monotonic()
         try:
-            self._execute(QUERY_HEALTHCHECK, None, operation="healthcheck")
+            self._execute(QUERY_HEALTHCHECK, None, operation="healthcheck", cache=False)
         except JustWatchError as exc:
             latency_ms = int((time.monotonic() - started) * 1000)
             return HealthStatus(ok=False, message=str(exc), latency_ms=latency_ms)
@@ -298,9 +429,10 @@ class JustWatchClient:
             QUERY_PACKAGES,
             {"country": country, "platform": platform},
             operation="packages",
+            sequence="packages",
         )
         packages: list[JustWatchPackage] = []
-        for row in data.get("packages") or []:
+        for row in data["packages"]:
             short_name = row.get("shortName")
             name = row.get("clearName")
             if not short_name or not name:
@@ -317,8 +449,10 @@ class JustWatchClient:
         return packages
 
     def list_genres(self, language: str) -> list[dict[str, Any]]:
-        data = self._execute(QUERY_GENRES, {"language": language}, operation="genres")
-        return [row for row in data.get("genres") or [] if row.get("shortName")]
+        data = self._execute(
+            QUERY_GENRES, {"language": language}, operation="genres", sequence="genres"
+        )
+        return [row for row in data["genres"] if row.get("shortName")]
 
     def popular_titles(
         self,
@@ -387,6 +521,7 @@ class JustWatchClient:
         limit: int = MAX_PAGE_SIZE,
         packages: list[str] | None = None,
         object_type: MediaType | None = None,
+        monetization_types: list[str] | None = None,
     ) -> JustWatchPage:
         if page_type not in NEW_PAGE_TYPES:
             raise ValueError(
@@ -402,7 +537,7 @@ class JustWatchClient:
             limit=limit,
             packages=packages,
             object_type=object_type,
-            monetization_types=None,
+            monetization_types=monetization_types,
             extra_variables={"pageType": page_type},
             operation=f"newTitles[{page_type}]",
         )
@@ -436,10 +571,11 @@ class JustWatchClient:
                 "filter": flt or None,
             },
             operation="streamingCharts",
+            connection="streamingCharts",
         )
-        connection = data.get("streamingCharts") or {}
+        connection = data["streamingCharts"]
         charts: list[JustWatchChartEntry] = []
-        for edge in connection.get("edges") or []:
+        for edge in connection["edges"]:
             title = _parse_title(edge.get("node") or {})
             if title is None:
                 continue
@@ -454,7 +590,7 @@ class JustWatchClient:
                     top_rank=_to_int(info.get("topRank")),
                 )
             )
-        page_info = connection.get("pageInfo") or {}
+        page_info = connection["pageInfo"]
         next_cursor = page_info.get("endCursor") if page_info.get("hasNextPage") else None
         return JustWatchPage(
             charts=tuple(charts),
@@ -555,11 +691,11 @@ class JustWatchClient:
             ),
         }
         variables.update(extra_variables or {})
-        data = self._execute(query, variables, operation=operation)
-        connection = data.get(field) or {}
-        parsed = (_parse_title(edge.get("node") or {}) for edge in connection.get("edges") or [])
+        data = self._execute(query, variables, operation=operation, connection=field)
+        connection = data[field]
+        parsed = (_parse_title(edge.get("node") or {}) for edge in connection["edges"])
         titles = tuple(title for title in parsed if title is not None)
-        page_info = connection.get("pageInfo") or {}
+        page_info = connection["pageInfo"]
         has_next = bool(page_info.get("hasNextPage")) and offset + len(titles) < MAX_REACHABLE_ITEMS
         return JustWatchPage(
             titles=titles,

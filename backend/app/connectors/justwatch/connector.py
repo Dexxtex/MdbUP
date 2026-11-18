@@ -11,6 +11,15 @@ What this source is:
   carries the pending ranges, so a page fetch is stateless and resumable.
 - Complete on hierarchy: seasons and per-episode offers are exposed through
   :meth:`JustWatchConnector.list_seasons` / :meth:`list_episodes`.
+- Flatrate by default. RENT/BUY/ADS/FREE, channels and addons are excluded
+  unless the collection or its filters name explicit ``offer_types``, and every
+  page is post-filtered by media type, required package and accepted offer type:
+  ``newTitles`` ignores ``objectTypes`` and can return movies inside a SHOW
+  collection, so the GraphQL filter is never trusted alone.
+- ``UPCOMING`` pages mark their items ``availability_status=UPCOMING``; catalog,
+  novelties and charts are ``CURRENT``.
+- Charts are an aggregator ranking (``Classifica JustWatch``), never the official
+  provider Top 10.
 
 Hard limits of the endpoint (measured, not assumed): 100 items per page, no
 reachable item past #1999, no rate-limit headers and no ``429`` observed. The
@@ -35,10 +44,12 @@ from app.connectors.base import (
     SourceProvider,
 )
 from app.domain.enums import (
+    AvailabilityStatus,
     CollectionKind,
     CollectionOrigin,
     DateBasis,
     MediaType,
+    OfferType,
 )
 from app.integrations.justwatch.client import (
     MAX_PAGE_SIZE,
@@ -49,11 +60,19 @@ from app.integrations.justwatch.client import (
 from app.integrations.justwatch.models import (
     JustWatchChartEntry,
     JustWatchEpisode,
+    JustWatchOffer,
+    JustWatchPackage,
     JustWatchSeason,
     JustWatchTitle,
 )
 
 JUSTWATCH_SOURCE_KEY = "justwatch"
+
+# Flatrate is the default and the only accepted type unless a collection asks
+# for something else explicitly. RENT/BUY/ADS/FREE are excluded on purpose: they
+# are not "included in the subscription" and would pollute the catalog.
+DEFAULT_OFFER_TYPES: tuple[str, ...] = (OfferType.FLATRATE.value,)
+SUPPORTED_OFFER_TYPES = frozenset(value.value for value in OfferType)
 
 DEFAULT_YEAR_FROM = 1900
 DEFAULT_YEAR_TO = datetime.now(UTC).year + 1
@@ -70,12 +89,15 @@ CAPABILITIES = ConnectorCapabilities(
     data_export=False,
     requires_credentials=False,
     requires_contract=False,
+    partial_on_error=True,
     max_page_size=MAX_PAGE_SIZE,
     notes=(
         "AGGREGATOR: nessuna data di aggiunta, quindi date_basis=UNKNOWN. "
         "Paginazione completa tramite partizioni releaseYear (tetto 1999 per query). "
-        "Stagioni ed episodi con offerte per episodio. Throttle locale obbligatorio: "
-        "il servizio non espone rate limit e non avvisa prima di un blocco."
+        "Stagioni ed episodi con offerte per episodio. Throttle locale obbligatorio "
+        "(1 req/s): il servizio non espone rate limit e non avvisa prima di un blocco. "
+        "Un errore, un 429 o uno schema drift rende lo snapshot INCOMPLETE/ANOMALY: "
+        "non è mai valido e non autorizza MIRROR."
     ),
 )
 
@@ -171,22 +193,24 @@ class JustWatchConnector:
     def healthcheck(self) -> HealthStatus:
         return self._client.healthcheck()
 
-    def list_providers(self, country_code: str = "IT") -> Sequence[SourceProvider]:
+    def list_providers(
+        self,
+        country_code: str = "IT",
+        packages: Sequence[JustWatchPackage] | None = None,
+    ) -> Sequence[SourceProvider]:
+        rows = packages if packages is not None else self._client.list_packages(country_code)
         return [
             SourceProvider(
                 external_id=package.short_name,
                 name=package.name,
                 country_code=country_code,
             )
-            for package in self._client.list_packages(country_code)
+            for package in rows
         ]
 
-    def provider_monetization_types(self, country_code: str = "IT") -> dict[str, tuple[str, ...]]:
-        """Offer types each package reports, keyed by package short name."""
-        return {
-            package.short_name: package.monetization_types
-            for package in self._client.list_packages(country_code)
-        }
+    def list_packages(self, country_code: str = "IT") -> Sequence[JustWatchPackage]:
+        """Live package list: one request, reused by collections and mappings."""
+        return self._client.list_packages(country_code)
 
     def list_genres(self) -> list[dict[str, str]]:
         """Genres with their localized slug, for building filtered collections."""
@@ -203,9 +227,13 @@ class JustWatchConnector:
             )
         return rows
 
-    def list_collections(self, country_code: str = "IT") -> Sequence[SourceCollection]:
+    def list_collections(
+        self,
+        country_code: str = "IT",
+        packages: Sequence[JustWatchPackage] | None = None,
+    ) -> Sequence[SourceCollection]:
         collections: list[SourceCollection] = []
-        for provider in self.list_providers(country_code):
+        for provider in self.list_providers(country_code, packages):
             for kind, slug in PROVIDER_COLLECTIONS:
                 for media_type in (MediaType.MOVIE, MediaType.SHOW):
                     collections.append(
@@ -223,15 +251,16 @@ class JustWatchConnector:
     ) -> SourceCollection:
         label = "Film" if media_type is MediaType.MOVIE else "Serie"
         prefix = f"{slug}:" if slug else ""
+        # Charts are an aggregator ranking, never the official provider Top 10.
         suffix = {
-            CollectionKind.CATALOG: "",
-            CollectionKind.CHART: " (classifica)",
-            CollectionKind.RECENTLY_ADDED: " (novità)",
-            CollectionKind.UPCOMING: " (in arrivo)",
+            CollectionKind.CATALOG: "Catalogo JustWatch",
+            CollectionKind.CHART: "Classifica JustWatch",
+            CollectionKind.RECENTLY_ADDED: "Novità JustWatch",
+            CollectionKind.UPCOMING: "In arrivo JustWatch",
         }[kind]
         return SourceCollection(
             key=f"{prefix}{provider.external_id}:{media_type.value}",
-            name=f"{provider.name} — {label}{suffix}",
+            name=f"{provider.name} — {label} — {suffix}",
             provider_external_id=provider.external_id,
             media_type=media_type,
             kind=kind,
@@ -242,6 +271,7 @@ class JustWatchConnector:
                 "media_type": media_type.value,
                 "watch_region": country_code,
                 "packages": [provider.external_id],
+                "offer_types": list(DEFAULT_OFFER_TYPES),
                 "year_from": self._year_from,
                 "year_to": self._year_to,
             },
@@ -260,9 +290,11 @@ class JustWatchConnector:
         if not isinstance(filters, dict):
             filters = {}
         packages = _packages(collection, filters)
+        offer_types = _offer_types(collection, filters)
         genres = _string_list(filters.get("genres"))
         subgenres = _string_list(filters.get("subgenres"))
         presentation_types = _string_list(filters.get("presentation_types"))
+        availability = _availability(kind)
 
         if kind is CollectionKind.CHART:
             result = self._client.streaming_charts(
@@ -275,9 +307,8 @@ class JustWatchConnector:
             )
             return Page(
                 items=tuple(
-                    _raw_from_chart(entry)
-                    for entry in result.charts
-                    if entry.title.tmdb_id is not None or entry.title.imdb_id
+                    _raw_from_chart(entry, availability)
+                    for entry in _accepted_charts(result.charts, collection, packages, offer_types)
                 ),
                 next_cursor=result.next_cursor,
                 total_pages=None,
@@ -286,6 +317,8 @@ class JustWatchConnector:
             )
 
         if kind in _PAGE_TYPES:
+            # ``newTitles`` ignores ``objectTypes``: the requested media type has
+            # to be enforced locally, or a SHOW collection would receive movies.
             result = self._client.new_titles(
                 country,
                 self._language,
@@ -294,8 +327,9 @@ class JustWatchConnector:
                 limit=page_size,
                 packages=packages,
                 object_type=collection.media_type,
+                monetization_types=list(offer_types),
             )
-            return self._plain_page(result)
+            return self._plain_page(result, collection, packages, offer_types, availability)
 
         if kind is CollectionKind.CATALOG:
             return self._catalog_page(
@@ -304,9 +338,11 @@ class JustWatchConnector:
                 cursor,
                 page_size,
                 packages=packages,
+                offer_types=offer_types,
                 genres=genres,
                 subgenres=subgenres,
                 presentation_types=presentation_types,
+                availability=availability,
             )
 
         raise NotSupportedError(
@@ -322,9 +358,11 @@ class JustWatchConnector:
         page_size: int,
         *,
         packages: list[str] | None,
+        offer_types: tuple[str, ...],
         genres: list[str] | None,
         subgenres: list[str] | None,
         presentation_types: list[str] | None,
+        availability: str,
     ) -> Page:
         """Walk the catalog by splitting ``releaseYear`` ranges under the 1999 cap."""
         year_from = int(collection.metadata.get("year_from") or self._year_from)
@@ -339,6 +377,7 @@ class JustWatchConnector:
             limit=max(1, min(page_size, MAX_REACHABLE_ITEMS - state.offset)),
             packages=packages,
             object_type=collection.media_type,
+            monetization_types=list(offer_types),
             genres=genres,
             subgenres=subgenres,
             release_year=(lo, hi),
@@ -357,17 +396,18 @@ class JustWatchConnector:
                 state.split(mid).serialize(),
                 page_size,
                 packages=packages,
+                offer_types=offer_types,
                 genres=genres,
                 subgenres=subgenres,
                 presentation_types=presentation_types,
+                availability=availability,
             )
 
         # Titles without any external id cannot be resolved or synced. Skip
         # them, but advance the offset by the source rows, not by the kept rows.
         items = tuple(
-            _raw_from_title(title)
-            for title in result.titles
-            if title.tmdb_id is not None or title.imdb_id
+            _raw_from_title(title, availability)
+            for title in _accepted_titles(result.titles, collection, packages, offer_types)
         )
         next_offset = state.offset + len(result.titles)
         if next_offset >= min(total, MAX_REACHABLE_ITEMS):
@@ -390,12 +430,18 @@ class JustWatchConnector:
             raw=raw,
         )
 
-    def _plain_page(self, result: JustWatchPage) -> Page:
+    def _plain_page(
+        self,
+        result: JustWatchPage,
+        collection: SourceCollection,
+        packages: list[str] | None,
+        offer_types: tuple[str, ...],
+        availability: str,
+    ) -> Page:
         return Page(
             items=tuple(
-                _raw_from_title(title)
-                for title in result.titles
-                if title.tmdb_id is not None or title.imdb_id
+                _raw_from_title(title, availability)
+                for title in _accepted_titles(result.titles, collection, packages, offer_types)
             ),
             next_cursor=result.next_cursor,
             total_pages=None,
@@ -421,6 +467,7 @@ class JustWatchConnector:
             offer_types=frozenset(raw.offer_types),
             source_date_created=None,
             date_basis=DateBasis.UNKNOWN,
+            availability_status=raw.availability_status,
             raw=dict(raw.source_payload),
         )
 
@@ -446,12 +493,98 @@ def _string_list(value: object) -> list[str] | None:
 
 
 def _packages(collection: SourceCollection, filters: dict[str, object]) -> list[str] | None:
-    return _string_list(filters.get("packages")) or _string_list(
-        collection.metadata.get("packages")
+    return (
+        _string_list(filters.get("packages"))
+        or _string_list(collection.metadata.get("packages"))
+        or _string_list(collection.provider_external_id)
     )
 
 
-def _raw_from_title(title: JustWatchTitle) -> RawItem:
+def _offer_types(collection: SourceCollection, filters: dict[str, object]) -> tuple[str, ...]:
+    """Allowed offer types: explicit collection/filter override, else FLATRATE."""
+    raw = filters.get("offer_types") or collection.metadata.get("offer_types")
+    values = _string_list(raw)
+    if not values:
+        return DEFAULT_OFFER_TYPES
+    accepted = tuple(value.upper() for value in values if value.upper() in SUPPORTED_OFFER_TYPES)
+    return accepted or DEFAULT_OFFER_TYPES
+
+
+def _availability(kind: CollectionKind) -> str:
+    if kind is CollectionKind.UPCOMING:
+        return AvailabilityStatus.UPCOMING.value
+    return AvailabilityStatus.CURRENT.value
+
+
+def _matching_offers(
+    title: JustWatchTitle,
+    packages: list[str] | None,
+    offer_types: tuple[str, ...],
+) -> tuple[JustWatchOffer, ...]:
+    """Offers of a required package with an accepted monetization type.
+
+    ``packages=None`` means "any package the request already filters on"; an
+    empty result therefore always means "this title does not belong here".
+    """
+    allowed = frozenset(offer_types)
+    return tuple(
+        offer
+        for offer in title.offers
+        if offer.monetization_type.upper() in allowed
+        and (packages is None or offer.package_short_name in packages)
+    )
+
+
+def _accepts_title(
+    title: JustWatchTitle,
+    collection: SourceCollection,
+    packages: list[str] | None,
+    offer_types: tuple[str, ...],
+) -> bool:
+    """Post-filter applied to *every* page, whatever the GraphQL filter said.
+
+    ``newTitles`` ignores ``objectTypes`` and can return movies in a SHOW
+    collection, and package/monetization filters are not guaranteed either.
+    """
+    if title.media_type is not collection.media_type:
+        return False
+    if title.tmdb_id is None and not title.imdb_id:
+        return False
+    if not title.offers:
+        # An announced title often has no offer yet. The UPCOMING page is
+        # already filtered by package server-side; keep it so it can live in
+        # the separate "in arrivo" collection (never in the current catalog).
+        return collection.kind is CollectionKind.UPCOMING
+    return bool(_matching_offers(title, packages, offer_types))
+
+
+def _accepted_titles(
+    titles: Sequence[JustWatchTitle],
+    collection: SourceCollection,
+    packages: list[str] | None,
+    offer_types: tuple[str, ...],
+) -> tuple[JustWatchTitle, ...]:
+    return tuple(
+        title for title in titles if _accepts_title(title, collection, packages, offer_types)
+    )
+
+
+def _accepted_charts(
+    entries: Sequence[JustWatchChartEntry],
+    collection: SourceCollection,
+    packages: list[str] | None,
+    offer_types: tuple[str, ...],
+) -> tuple[JustWatchChartEntry, ...]:
+    """Keep the source rank, but only for titles that match the collection."""
+    return tuple(
+        entry for entry in entries if _accepts_title(entry.title, collection, packages, offer_types)
+    )
+
+
+def _raw_from_title(title: JustWatchTitle, availability: str) -> RawItem:
+    payload = dict(title.raw)
+    payload["_offer_types"] = sorted(title.offer_types)
+    payload["_packages"] = sorted(title.package_short_names)
     return RawItem(
         source_item_id=title.node_id,
         media_type=title.media_type,
@@ -462,12 +595,14 @@ def _raw_from_title(title: JustWatchTitle) -> RawItem:
         tvdb_id=None,
         source_date_created=None,
         offer_types=title.offer_types,
-        source_payload=dict(title.raw),
+        availability_status=availability,
+        source_payload=payload,
     )
 
 
-def _raw_from_chart(entry: JustWatchChartEntry) -> RawItem:
-    payload = dict(entry.title.raw)
+def _raw_from_chart(entry: JustWatchChartEntry, availability: str) -> RawItem:
+    raw = _raw_from_title(entry.title, availability)
+    payload = dict(raw.source_payload)
     payload["_chart"] = {
         "rank": entry.rank,
         "trend": entry.trend,
@@ -476,14 +611,15 @@ def _raw_from_chart(entry: JustWatchChartEntry) -> RawItem:
         "topRank": entry.top_rank,
     }
     return RawItem(
-        source_item_id=entry.title.node_id,
-        media_type=entry.title.media_type,
-        title=entry.title.title,
-        year=entry.title.year,
-        tmdb_id=entry.title.tmdb_id,
-        imdb_id=entry.title.imdb_id,
+        source_item_id=raw.source_item_id,
+        media_type=raw.media_type,
+        title=raw.title,
+        year=raw.year,
+        tmdb_id=raw.tmdb_id,
+        imdb_id=raw.imdb_id,
         tvdb_id=None,
         source_date_created=None,
-        offer_types=entry.title.offer_types,
+        offer_types=raw.offer_types,
+        availability_status=availability,
         source_payload=payload,
     )

@@ -82,6 +82,21 @@ describe("bindingDraftSchema", () => {
     expect(issuePaths(result)).toContain("scheduleTime");
   });
 
+  it("richiede l'accettazione della policy JustWatch quando la collezione è JustWatch", () => {
+    const result = bindingDraftSchema.safeParse(
+      draft({ justwatchCollection: true, justwatchPolicyAccepted: false }),
+    );
+    expect(result.success).toBe(false);
+    expect(issuePaths(result)).toContain("justwatchPolicyAccepted");
+  });
+
+  it("accetta una bozza JustWatch con policy esplicita", () => {
+    const result = bindingDraftSchema.safeParse(
+      draft({ justwatchCollection: true, justwatchPolicyAccepted: true }),
+    );
+    expect(result.success).toBe(true);
+  });
+
   it("espone i campi per tutti gli 8 step del wizard", () => {
     expect(Object.keys(bindingStepFields)).toHaveLength(8);
   });

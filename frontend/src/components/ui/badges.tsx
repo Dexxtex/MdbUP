@@ -44,6 +44,38 @@ export function OriginBadge({
   );
 }
 
+export function CollectionSourceBadge({
+  label,
+  tone = "neutral",
+}: {
+  label: string;
+  tone?: Tone;
+}) {
+  return (
+    <span
+      data-source-label={label}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
+        toneStyles[tone],
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+/** Badge per `CollectionKind.UPCOMING`: il contenuto non è ancora disponibile. */
+export function UpcomingBadge() {
+  return (
+    <span
+      data-kind="UPCOMING"
+      className="inline-flex items-center rounded-full border border-warning/40 bg-warning-soft px-2.5 py-0.5 text-xs font-medium text-warning"
+    >
+      In arrivo
+    </span>
+  );
+}
+
 const dateBasisLabels: Record<DateBasis, string> = {
   PROVIDER_OFFICIAL: "Data dichiarata dal provider",
   AGGREGATOR_FIRST_SEEN: "Prima osservazione dell'aggregatore",

@@ -472,6 +472,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/collections/{collection_id}/episode-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Eventi stagione/episodio delle serie madri nella collezione */
+        get: operations["list_collection_episode_events_api_collections__collection_id__episode_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/collections/{collection_id}/acquire": {
         parameters: {
             query?: never;
@@ -784,6 +801,11 @@ export interface components {
              * Format: uuid
              */
             target_id: string;
+            /**
+             * Justwatch Policy Accepted
+             * @default false
+             */
+            justwatch_policy_accepted: boolean;
             /** @default MIRROR */
             mode: components["schemas"]["SyncMode"];
             /**
@@ -1000,11 +1022,19 @@ export interface components {
             /** Slug */
             slug: string;
             /**
+             * Source Key
+             * @default tmdb
+             * @enum {string}
+             */
+            source_key: "tmdb" | "justwatch";
+            /**
              * Kind
              * @default CATALOG
              * @enum {string}
              */
-            kind: "CATALOG" | "RECENTLY_ADDED" | "CUSTOM_FILTER";
+            kind: "CATALOG" | "RECENTLY_ADDED" | "CUSTOM_FILTER" | "CHART" | "UPCOMING";
+            /** Offer Types */
+            offer_types?: ("FLATRATE" | "RENT" | "BUY" | "ADS" | "FREE")[] | null;
             /** Genre Ids */
             genre_ids?: number[];
             /** Exclude Genre Ids */
@@ -1101,6 +1131,8 @@ export interface components {
             origin: string;
             /** Date Basis */
             date_basis: string;
+            /** Source Label */
+            source_label?: string | null;
             /** Description */
             description?: string | null;
             /**
@@ -1147,8 +1179,12 @@ export interface components {
         CollectionUpdateIn: {
             /** Name */
             name?: string | null;
+            /** Source Key */
+            source_key?: ("tmdb" | "justwatch") | null;
             /** Kind */
-            kind?: ("CATALOG" | "RECENTLY_ADDED" | "CUSTOM_FILTER") | null;
+            kind?: ("CATALOG" | "RECENTLY_ADDED" | "CUSTOM_FILTER" | "CHART" | "UPCOMING") | null;
+            /** Offer Types */
+            offer_types?: ("FLATRATE" | "RENT" | "BUY" | "ADS" | "FREE")[] | null;
             /** Genre Ids */
             genre_ids?: number[] | null;
             /** Exclude Genre Ids */
@@ -1267,6 +1303,33 @@ export interface components {
             api_usage: {
                 [key: string]: unknown;
             };
+        };
+        /** EpisodeEventListOut */
+        EpisodeEventListOut: {
+            /** Items */
+            items: components["schemas"]["EpisodeEventOut"][];
+            /** Total */
+            total: number;
+        };
+        /** EpisodeEventOut */
+        EpisodeEventOut: {
+            /**
+             * Media Id
+             * Format: uuid
+             */
+            media_id: string;
+            /** Title */
+            title?: string | null;
+            /** Event Type */
+            event_type: string;
+            /** Season Number */
+            season_number: number;
+            /** Episode Number */
+            episode_number?: number | null;
+            /** Occurred At */
+            occurred_at?: string | null;
+            /** Source Key */
+            source_key?: string | null;
         };
         /** ErrorBody */
         ErrorBody: {
@@ -1661,6 +1724,18 @@ export interface components {
              * @default false
              */
             mapping_verified_tv: boolean;
+            /** Justwatch Provider Id */
+            justwatch_provider_id?: string | null;
+            /**
+             * Justwatch Verified
+             * @default false
+             */
+            justwatch_verified: boolean;
+            /**
+             * Justwatch Monetization Types
+             * @default []
+             */
+            justwatch_monetization_types: string[];
             /** Collections Count */
             collections_count: number;
             /** Movie Collections */
@@ -1947,6 +2022,13 @@ export interface components {
             date_basis: string;
             /** Source Date Created */
             source_date_created?: string | null;
+            /** Availability Status */
+            availability_status?: string | null;
+            /**
+             * Source Offer Types
+             * @default []
+             */
+            source_offer_types: string[];
         };
         /** SnapshotListOut */
         SnapshotListOut: {
@@ -2059,6 +2141,10 @@ export interface components {
             credential_configured: boolean;
             /** Connector Available */
             connector_available: boolean;
+            /** Justwatch */
+            justwatch?: {
+                [key: string]: unknown;
+            } | null;
             /** Last Healthcheck At */
             last_healthcheck_at?: string | null;
             /** Last Success At */
@@ -3227,6 +3313,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SnapshotListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_collection_episode_events_api_collections__collection_id__episode_events_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpisodeEventListOut"];
                 };
             };
             /** @description Validation Error */

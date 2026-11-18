@@ -1,4 +1,6 @@
-import type { Binding, Collection } from "../api/types";
+import type { Binding, Collection, CollectionKind } from "../api/types";
+import { isJustWatchSource } from "./justwatch";
+import { sourceLabel, type Tone } from "./status";
 
 /**
  * `CollectionOut` porta `provider_name`/`provider_slug` già risolti dal backend:
@@ -15,6 +17,40 @@ export function bindingCollectionName(binding: Binding): string {
 export function bindingTargetName(binding: Binding): string {
   if (binding.target?.name) return binding.target.name;
   return binding.target_id.slice(0, 8);
+}
+
+export const COLLECTION_KIND_LABELS: Record<CollectionKind, string> = {
+  CATALOG: "Catalogo",
+  RECENTLY_ADDED: "Novità",
+  CUSTOM_FILTER: "Combinata locale",
+  CHART: "Classifica",
+  UPCOMING: "In arrivo",
+};
+
+export function collectionKindLabel(kind: CollectionKind): string {
+  return COLLECTION_KIND_LABELS[kind] ?? kind;
+}
+
+/**
+ * `source_label` è già l'attribuzione calcolata dal backend (es. "Classifica
+ * JustWatch"): usarla evita di ricostruire in UI un'etichetta ambigua.
+ */
+export function collectionSourceLabel(collection: Collection): string {
+  return (
+    collection.source_label ??
+    sourceLabel(collection.source_key) ??
+    collection.source_key ??
+    "—"
+  );
+}
+
+export function collectionSourceTone(collection: Collection): Tone {
+  if (isJustWatchSource(collection.source_key)) return "warning";
+  return collection.source_key ? "info" : "neutral";
+}
+
+export function isUpcomingCollection(collection: Collection): boolean {
+  return collection.kind === "UPCOMING";
 }
 
 /** `BindingOut` espone le soglie sia piatte sia in `thresholds`: la UI usa le piatte. */

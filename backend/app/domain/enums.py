@@ -44,6 +44,18 @@ class OfferType(StrEnum):
     FREE = "FREE"
 
 
+class AvailabilityStatus(StrEnum):
+    """Availability of a title at acquisition time.
+
+    ``UPCOMING`` items never enter the current catalog: they live only in their
+    own ``UPCOMING`` collection snapshot.
+    """
+
+    CURRENT = "CURRENT"
+    UPCOMING = "UPCOMING"
+    LEAVING = "LEAVING"
+
+
 class SnapshotStatus(StrEnum):
     RUNNING = "RUNNING"
     COMPLETE = "COMPLETE"

@@ -111,11 +111,24 @@ def record_api_call(provider: str) -> None:
     get_counter().record(provider)
 
 
+def record_cache_event(provider: str, *, hit: bool) -> None:
+    """Count a local response-cache lookup.
+
+    The counter is Redis-backed when ``REDIS_URL`` is set, so a worker process
+    that fills the cache is visible to the API process serving the read model.
+    """
+    get_counter().record(f"{provider}_cache_{'hit' if hit else 'miss'}")
+
+
 def api_usage_snapshot() -> dict[str, dict[str, int]]:
     counter = get_counter()
+    justwatch = counter.snapshot("justwatch")
+    justwatch["cache_hits"] = counter.snapshot("justwatch_cache_hit")["today"]
+    justwatch["cache_misses"] = counter.snapshot("justwatch_cache_miss")["today"]
     return {
         "tmdb": counter.snapshot("tmdb"),
         "mdblist": counter.snapshot("mdblist"),
+        "justwatch": justwatch,
     }
 
 

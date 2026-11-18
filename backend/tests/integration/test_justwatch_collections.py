@@ -13,11 +13,33 @@ from app.services import justwatch_collections
 BASE = "https://apis.justwatch.com/graphql"
 
 _PACKAGES = [
-    {"shortName": "nfx", "clearName": "Netflix", "monetizationTypes": ["FLATRATE"]},
-    {"shortName": "prv", "clearName": "Amazon Prime Video", "monetizationTypes": ["FLATRATE"]},
-    {"shortName": "dnp", "clearName": "Disney Plus", "monetizationTypes": ["FLATRATE"]},
+    {
+        "shortName": "nfx",
+        "technicalName": "netflix",
+        "clearName": "Netflix",
+        "monetizationTypes": ["FLATRATE"],
+    },
+    {
+        "shortName": "prv",
+        "technicalName": "amazonprimevideo",
+        "clearName": "Amazon Prime Video",
+        "monetizationTypes": ["FLATRATE", "FREE"],
+    },
+    {
+        "shortName": "dnp",
+        "technicalName": "disneyplus",
+        "clearName": "Disney Plus",
+        "monetizationTypes": ["FLATRATE"],
+    },
+    # Verified, but without FLATRATE: reported, never given a catalog.
+    {
+        "shortName": "wki",
+        "technicalName": "wuaki",
+        "clearName": "Rakuten TV",
+        "monetizationTypes": ["ADS", "BUY", "RENT"],
+    },
     # Unmapped on purpose: must be reported, never guessed.
-    {"shortName": "zzz", "clearName": "Unknown Service", "monetizationTypes": ["FLATRATE"]},
+    {"shortName": "zzz", "technicalName": "zzz", "clearName": "Unknown", "monetizationTypes": []},
 ]
 
 
@@ -31,12 +53,13 @@ def test_sync_creates_mappings_and_collections(db, seeded, app_settings) -> None
     with session_scope() as session:
         outcome = justwatch_collections.sync_collections(session, app_settings)
 
-    # 12 curated providers are mapped, but collections are only built for the
-    # providers the source actually reports (3 in this mock): 4 kinds x 2 media.
-    assert outcome.mappings == 12
+    # Four packages verify (shortName + technicalName) in this mock: three with
+    # FLATRATE plus Rakuten, which is reported but gets no collections.
+    assert outcome.mappings == 4
     assert outcome.collections_created == 3 * 8
     assert outcome.collections_updated == 0
-    assert "zzz" in outcome.skipped_providers
+    assert outcome.skipped_providers == ("wki",)
+    assert "zzz" in outcome.unmapped_packages
 
     with session_scope() as session:
         source = session.scalar(select(Collection.source_id).limit(1))
@@ -47,6 +70,13 @@ def test_sync_creates_mappings_and_collections(db, seeded, app_settings) -> None
             .where(ProviderMapping.external_provider_id.in_(["nfx", "prv", "dnp"]))
         )
         assert mappings == 3
+        netflix_mapping = session.scalar(
+            select(ProviderMapping).where(ProviderMapping.external_provider_id == "nfx")
+        )
+        assert netflix_mapping is not None
+        assert netflix_mapping.is_verified is True
+        assert netflix_mapping.metadata_json["technical_name"] == "netflix"
+        assert netflix_mapping.metadata_json["monetization_types"] == ["FLATRATE"]
         justwatch = session.scalars(
             select(Collection).where(Collection.slug.like("%-justwatch%"))
         ).all()
@@ -89,3 +119,87 @@ def test_sync_can_be_limited_to_one_provider(db, seeded, app_settings) -> None:
         )
     assert outcome.mappings == 1
     assert outcome.collections_created == 8
+
+
+@respx.mock
+def test_sync_skips_packages_whose_technical_name_does_not_match(db, seeded, app_settings) -> None:
+    """shortName alone is not enough: atp must be appletvplus, not a store."""
+    respx.post(BASE).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": {
+                    "packages": [
+                        {
+                            "shortName": "nfx",
+                            "technicalName": "apple-tv-store",
+                            "clearName": "Netflix?",
+                            "monetizationTypes": ["FLATRATE"],
+                        }
+                    ]
+                }
+            },
+        )
+    )
+    with session_scope() as session:
+        outcome = justwatch_collections.sync_collections(
+            session, app_settings, provider_slugs=["netflix"]
+        )
+
+    assert outcome.mappings == 0
+    assert outcome.unverified_providers == ("nfx",)
+    assert outcome.collections_created == 0
+    with session_scope() as session:
+        justwatch = session.scalars(
+            select(Collection).where(Collection.slug.like("%-justwatch%"))
+        ).all()
+        assert justwatch == []
+
+
+@respx.mock
+def test_sync_keeps_existing_snapshots_and_last_valid_pointer(db, seeded, app_settings) -> None:
+    from app.db.models import CollectionSnapshot
+
+    _mock_packages()
+    with session_scope() as session:
+        justwatch_collections.sync_collections(session, app_settings)
+    with session_scope() as session:
+        netflix = session.scalar(
+            select(Collection).where(Collection.slug == "netflix-movie-justwatch")
+        )
+        assert netflix is not None
+        snapshot = CollectionSnapshot(
+            collection_id=netflix.id,
+            status="COMPLETE",
+            quality="CLEAN",
+            is_valid=True,
+            items_count=1,
+            resolved_count=1,
+            unresolved_count=0,
+            duplicate_count=0,
+            error_count=0,
+            checksum="keep-me",
+        )
+        session.add(snapshot)
+        session.flush()
+        netflix.last_valid_snapshot_id = snapshot.id
+        snapshot_id = snapshot.id
+
+    with session_scope() as session:
+        outcome = justwatch_collections.sync_collections(session, app_settings)
+
+    assert outcome.collections_updated == 24
+    with session_scope() as session:
+        netflix = session.scalar(
+            select(Collection).where(Collection.slug == "netflix-movie-justwatch")
+        )
+        assert netflix is not None
+        assert netflix.last_valid_snapshot_id == snapshot_id
+        assert netflix.name == "Netflix — Film — Catalogo JustWatch"
+        assert netflix.offer_types == ["FLATRATE"]
+        count = session.scalar(
+            select(func.count())
+            .select_from(CollectionSnapshot)
+            .where(CollectionSnapshot.collection_id == netflix.id)
+        )
+        assert count == 1

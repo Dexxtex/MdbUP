@@ -2,19 +2,27 @@
 
 The JustWatch endpoint identifies providers by a short code (``nfx``, ``prv``),
 while the app uses canonical slugs (``netflix``, ``prime-video``). The mapping
-below was verified against the live provider list for Italy; it is explicit on
-purpose, because name matching is ambiguous (``Apple TV`` vs ``Apple TV Store``,
-``Amazon Prime Video`` vs ``Amazon Prime Video with Ads``).
+below was verified against the live ``packages(country: IT, platform: WEB)``
+answer on 2026-11-18: a mapping counts as verified only when **both** the
+``shortName`` and the ``technicalName`` match, because name matching is
+ambiguous (``Apple TV`` is ``atp``/``appletvplus``, not the Apple TV Store
+``itu``; ``Amazon Prime Video`` is not ``Amazon Prime Video with Ads``).
 
-Collections are created per provider and per kind, so every collection has a
-provider as the schema requires. Nothing is created for a provider without a
-mapping: those are counted and reported, never guessed.
+One live package request feeds the whole sync: mappings, verification, the
+``FLATRATE`` check and the collection plan all read the same payload. Providers
+without ``FLATRATE`` (Rakuten TV, ``wki``) are verified and reported but get no
+collections; providers whose package does not match are reported as unverified
+and skipped, never guessed. Collections default to ``offer_types=["FLATRATE"]``.
+
+Upserting a collection only refreshes its metadata and filters: the existing
+snapshot chain and ``last_valid_snapshot_id`` are never touched.
 """
 
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -25,27 +33,42 @@ from app.connectors.registry import create_connector
 from app.core.config import Settings
 from app.db.models import Provider
 from app.domain.enums import CollectionKind, CollectionOrigin, DateBasis, OfferType
+from app.integrations.justwatch.models import JustWatchPackage
 from app.repositories import collections as collections_repo
 from app.repositories import providers as providers_repo
 from app.repositories import sources as sources_repo
 
 JUSTWATCH_SOURCE_KEY = "justwatch"
 
-# Canonical provider slug -> JustWatch package short code, verified for IT.
-PROVIDER_SHORT_NAMES: dict[str, str] = {
-    "netflix": "nfx",
-    "prime-video": "prv",
-    "disney-plus": "dnp",
-    "now": "ntv",
-    "timvision": "tvi",
-    "infinity-plus": "inf",
-    "rakuten-tv": "wki",
-    "mubi": "mbi",
-    "apple-tv-plus": "atp",
-    "paramount-plus": "pmp",
-    "raiplay": "rai",
-    "mediaset-infinity": "msp",
-}
+# Verified live on 2026-11-18 with one packages(country: IT, platform: WEB) call.
+MAPPING_VERIFIED_AT = "2026-11-18"
+
+
+@dataclass(frozen=True)
+class JustWatchProviderMapping:
+    slug: str
+    short_name: str
+    technical_name: str
+
+
+PROVIDER_MAPPINGS: tuple[JustWatchProviderMapping, ...] = (
+    JustWatchProviderMapping("netflix", "nfx", "netflix"),
+    JustWatchProviderMapping("prime-video", "prv", "amazonprimevideo"),
+    JustWatchProviderMapping("disney-plus", "dnp", "disneyplus"),
+    JustWatchProviderMapping("apple-tv-plus", "atp", "appletvplus"),
+    JustWatchProviderMapping("now", "ntv", "nowtv"),
+    JustWatchProviderMapping("paramount-plus", "pmp", "paramountplus"),
+    JustWatchProviderMapping("raiplay", "rai", "raiplay"),
+    JustWatchProviderMapping("mediaset-infinity", "msp", "mediasetplay"),
+    JustWatchProviderMapping("infinity-plus", "inf", "infinity"),
+    JustWatchProviderMapping("timvision", "tvi", "timvision"),
+    JustWatchProviderMapping("rakuten-tv", "wki", "wuaki"),
+    JustWatchProviderMapping("mubi", "mbi", "mubi"),
+)
+
+MAPPING_BY_SLUG = {mapping.slug: mapping for mapping in PROVIDER_MAPPINGS}
+
+DEFAULT_OFFER_TYPES = (OfferType.FLATRATE.value,)
 
 _SLUG_SUFFIX = {
     CollectionKind.CATALOG: "",
@@ -55,19 +78,11 @@ _SLUG_SUFFIX = {
 }
 
 _DESCRIPTION = {
-    CollectionKind.CATALOG: "Catalogo JustWatch per il provider in Italia.",
-    CollectionKind.CHART: "Classifica streaming JustWatch (rank giornaliero).",
+    CollectionKind.CATALOG: "Catalogo JustWatch per il provider in Italia (solo flatrate).",
+    CollectionKind.CHART: "Classifica JustWatch (rank dell'aggregatore, non Top 10 ufficiale).",
     CollectionKind.RECENTLY_ADDED: "Novità JustWatch (etichette relative, nessuna data).",
-    CollectionKind.UPCOMING: "In arrivo su JustWatch (etichette relative, nessuna data).",
+    CollectionKind.UPCOMING: "In arrivo su JustWatch (non disponibili, fuori dal catalogo).",
 }
-
-_ALL_OFFER_TYPES = (
-    OfferType.FLATRATE.value,
-    OfferType.RENT.value,
-    OfferType.BUY.value,
-    OfferType.ADS.value,
-    OfferType.FREE.value,
-)
 
 
 @dataclass(frozen=True)
@@ -75,7 +90,9 @@ class JustWatchSyncOutcome:
     mappings: int
     collections_created: int
     collections_updated: int
-    skipped_providers: tuple[str, ...]
+    skipped_providers: tuple[str, ...] = ()
+    unverified_providers: tuple[str, ...] = ()
+    unmapped_packages: tuple[str, ...] = ()
 
 
 def sync_collections(
@@ -85,7 +102,7 @@ def sync_collections(
     country_code: str = "IT",
     provider_slugs: list[str] | None = None,
 ) -> JustWatchSyncOutcome:
-    """Upsert provider mappings and collections for the JustWatch source."""
+    """Verify the provider mappings and upsert their collections."""
     source = sources_repo.get_source_by_key(db, JUSTWATCH_SOURCE_KEY)
     if source is None:
         raise ValidationError(
@@ -93,25 +110,50 @@ def sync_collections(
             code="SOURCE_MISSING",
         )
 
-    wanted = provider_slugs or list(PROVIDER_SHORT_NAMES)
-    mappings = _upsert_mappings(db, source.id, country_code, wanted)
-    by_external = _providers_by_external_id(db, source.id, country_code)
-
+    wanted = provider_slugs or list(MAPPING_BY_SLUG)
     connector = create_connector(db, settings, JUSTWATCH_SOURCE_KEY)
     if not isinstance(connector, JustWatchConnector):
         raise ValidationError(
             "Il connettore JustWatch non è disponibile.", code="CONNECTOR_MISSING"
         )
     try:
-        monetization = connector.provider_monetization_types(country_code)
-        planned = connector.list_collections(country_code)
+        # One live request for the whole sync: every check below reads it.
+        packages = list(connector.list_packages(country_code))
+        by_short = {package.short_name: package for package in packages}
+        verified_slugs: list[str] = []
+        unverified: list[str] = []
+        no_flatrate: list[str] = []
+        verified_external_ids: set[str] = set()
+        for slug in wanted:
+            mapping = MAPPING_BY_SLUG.get(slug)
+            if mapping is None:
+                unverified.append(slug)
+                continue
+            package = by_short.get(mapping.short_name)
+            if not _matches(package, mapping):
+                unverified.append(mapping.short_name)
+                continue
+            verified_slugs.append(slug)
+            if "FLATRATE" not in {value.upper() for value in package.monetization_types}:
+                # Verified, but a catalog built on it would be empty by definition.
+                no_flatrate.append(mapping.short_name)
+                continue
+            verified_external_ids.add(mapping.short_name)
+        _upsert_mappings(db, source.id, country_code, verified_slugs, by_short)
+        planned = connector.list_collections(
+            country_code,
+            [package for package in packages if package.short_name in verified_external_ids],
+        )
     finally:
         connector.close()
 
+    by_external = _providers_by_external_id(db, source.id, country_code)
     created = 0
     updated = 0
     skipped: list[str] = []
     for collection in planned:
+        if collection.provider_external_id not in verified_external_ids:
+            continue
         provider = by_external.get(collection.provider_external_id)
         if provider is None:
             if collection.provider_external_id not in skipped:
@@ -133,7 +175,7 @@ def sync_collections(
             description=_DESCRIPTION[collection.kind],
             source_collection_key=collection.key,
             source_url=None,
-            offer_types=_offer_types(monetization.get(collection.provider_external_id)),
+            offer_types=list(DEFAULT_OFFER_TYPES),
             filters=dict(collection.metadata),
             is_active=True,
         )
@@ -141,11 +183,30 @@ def sync_collections(
             updated += 1
         else:
             created += 1
+    curated_short_names = {mapping.short_name for mapping in PROVIDER_MAPPINGS}
     return JustWatchSyncOutcome(
-        mappings=mappings,
+        mappings=len(verified_slugs),
         collections_created=created,
         collections_updated=updated,
-        skipped_providers=tuple(skipped),
+        skipped_providers=tuple(no_flatrate + skipped),
+        unverified_providers=tuple(unverified),
+        unmapped_packages=tuple(
+            sorted(
+                package.short_name
+                for package in packages
+                if package.short_name not in curated_short_names
+            )
+        ),
+    )
+
+
+def _matches(package: JustWatchPackage | None, mapping: JustWatchProviderMapping) -> bool:
+    """A mapping is verified only when shortName and technicalName both match."""
+    if package is None:
+        return False
+    return (
+        package.short_name == mapping.short_name
+        and (package.technical_name or "").strip().lower() == mapping.technical_name
     )
 
 
@@ -154,12 +215,13 @@ def _upsert_mappings(
     source_id: uuid.UUID,
     country_code: str,
     provider_slugs: list[str],
+    packages: dict[str, JustWatchPackage],
 ) -> int:
+    verified_at = datetime.now(UTC).isoformat()
     count = 0
     for slug in provider_slugs:
-        external_id = PROVIDER_SHORT_NAMES.get(slug)
-        if external_id is None:
-            continue
+        mapping = MAPPING_BY_SLUG[slug]
+        package = packages[mapping.short_name]
         provider = providers_repo.get_provider_by_slug(db, slug)
         if provider is None:
             continue
@@ -168,11 +230,19 @@ def _upsert_mappings(
             provider_id=provider.id,
             source_id=source_id,
             country_code=country_code,
-            external_provider_id=external_id,
-            external_name=provider.name,
+            external_provider_id=mapping.short_name,
+            external_name=package.name,
             is_primary=True,
-            is_verified=False,
-            metadata={"seed": "app/services/justwatch_collections.py"},
+            is_verified=_matches(package, mapping),
+            metadata={
+                "seed": "app/services/justwatch_collections.py",
+                "provider_slug": slug,
+                "technical_name": package.technical_name,
+                "clear_name": package.name,
+                "monetization_types": list(package.monetization_types),
+                "verified_at": verified_at,
+                "verified_on": MAPPING_VERIFIED_AT,
+            },
         )
         count += 1
     return count
@@ -194,10 +264,3 @@ def _providers_by_external_id(
 def _collection_slug(provider_slug: str, collection: SourceCollection) -> str:
     suffix = _SLUG_SUFFIX.get(collection.kind, "")
     return f"{provider_slug}-{collection.media_type.value.lower()}-justwatch{suffix}"
-
-
-def _offer_types(monetization: tuple[str, ...] | None) -> list[str]:
-    if not monetization:
-        return list(_ALL_OFFER_TYPES)
-    known = [value for value in monetization if value in _ALL_OFFER_TYPES]
-    return known or list(_ALL_OFFER_TYPES)

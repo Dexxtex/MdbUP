@@ -45,6 +45,7 @@ class CollectionOut(BaseModel):
     kind: str
     origin: str
     date_basis: str
+    source_label: str | None = None
     description: str | None = None
     filters: dict[str, Any] = {}
     quality_flags: dict[str, Any] = {}
@@ -80,7 +81,9 @@ class CollectionCreateIn(BaseModel):
     media_type: Literal["MOVIE", "SHOW"]
     name: str = Field(min_length=3, max_length=300)
     slug: str = Field(min_length=3, max_length=200, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-    kind: Literal["CATALOG", "RECENTLY_ADDED", "CUSTOM_FILTER"] = "CATALOG"
+    source_key: Literal["tmdb", "justwatch"] = "tmdb"
+    kind: Literal["CATALOG", "RECENTLY_ADDED", "CUSTOM_FILTER", "CHART", "UPCOMING"] = "CATALOG"
+    offer_types: list[Literal["FLATRATE", "RENT", "BUY", "ADS", "FREE"]] | None = None
     genre_ids: list[int] = Field(default_factory=list, max_length=20)
     exclude_genre_ids: list[int] = Field(default_factory=list, max_length=20)
     monetization_type: Literal["FLATRATE", "RENT", "BUY", "ADS", "FREE"] = "FLATRATE"
@@ -127,7 +130,10 @@ class CollectionCreateIn(BaseModel):
 
 class CollectionUpdateIn(BaseModel):
     name: str | None = Field(default=None, min_length=3, max_length=300)
-    kind: Literal["CATALOG", "RECENTLY_ADDED", "CUSTOM_FILTER"] | None = None
+    # The source of an existing collection is immutable; it is validated, not changed.
+    source_key: Literal["tmdb", "justwatch"] | None = None
+    kind: Literal["CATALOG", "RECENTLY_ADDED", "CUSTOM_FILTER", "CHART", "UPCOMING"] | None = None
+    offer_types: list[Literal["FLATRATE", "RENT", "BUY", "ADS", "FREE"]] | None = None
     genre_ids: list[int] | None = Field(default=None, max_length=20)
     exclude_genre_ids: list[int] | None = Field(default=None, max_length=20)
     monetization_type: Literal["FLATRATE", "RENT", "BUY", "ADS", "FREE"] | None = None
@@ -201,6 +207,8 @@ class SnapshotItemOut(BaseModel):
     source_item_id: str | None = None
     date_basis: str
     source_date_created: date | None = None
+    availability_status: str | None = None
+    source_offer_types: list[str] = []
 
 
 class SnapshotItemListOut(BaseModel):
@@ -226,6 +234,9 @@ class ProviderOut(BaseModel):
     mapping_verified: bool
     mapping_verified_movie: bool = False
     mapping_verified_tv: bool = False
+    justwatch_provider_id: str | None = None
+    justwatch_verified: bool = False
+    justwatch_monetization_types: list[str] = []
     collections_count: int
     movie_collections: int
     show_collections: int
@@ -252,12 +263,30 @@ class SourceOut(BaseModel):
     capabilities: dict[str, Any]
     credential_configured: bool
     connector_available: bool
+    justwatch: dict[str, Any] | None = None
     last_healthcheck_at: datetime | None = None
     last_success_at: datetime | None = None
 
 
 class SourceListOut(BaseModel):
     items: list[SourceOut]
+
+
+class EpisodeEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    media_id: uuid.UUID
+    title: str | None = None
+    event_type: str
+    season_number: int
+    episode_number: int | None = None
+    occurred_at: datetime | None = None
+    source_key: str | None = None
+
+
+class EpisodeEventListOut(BaseModel):
+    items: list[EpisodeEventOut]
+    total: int
 
 
 class SourceHealthcheckOut(BaseModel):

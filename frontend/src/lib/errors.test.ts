@@ -86,6 +86,16 @@ describe("describeApiError", () => {
     expect(presentation.message).toContain("req_1");
   });
 
+  it("spiega DRY_RUN_REQUIRED per i binding JustWatch", () => {
+    const presentation = describeApiError(
+      apiError({ status: 409, code: "DRY_RUN_REQUIRED", category: "CONFLICT" }),
+    );
+    expect(presentation.title).toBe("Dry-run richiesto");
+    expect(presentation.message).toContain("dry-run");
+    expect(presentation.message).toContain("JustWatch");
+    expect(presentation.retryable).toBe(false);
+  });
+
   it("riconosce ORDER_NOT_ENFORCED come avviso, non errore rosso", () => {
     const presentation = describeApiError(
       apiError({ status: 200, code: "ORDER_NOT_ENFORCED", category: "TARGET" }),

@@ -60,6 +60,20 @@ def count_by_provider(
     return counts
 
 
+def count_by_provider_for_source(
+    db: Session, source_id: uuid.UUID, *, country_code: str | None = None
+) -> dict[uuid.UUID, int]:
+    """Collection count per provider, limited to one source."""
+    stmt = (
+        select(Collection.provider_id, func.count())
+        .where(Collection.source_id == source_id)
+        .group_by(Collection.provider_id)
+    )
+    if country_code is not None:
+        stmt = stmt.where(Collection.country_code == country_code)
+    return {provider_id: int(total) for provider_id, total in db.execute(stmt).all()}
+
+
 def upsert_collection(db: Session, *, slug: str, **fields: Any) -> Collection:
     """Insert or update a collection identified by its stable slug."""
     collection = get_collection_by_slug(db, slug)

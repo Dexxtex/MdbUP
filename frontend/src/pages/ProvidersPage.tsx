@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useCollections, useProviders } from "../api/queries";
+import { useCollections, useProviders, useSources } from "../api/queries";
 import type { Collection, Provider } from "../api/types";
 import { DataTable, type Column } from "../components/ui/data-table";
 import {
@@ -21,6 +21,7 @@ import { StatusPill } from "../components/ui/status-pill";
 import { Timestamp } from "../components/ui/time";
 import { formatNumber } from "../lib/format";
 import { IconBuilding, IconGrid, IconLayers, IconSearch } from "../components/ui/icons";
+import { JustWatchConnectorCard } from "../components/justwatch/connector-card";
 
 /** Provider italiani noti: le chip compaiono solo se il backend li espone. */
 const KNOWN_PROVIDERS = [
@@ -84,6 +85,35 @@ function MappingCell({
   );
 }
 
+function JustWatchMappingCell({ provider }: { provider: Provider }) {
+  if (!provider.justwatch_verified) {
+    return (
+      <div className="flex flex-col gap-1 text-xs">
+        <StatusPill label="JustWatch non verificato" tone="neutral" />
+        <span className="text-ink-muted">
+          ID: <span className="font-mono text-ink">{provider.justwatch_provider_id ?? "—"}</span>
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-1 text-xs">
+      <StatusPill label="JustWatch verificato" tone="success" />
+      <span className="text-ink-muted">
+        ID: <span className="font-mono text-ink">{provider.justwatch_provider_id ?? "—"}</span>
+      </span>
+      <span className="text-ink-muted">
+        Offerte:{" "}
+        <span className="text-ink">
+          {provider.justwatch_monetization_types.length > 0
+            ? provider.justwatch_monetization_types.join(", ")
+            : "—"}
+        </span>
+      </span>
+    </div>
+  );
+}
+
 function ProviderCard({
   provider,
   freshness,
@@ -108,15 +138,24 @@ function ProviderCard({
         </span>
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
-        <StatusPill
-          label={`Film TMDb ${provider.mapping_verified_movie ? "verificato" : "da verificare"}`}
-          tone={provider.mapping_verified_movie ? "success" : "warning"}
-        />
-        <StatusPill
-          label={`Serie TMDb ${provider.mapping_verified_tv ? "verificato" : "da verificare"}`}
-          tone={provider.mapping_verified_tv ? "success" : "warning"}
-        />
+      <div className="space-y-2">
+        <div>
+          <p className="mb-1 text-xs font-medium text-ink-muted">Mapping TMDb</p>
+          <div className="flex flex-wrap gap-1.5">
+            <StatusPill
+              label={`Film TMDb ${provider.mapping_verified_movie ? "verificato" : "da verificare"}`}
+              tone={provider.mapping_verified_movie ? "success" : "warning"}
+            />
+            <StatusPill
+              label={`Serie TMDb ${provider.mapping_verified_tv ? "verificato" : "da verificare"}`}
+              tone={provider.mapping_verified_tv ? "success" : "warning"}
+            />
+          </div>
+        </div>
+        <div>
+          <p className="mb-1 text-xs font-medium text-ink-muted">Mapping JustWatch</p>
+          <JustWatchMappingCell provider={provider} />
+        </div>
       </div>
 
       <dl className="grid grid-cols-2 gap-2 text-sm">
@@ -177,6 +216,11 @@ function providerColumns(
       ),
     },
     {
+      key: "justwatch",
+      header: "Mapping JustWatch",
+      render: (provider) => <JustWatchMappingCell provider={provider} />,
+    },
+    {
       key: "collections",
       header: "Copertura",
       render: (provider) =>
@@ -209,7 +253,9 @@ export default function ProvidersPage() {
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"cards" | "table">("cards");
   const providers = useProviders(country);
+  const sources = useSources();
   const collections = useCollections({});
+  const justwatchSource = (sources.data ?? []).find((source) => source.key === "justwatch");
 
   const freshness = useMemo(
     () => freshnessByProvider(collections.data ?? []),
@@ -303,6 +349,12 @@ export default function ProvidersPage() {
           </div>
         ) : null}
       </Card>
+
+      {justwatchSource ? (
+        <div className="mb-6">
+          <JustWatchConnectorCard source={justwatchSource} />
+        </div>
+      ) : null}
 
       {providers.isPending ? <TableSkeleton /> : null}
 

@@ -8,6 +8,7 @@ import {
   SOURCE_COLLECTION_PRIME,
   mockAppShell,
   mockAuthenticatedSession,
+  mockSources,
 } from "./support/fixtures";
 
 const CREATED_COLLECTION_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
@@ -33,6 +34,7 @@ test("crea una collezione CUSTOM_FILTER multi-provider dalla UI", async ({ page 
     is_local_filter: true,
     is_multi_provider: true,
   });
+  mockSources(api);
   mockAppShell(api);
   await api.install();
 

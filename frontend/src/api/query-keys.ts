@@ -20,6 +20,9 @@ export const queryKeys = {
   collections: (filters: CollectionFilters) => ["collections", filters] as const,
   collection: (id: string) => ["collection", id] as const,
   collectionSnapshots: (id: string) => ["collection", id, "snapshots"] as const,
+  collectionEpisodeEvents: (id: string, limit: number) =>
+    ["collection", id, "episode-events", limit] as const,
+  snapshotItems: (id: string) => ["snapshot", id, "items"] as const,
   targets: (mediaType?: string) => ["targets", mediaType ?? "all"] as const,
   genres: (mediaType: string) => ["genres", mediaType] as const,
   runs: (filters: RunFilters) => ["runs", filters] as const,

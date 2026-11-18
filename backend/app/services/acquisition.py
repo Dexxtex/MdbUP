@@ -24,11 +24,13 @@ from app.connectors.base import (
     SourceCollection,
     SourceConnector,
 )
+from app.connectors.justwatch.connector import JustWatchConnector
 from app.core.logging import get_logger
 from app.core.time import ensure_utc, utcnow
 from app.db.models import Availability, Collection, CollectionSnapshot, Media, SnapshotItem
 from app.domain.enums import (
     AuditActorType,
+    AvailabilityStatus,
     CollectionKind,
     CollectionOrigin,
     DateBasis,
@@ -120,6 +122,7 @@ def acquire_collection(
                 connector, source_collection, page_size=page_size, max_pages=max_pages
             )
             outcome = _finalize(db, collection, snapshot, connector, state)
+            _observe_justwatch_tv(db, collection, connector, snapshot, state)
     except Exception as exc:
         logger.exception(
             "acquisition_failed", collection_id=str(collection_pk), error=type(exc).__name__
@@ -327,6 +330,7 @@ def _acquire_from_local_filter(
             date_basis=DateBasis.UNKNOWN.value,
             resolution_status=ResolutionStatus.RESOLVED.value,
             resolution_error=None,
+            availability_status=item.availability_status,
         )
     items_count = len(selected)
     snapshot.status = SnapshotStatus.COMPLETE.value
@@ -459,6 +463,7 @@ def _acquire_recently_detected(
             date_basis=DateBasis.APP_FIRST_SEEN.value,
             resolution_status=ResolutionStatus.RESOLVED.value,
             resolution_error=None,
+            availability_status=AvailabilityStatus.CURRENT.value,
         )
     items_count = len(deduplicated)
     snapshot.status = SnapshotStatus.COMPLETE.value
@@ -585,6 +590,7 @@ def _acquire_from_shared_snapshot(
             date_basis=item.date_basis,
             resolution_status=item.resolution_status,
             resolution_error=item.resolution_error,
+            availability_status=item.availability_status,
         )
     items_count = len(selected)
     unresolved_count = sum(
@@ -764,19 +770,22 @@ def _finalize(
                 status = ResolutionStatus.UNRESOLVED
                 resolution_error = "external_id_missing"
         if media is not None:
-            availability_repo.upsert_observed(
-                db,
-                media_id=media.id,
-                provider_id=collection.provider_id,
-                country_code=collection.country_code,
-                offer_type=str((collection.offer_types or [OfferType.FLATRATE.value])[0]),
-                source_id=collection.source_id,
-                first_seen_at=snapshot.started_at,
-                metadata={
-                    "source": connector.key,
-                    "collection_id": str(collection.id),
-                },
-            )
+            # Upcoming titles are not available yet: they must not enter the
+            # availability history that drives the "appena rilevati" derivation.
+            if item.availability_status != AvailabilityStatus.UPCOMING.value:
+                availability_repo.upsert_observed(
+                    db,
+                    media_id=media.id,
+                    provider_id=collection.provider_id,
+                    country_code=collection.country_code,
+                    offer_type=str((collection.offer_types or [OfferType.FLATRATE.value])[0]),
+                    source_id=collection.source_id,
+                    first_seen_at=snapshot.started_at,
+                    metadata={
+                        "source": connector.key,
+                        "collection_id": str(collection.id),
+                    },
+                )
             # Two different identity keys can resolve to the same media row
             # (tmdb vs imdb); the snapshot allows one row per media.
             if media.id in seen_media:
@@ -799,10 +808,17 @@ def _finalize(
             date_basis=item.date_basis.value,
             resolution_status=status.value,
             resolution_error=resolution_error,
+            availability_status=item.availability_status,
         )
     items_count = len(rows)
     duplicate_count = deduplicated.duplicates + media_duplicates
-    status, quality = _classify(state, items_count, unresolved_count, duplicate_count)
+    status, quality = _classify(
+        state,
+        items_count,
+        unresolved_count,
+        duplicate_count,
+        partial_on_error=connector.capabilities.partial_on_error,
+    )
     is_valid = (
         status is SnapshotStatus.COMPLETE
         and quality is SnapshotQuality.CLEAN
@@ -854,12 +870,18 @@ def _classify(
     items_count: int,
     unresolved_count: int,
     duplicate_count: int,
+    *,
+    partial_on_error: bool = False,
 ) -> tuple[SnapshotStatus, SnapshotQuality]:
-    if state.fatal:
+    if state.fatal and not partial_on_error:
         status = SnapshotStatus.FAILED
-    elif state.errors or (
-        state.pages_expected is not None and state.pages_fetched < state.pages_expected
+    elif (
+        state.fatal
+        or state.errors
+        or (state.pages_expected is not None and state.pages_fetched < state.pages_expected)
     ):
+        # A source with ``partial_on_error`` never hides a failure behind a
+        # COMPLETE page: even a first-page error yields INCOMPLETE/ANOMALY.
         status = SnapshotStatus.INCOMPLETE
     else:
         status = SnapshotStatus.COMPLETE
@@ -893,6 +915,38 @@ def _invalid_reason(
     if error_count:
         reasons.append(f"errors:{error_count}")
     return ", ".join(reasons)[:500] if reasons else None
+
+
+def _observe_justwatch_tv(
+    db: Session,
+    collection: Collection,
+    connector: SourceConnector,
+    snapshot: CollectionSnapshot,
+    state: _RunState,
+) -> None:
+    """Best-effort season/episode events for JustWatch SHOW collections.
+
+    TV errors never invalidate the catalog snapshot: they are recorded as
+    warnings on the snapshot itself.
+    """
+    if collection.media_type != MediaType.SHOW.value:
+        return
+    if collection.kind not in (
+        CollectionKind.CATALOG.value,
+        CollectionKind.RECENTLY_ADDED.value,
+    ):
+        return
+    if not isinstance(connector, JustWatchConnector):
+        return
+    from app.services import justwatch_tv_events
+
+    outcome = justwatch_tv_events.observe_tv_events(
+        db, collection=collection, connector=connector, snapshot_id=snapshot.id
+    )
+    for warning in outcome.warnings:
+        state.warnings.append({"code": "TV_EVENTS_PARTIAL", "message": warning})
+    if outcome.warnings:
+        snapshot.warnings = state.warnings
 
 
 def _source_item_id(item: NormalizedItem) -> str | None:

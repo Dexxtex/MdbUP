@@ -28,6 +28,7 @@ import {
   bindingThresholds,
 } from "../lib/collections";
 import { formatNumber, formatPercent } from "../lib/format";
+import { isJustWatchSource, justWatchDryRunMessage } from "../lib/justwatch";
 import {
   IconArrowRight,
   IconLayers,
@@ -114,6 +115,7 @@ function BindingCard({
   };
 
   const lastSnapshot = binding.collection?.last_valid_snapshot ?? null;
+  const isJustWatch = isJustWatchSource(binding.collection?.source_key);
 
   return (
     <article
@@ -144,6 +146,7 @@ function BindingCard({
             tone={binding.mode === "MIRROR" ? "warning" : "info"}
             code={binding.mode}
           />
+          {isJustWatch ? <StatusPill label="JustWatch" tone="warning" /> : null}
           <StatusPill
             label={binding.enabled ? "Attivo" : "In pausa"}
             tone={binding.enabled ? "success" : "neutral"}
@@ -291,6 +294,10 @@ function BindingCard({
             </Button>
           </div>
         </div>
+      ) : null}
+
+      {isJustWatch && !binding.enabled ? (
+        <p className="mt-3 text-xs text-warning">{justWatchDryRunMessage()}</p>
       ) : null}
 
       <div className="mt-3 flex flex-wrap gap-2">

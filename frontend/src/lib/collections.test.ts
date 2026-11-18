@@ -4,7 +4,11 @@ import {
   bindingCollectionName,
   bindingScheduleLabel,
   bindingThresholds,
+  collectionKindLabel,
   collectionProviderName,
+  collectionSourceLabel,
+  collectionSourceTone,
+  isUpcomingCollection,
 } from "./collections";
 
 function collection(overrides: Partial<Collection> = {}): Collection {
@@ -101,5 +105,25 @@ describe("bindingScheduleLabel", () => {
         binding({ schedule: "CRON", schedule_cron: "0 4 * * *" }),
       ),
     ).toBe("Cron: 0 4 * * *");
+  });
+});
+
+describe("etichette fonte e kind", () => {
+  it("usa source_label del backend per JustWatch", () => {
+    const chart = collection({
+      source_key: "justwatch",
+      source_label: "Classifica JustWatch",
+      kind: "CHART",
+    });
+    expect(collectionSourceLabel(chart)).toBe("Classifica JustWatch");
+    expect(collectionSourceTone(chart)).toBe("warning");
+  });
+
+  it("etichetta tutti i kind, inclusi CHART e UPCOMING", () => {
+    expect(collectionKindLabel("CATALOG")).toBe("Catalogo");
+    expect(collectionKindLabel("CHART")).toBe("Classifica");
+    expect(collectionKindLabel("UPCOMING")).toBe("In arrivo");
+    expect(isUpcomingCollection(collection({ kind: "UPCOMING" }))).toBe(true);
+    expect(isUpcomingCollection(collection({ kind: "CATALOG" }))).toBe(false);
   });
 });

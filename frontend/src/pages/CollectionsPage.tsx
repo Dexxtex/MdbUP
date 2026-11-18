@@ -2,7 +2,12 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useCollections, useProviders } from "../api/queries";
 import type { Collection } from "../api/types";
-import { DateBasisBadge, OriginBadge } from "../components/ui/badges";
+import {
+  CollectionSourceBadge,
+  DateBasisBadge,
+  OriginBadge,
+  UpcomingBadge,
+} from "../components/ui/badges";
 import { DataTable, type Column } from "../components/ui/data-table";
 import {
   EmptyState,
@@ -13,7 +18,13 @@ import {
 import { Button, Card, Field, PageHeader, Select } from "../components/ui/primitives";
 import { SnapshotStatusPill } from "../components/ui/status-pill";
 import { Timestamp } from "../components/ui/time";
-import { collectionProviderName } from "../lib/collections";
+import {
+  collectionKindLabel,
+  collectionProviderName,
+  collectionSourceLabel,
+  collectionSourceTone,
+  isUpcomingCollection,
+} from "../lib/collections";
 import { formatNumber } from "../lib/format";
 import { IconLayers } from "../components/ui/icons";
 
@@ -23,12 +34,20 @@ const columns: Column<Collection>[] = [
     header: "Collezione",
     render: (collection) => (
       <div className="flex flex-col gap-1">
-        <Link
-          to={`/app/collections/${collection.id}`}
-          className="font-medium text-accent underline"
-        >
-          {collection.name}
-        </Link>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Link
+            to={`/app/collections/${collection.id}`}
+            className="font-medium text-accent underline"
+          >
+            {collection.name}
+          </Link>
+          <CollectionSourceBadge
+            label={collectionSourceLabel(collection)}
+            tone={collectionSourceTone(collection)}
+          />
+          {isUpcomingCollection(collection) ? <UpcomingBadge /> : null}
+        </div>
+        <span className="text-xs text-ink-muted">{collectionKindLabel(collection.kind)}</span>
         {collection.is_local_filter ? (
           <span className="w-fit rounded-full border border-warning/40 bg-warning-soft px-2 py-0.5 text-xs text-warning">
             {collection.is_multi_provider ? "Multi-provider (locale)" : "Filtro locale"}
@@ -193,6 +212,8 @@ export default function CollectionsPage() {
               <option value="">Tutte</option>
               <option value="CATALOG">Catalogo</option>
               <option value="RECENTLY_ADDED">Appena rilevati</option>
+              <option value="CHART">Classifica</option>
+              <option value="UPCOMING">In arrivo</option>
               <option value="CUSTOM_FILTER">Combinata locale</option>
             </Select>
           </Field>

@@ -25,6 +25,9 @@ class ConnectorCapabilities:
     data_export: bool = False
     requires_credentials: bool = True
     requires_contract: bool = False
+    # A source whose pages can fail independently must never produce a COMPLETE
+    # snapshot when any fetch failed: the acquisition classifies it INCOMPLETE.
+    partial_on_error: bool = False
     max_page_size: int = 100
     notes: str = ""
 
@@ -67,6 +70,7 @@ class RawItem:
     tvdb_id: int | None = None
     source_date_created: date | None = None
     offer_types: frozenset[str] = field(default_factory=frozenset)
+    availability_status: str | None = None
     source_payload: dict[str, Any] = field(default_factory=dict)
 
 
@@ -89,6 +93,7 @@ class NormalizedItem:
     offer_types: frozenset[str]
     source_date_created: date | None
     date_basis: DateBasis
+    availability_status: str | None = None
     raw: dict[str, Any] = field(default_factory=dict)
 
 
