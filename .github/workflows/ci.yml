@@ -144,17 +144,9 @@ jobs:
         working-directory: backend
         run: uv sync --extra dev
 
-      - name: Unit
+      - name: Tests + coverage gate
         working-directory: backend
-        run: uv run pytest tests/unit -q
-
-      - name: Integration
-        working-directory: backend
-        run: uv run pytest tests/integration -q
-
-      - name: Contract
-        working-directory: backend
-        run: uv run pytest tests/contract -q
+        run: uv run pytest --cov=app --cov-report=term-missing --cov-fail-under=90
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -167,9 +159,9 @@ jobs:
         working-directory: frontend
         run: npm ci --no-audit --no-fund
 
-      - name: Frontend unit test (vitest)
+      - name: Frontend coverage gate
         working-directory: frontend
-        run: npm test
+        run: npm run test:coverage
 
   migrations:
     name: Migrations

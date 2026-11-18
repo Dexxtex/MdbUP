@@ -145,16 +145,18 @@ negli script puntano ai nuovi path.
 
 | Controllo | Esito |
 |---|---|
-| `pytest` backend | **364 passed** |
+| `pytest` backend | **422 passed** |
 | `mypy app` | **0 errori**, 134 file |
 | `ruff check` | pulito |
-| `ruff format --check` | **197 file** formattati |
+| `ruff format --check` | **205 file** formattati |
 | `pip-audit` | **0 vulnerabilità** |
-| Vitest | **115 passed** |
+| Vitest | **192 passed** |
 | Playwright E2E | **12 passed** |
 | `npm run typecheck` | verde |
 | `npm run lint` | verde |
 | `npm run build` | verde |
+| Coverage backend (statement) | **90.22%** (gate 90%) |
+| Coverage frontend logica (line/branch/function) | **96.94% / 90.33% / 96.39%** |
 | `npm audit --omit=dev` | **0 vulnerabilità** |
 | `knip` | nessun export/file non usato (solo tipi generati OpenAPI) |
 
@@ -175,6 +177,10 @@ ha inoltre pubblicato l'immagine GHCR con esito **success**.
 
 ### Limiti della verifica
 
+- **Coverage frontend**: il gate misura i moduli logici (`src/lib`, `src/api`,
+  `src/hooks`); le pagine e i componenti presentazionali sono esercitati dagli
+  E2E Playwright e non sono inclusi nel denominatore, per evitare un gate
+  artificiale su JSX non testabile senza browser.
 - **Verifica live di produzione non eseguita da questo agente**: l'accesso al
   server è riservato all'operatore. Non sono stati quindi verificati dal vivo gli
   88 slot dello scheduler né il dry-run `to_add=0,to_remove=0` sulle 6 liste

@@ -134,3 +134,42 @@ describe("buildCollectionPayload", () => {
     expect(payload.source_collection_id).toBe("collection-1");
   });
 });
+
+  it("costruisce il payload CUSTOM_FILTER con tutti i filtri locali", () => {
+    const payload = buildCollectionPayload(
+      input({
+        kind: "CUSTOM_FILTER",
+        sourceCollectionIds: ["a", "b"],
+        excludeGenreIds: [27],
+        minVoteAverage: "7.5",
+        minVoteCount: "100",
+        yearFrom: "2000",
+        yearTo: "2025",
+        originalLanguage: "it",
+        localSortBy: "vote_count.desc",
+      }),
+    );
+    expect(payload.kind).toBe("CUSTOM_FILTER");
+    expect(payload.source_collection_ids).toEqual(["a", "b"]);
+    expect(payload.exclude_genre_ids).toEqual([27]);
+    expect(payload.min_vote_average).toBe(7.5);
+    expect(payload.min_vote_count).toBe(100);
+    expect(payload.original_language).toBe("it");
+  });
+
+  it("aggiunge lo snapshot condiviso solo al catalogo TMDb", () => {
+    const withShared = buildCollectionPayload(input({ sharedSnapshotId: "snap-1" }));
+    expect(withShared.shared_snapshot_collection_id).toBe("snap-1");
+    const recently = buildCollectionPayload(input({ kind: "RECENTLY_ADDED", sharedSnapshotId: "snap-1" }));
+    expect(recently.shared_snapshot_collection_id).toBeUndefined();
+  });
+
+  it("normalizza descrizione e campi numerici vuoti", () => {
+    const payload = buildCollectionPayload(
+      input({ description: "   ", name: "  Name  ", slug: "  slug  ", yearFrom: "", yearTo: "" }),
+    );
+    expect(payload.description).toBeUndefined();
+    expect(payload.name).toBe("Name");
+    expect(payload.slug).toBe("slug");
+    expect(payload.year_from).toBeUndefined();
+  });

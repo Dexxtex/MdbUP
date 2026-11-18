@@ -118,3 +118,75 @@ def test_collection_create_rejects_unverified_provider(client, admin, seeded) ->
     )
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "PROVIDER_NOT_VERIFIED"
+
+
+def test_collection_validation_error_matrix(client, admin, seeded) -> None:
+    _mark_netflix_verified()
+    netflix_id = _provider_id(client, "netflix")
+    base = {
+        "provider_id": netflix_id,
+        "media_type": "MOVIE",
+        "name": "Validazione",
+        "slug": "validation-collection",
+    }
+    cases = [
+        {**base, "slug": "INVALID SLUG"},
+        {**base, "genre_ids": [999999]},
+        {
+            **base,
+            "kind": "RECENTLY_ADDED",
+            "monetization_type": "RENT",
+            "source_collection_id": _collection_id(client, "netflix-movie"),
+        },
+        {**base, "kind": "RECENTLY_ADDED", "monetization_type": "FLATRATE"},
+    ]
+    for payload in cases:
+        response = client.post("/api/collections", json=payload, headers=admin)
+        assert response.status_code == 422, response.text
+
+    source_id = _collection_id(client, "netflix-movie")
+    local = {
+        **base,
+        "slug": "local-validation",
+        "kind": "CUSTOM_FILTER",
+        "source_collection_ids": [source_id],
+    }
+    for extra in (
+        {"genre_ids": [28], "exclude_genre_ids": [28]},
+        {"original_language": "italiano"},
+        {"local_sort_by": "not-a-sort"},
+    ):
+        response = client.post("/api/collections", json={**local, **extra}, headers=admin)
+        assert response.status_code == 422, response.text
+
+
+def test_collection_update_source_and_kind_guards(client, admin, seeded) -> None:
+    _mark_netflix_verified()
+    netflix_id = _provider_id(client, "netflix")
+    source_id = _collection_id(client, "netflix-movie")
+    created = client.post(
+        "/api/collections",
+        json={
+            "provider_id": netflix_id,
+            "media_type": "MOVIE",
+            "name": "Guard test",
+            "slug": "guard-test",
+            "kind": "CUSTOM_FILTER",
+            "source_collection_ids": [source_id],
+        },
+        headers=admin,
+    )
+    assert created.status_code == 201, created.text
+    collection_id = created.json()["id"]
+    immutable = client.patch(
+        f"/api/collections/{source_id}", json={"source_key": "justwatch"}, headers=admin
+    )
+    assert immutable.status_code == 422
+    invalid_kind = client.patch(
+        f"/api/collections/{collection_id}", json={"kind": "CHART"}, headers=admin
+    )
+    assert invalid_kind.status_code == 422
+    response = client.patch(
+        f"/api/collections/{source_id}", json={"kind": "CUSTOM_FILTER"}, headers=admin
+    )
+    assert response.status_code in {409, 422}

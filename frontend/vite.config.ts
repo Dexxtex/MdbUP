@@ -19,5 +19,12 @@ export default defineConfig({
   test: {
     // La suite Playwright in `e2e/` non gira sotto vitest.
     exclude: ["**/node_modules/**", "**/dist/**", "e2e/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html", "json-summary"],
+      include: ["src/lib/**/*.ts", "src/api/**/*.ts", "src/hooks/**/*.ts"],
+      exclude: ["src/api/schema.d.ts", "**/*.test.ts", "**/*.test.tsx"],
+      thresholds: { lines: 90, functions: 90, branches: 90, statements: 90 },
+    },
   },
 });

@@ -104,7 +104,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - Backend: comandi/errori spostati in `app/domain/`, servizi senza dipendenze da `app.api`, API senza SQL diretto; rimossi moduli/helper non usati e dipendenze inutilizzate.
 - Frontend: hook spostati in `src/hooks/`, export morti rimossi, payload API separati dai componenti.
 - `.gitignore` e `.dockerignore` aggiornati per escludere cache, test, build, backup e segreti.
-- Test: **364 backend**, **115 frontend**, **12 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
+- Test: **422 backend**, **192 frontend**, **12 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
 - Dettagli: [`docs/phases/phase-11.md`](docs/phases/phase-11.md).
 
 ### Fase 6 — hardening e regole avanzate
@@ -418,28 +418,30 @@ Il restore è documentato in `deploy/scripts/restore.sh`; per un drill usare un 
 ## 7. Test
 
 ```bash
-# Backend
+# Backend (gate: 90% statement coverage)
 cd backend
-REDIS_URL="" APP_ENV=test uv run pytest
+REDIS_URL="" APP_ENV=test uv run pytest --cov=app --cov-report=term-missing --cov-fail-under=90
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy app
 uv run --with pip-audit pip-audit
 
-# Frontend
+# Frontend (gate: 90% line/branch/function coverage sui moduli logici)
 cd ../frontend
+npm run test:coverage
 npm run typecheck
 npm run lint
-npm test
 npm run build
 npm run test:e2e
 npm audit --omit=dev
 ```
 
-Stato attuale: **364 test backend**, **115 test frontend** e **12 test E2E
+Stato attuale: **422 test backend**, **192 test frontend** e **12 test E2E
 Playwright** verdi; `ruff check`, `ruff format --check`, `mypy`, build Vite,
 lint e audit senza vulnerabilità. I test unitari usano `respx`/fixture; la
 verifica live è stata eseguita separatamente su TMDb e MDBList reali.
+
+Coverage gate: backend **90.22%** statement, frontend **96.94%** linee / **90.33%** branch / **96.39%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
 
 ---
 

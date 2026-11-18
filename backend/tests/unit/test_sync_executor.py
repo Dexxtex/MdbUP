@@ -12,7 +12,13 @@ from app.core.time import utcnow
 from app.db.models import CollectionSnapshot, SnapshotItem
 from app.db.session import get_session_factory
 from app.domain.enums import SyncOperationStatus, SyncRunStatus
-from app.integrations.mdblist.client import MdbListPermissionError, MdbListTimeout
+from app.integrations.mdblist.client import (
+    MdbListPermissionError,
+    MdbListRateLimitError,
+    MdbListRequestError,
+    MdbListServerError,
+    MdbListTimeout,
+)
 from app.integrations.mdblist.models import (
     MdbListId,
     MdbListItemPage,
@@ -369,3 +375,169 @@ def test_lock_is_exclusive_per_target(session: Session) -> None:
         first.release()
     assert second.acquire() is True
     second.release()
+
+
+class FailingListClient(FakeMdbListClient):
+    def __init__(self, exc: Exception) -> None:
+        super().__init__()
+        self.exc = exc
+
+    def get_list(self, list_id: int) -> MdbListList:
+        raise self.exc
+
+
+class WrongOwnerClient(FakeMdbListClient):
+    def get_user(self) -> MdbListUser:
+        return MdbListUser(id=999, user_name="other")
+
+
+class IncompleteReadClient(FakeMdbListClient):
+    def get_items(self, list_id: int, **kwargs: object) -> MdbListItemPage:
+        raise MdbListServerError("read failed")
+
+
+class RateLimitedAddClient(FakeMdbListClient):
+    def add_items(self, list_id: int, *, movies=(), shows=()) -> MdbListMutationResult:
+        raise MdbListRateLimitError("slow down", retry_after_seconds=0)
+
+
+class RequestErrorAddClient(FakeMdbListClient):
+    def add_items(self, list_id: int, *, movies=(), shows=()) -> MdbListMutationResult:
+        raise MdbListRequestError("bad request")
+
+
+def test_execute_run_not_found_and_terminal(session: Session, seeded, app_settings) -> None:
+    with pytest.raises(Exception) as error:
+        sync_service.execute_run(session, app_settings, uuid.uuid4(), client=FakeMdbListClient())
+    assert getattr(error.value, "code", None) == "RESOURCE_NOT_FOUND"
+
+    collection = collections_repo.get_collection_by_slug(session, "netflix-movie")
+    assert collection is not None
+    snapshot = _snapshot(session, collection, [1])
+    target = _target(session)
+    binding = _binding(session, collection, target)
+    run = _run(session, binding, snapshot)
+    run.status = SyncRunStatus.SUCCEEDED.value
+    run.finished_at = utcnow()
+    session.commit()
+    outcome = sync_service.execute_run(session, app_settings, run.id, client=FakeMdbListClient())
+    assert outcome.status == SyncRunStatus.SUCCEEDED.value
+
+
+def test_incomplete_binding_blocks(session: Session, seeded, app_settings, monkeypatch) -> None:
+    collection = collections_repo.get_collection_by_slug(session, "netflix-movie")
+    assert collection is not None
+    snapshot = _snapshot(session, collection, [1])
+    target = _target(session)
+    binding = _binding(session, collection, target)
+    run = _run(session, binding, snapshot)
+    monkeypatch.setattr(sync_service.bindings_repo, "get_binding", lambda *a, **k: None)
+    outcome = sync_service.execute_run(session, app_settings, run.id, client=FakeMdbListClient())
+    assert outcome.status == SyncRunStatus.BLOCKED.value
+    assert outcome.abort_reason == "BINDING_INCOMPLETE"
+
+
+def test_lock_held_blocks(session: Session, seeded, app_settings) -> None:
+    collection = collections_repo.get_collection_by_slug(session, "netflix-movie")
+    assert collection is not None
+    snapshot = _snapshot(session, collection, [1])
+    target = _target(session)
+    binding = _binding(session, collection, target)
+    run = _run(session, binding, snapshot)
+    lock = sync_service.TargetLock(session, target.id)
+    assert lock.acquire()
+    try:
+        outcome = sync_service.execute_run(
+            session, app_settings, run.id, client=FakeMdbListClient()
+        )
+    finally:
+        lock.release()
+    assert outcome.abort_reason == "LOCK_HELD"
+
+
+def test_remote_list_errors_and_owner_mismatch(session: Session, seeded, app_settings) -> None:
+    collection = collections_repo.get_collection_by_slug(session, "netflix-movie")
+    assert collection is not None
+    snapshot = _snapshot(session, collection, [1])
+    target = _target(session)
+    binding = _binding(session, collection, target)
+    run = _run(session, binding, snapshot)
+    outcome = sync_service.execute_run(
+        session, app_settings, run.id, client=FailingListClient(MdbListPermissionError("no"))
+    )
+    assert outcome.status == SyncRunStatus.BLOCKED.value
+    assert outcome.abort_reason == "MDBLIST_PERMISSION_DENIED"
+
+    run2 = _run(session, binding, snapshot)
+    outcome = sync_service.execute_run(session, app_settings, run2.id, client=WrongOwnerClient())
+    assert outcome.abort_reason == "MDBLIST_PERMISSION_DENIED"
+
+
+def test_remote_read_incomplete_blocks(session: Session, seeded, app_settings) -> None:
+    collection = collections_repo.get_collection_by_slug(session, "netflix-movie")
+    assert collection is not None
+    snapshot = _snapshot(session, collection, [1])
+    target = _target(session)
+    binding = _binding(session, collection, target)
+    run = _run(session, binding, snapshot)
+    outcome = sync_service.execute_run(session, app_settings, run.id, client=IncompleteReadClient())
+    assert outcome.status == SyncRunStatus.BLOCKED.value
+    assert outcome.abort_reason == "MDBLIST_UNCERTAIN"
+
+
+def test_no_changes_is_success(session: Session, seeded, app_settings) -> None:
+    collection = collections_repo.get_collection_by_slug(session, "netflix-movie")
+    assert collection is not None
+    snapshot = _snapshot(session, collection, [1])
+    target = _target(session)
+    binding = _binding(session, collection, target)
+    run = _run(session, binding, snapshot)
+    client = FakeMdbListClient([MdbListListItem(mediatype="MOVIE", tmdb_id=1)])
+    outcome = sync_service.execute_run(session, app_settings, run.id, client=client)
+    assert outcome.status == SyncRunStatus.SUCCEEDED.value
+    assert outcome.added == 0 and outcome.removed == 0
+
+
+def test_rate_limit_and_request_errors_are_recorded(session: Session, seeded, app_settings) -> None:
+    collection = collections_repo.get_collection_by_slug(session, "netflix-movie")
+    assert collection is not None
+    snapshot = _snapshot(session, collection, [1])
+    target = _target(session)
+    binding = _binding(session, collection, target)
+    run = _run(session, binding, snapshot)
+    outcome = sync_service.execute_run(
+        session, app_settings, run.id, client=RateLimitedAddClient(), sleep=lambda _: None
+    )
+    assert outcome.status in {SyncRunStatus.FAILED.value, SyncRunStatus.PARTIAL.value}
+    assert any(
+        op.error_code == "MDBLIST_RATE_LIMITED" for op in runs_repo.list_operations(session, run.id)
+    )
+
+    run2 = _run(session, binding, snapshot)
+    outcome = sync_service.execute_run(
+        session, app_settings, run2.id, client=RequestErrorAddClient(), sleep=lambda _: None
+    )
+    assert outcome.status in {SyncRunStatus.FAILED.value, SyncRunStatus.PARTIAL.value}
+    assert any(
+        op.error_code == "MDBLIST_REQUEST_FAILED"
+        for op in runs_repo.list_operations(session, run2.id)
+    )
+
+
+def test_next_delay_and_write_throttle() -> None:
+    import random
+
+    assert sync_service.next_delay(1, 12.0) == 12.0
+    assert 0 < sync_service.next_delay(2, None, rng=random.Random(1)) <= 30
+    sleeps: list[float] = []
+    throttle = sync_service.WriteThrottle(capacity=2, window_seconds=0.01)
+    throttle.acquire(0)
+    throttle.acquire(2, sleep=sleeps.append)
+    throttle.acquire(1, sleep=sleeps.append)
+    assert sleeps
+
+
+def test_reconcile_requires_existing_run_and_target(session: Session, app_settings) -> None:
+    with pytest.raises(Exception) as error:
+        sync_service.reconcile_run(session, app_settings, uuid.uuid4(), client=FakeMdbListClient())
+    assert getattr(error.value, "code", None) == "RESOURCE_NOT_FOUND"

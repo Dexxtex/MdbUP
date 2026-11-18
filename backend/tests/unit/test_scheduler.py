@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import timedelta
 
 import pytest
@@ -357,3 +358,153 @@ def test_sweep_orphan_dispatch_locks_removes_only_inactive_targets() -> None:
     assert removed == 1
     assert "mdbup:dispatch:target:11111111-1111-1111-1111-111111111111" in fake.keys
     assert "mdbup:dispatch:target:22222222-2222-2222-2222-222222222222" not in fake.keys
+
+
+def test_target_owner_uses_oldest_binding() -> None:
+    from app.db.models import SyncBinding
+
+    older = SyncBinding(
+        id=uuid.uuid4(), target_id=uuid.uuid4(), created_at=utcnow() - timedelta(hours=1)
+    )
+    newer = SyncBinding(id=uuid.uuid4(), target_id=older.target_id, created_at=utcnow())
+    assert scheduler.target_binding_owner([newer, older])[older.target_id] == older.id
+
+
+def test_scheduled_snapshot_fallbacks(session: Session, seeded) -> None:
+    collection = collections_repo.get_collection_by_slug(session, "netflix-movie")
+    assert collection is not None
+    # No snapshot at all.
+    assert scheduler._scheduled_snapshot(session, collection.id, "MIRROR") is None
+    snapshot = _snapshot(session, collection, [1])
+    # last_valid_snapshot_id is used.
+    assert scheduler._scheduled_snapshot(session, collection.id, "MIRROR").id == snapshot.id
+    # Missing last_valid pointer falls back to latest valid.
+    collection.last_valid_snapshot_id = None
+    session.commit()
+    assert scheduler._scheduled_snapshot(session, collection.id, "MIRROR").id == snapshot.id
+    assert scheduler._scheduled_snapshot(session, uuid.uuid4(), "MIRROR") is None
+
+
+def test_sweep_stale_runs_reconciles_and_fails(
+    session: Session, seeded, app_settings, monkeypatch
+) -> None:
+    collection = collections_repo.get_collection_by_slug(session, "netflix-movie")
+    assert collection is not None
+    snapshot = _snapshot(session, collection, [1])
+    binding = _binding(session, collection)
+    run = runs_repo.create_run(
+        session,
+        binding_id=binding.id,
+        target_id=binding.target_id,
+        media_type=binding.media_type,
+        snapshot_id=snapshot.id,
+        mode="MIRROR",
+        trigger_type="MANUAL",
+        is_dry_run=False,
+    )
+    runs_repo.transition_run(session, run, SyncRunStatus.PREFLIGHT)
+    runs_repo.transition_run(session, run, SyncRunStatus.PLANNING)
+    runs_repo.transition_run(session, run, SyncRunStatus.APPLYING)
+    run.updated_at = utcnow() - timedelta(hours=2)
+    session.commit()
+    calls: list[str] = []
+    monkeypatch.setattr("app.jobs.tasks.enqueue_sync_run", lambda *a, **k: calls.append("ok"))
+    outcome = scheduler.sweep_stale_runs(session, app_settings, now=utcnow())
+    assert outcome == {"reconciled": 1, "failed": 0}
+    assert calls == ["ok"]
+    assert runs_repo.get_run(session, run.id).status == SyncRunStatus.VERIFYING.value
+
+
+def test_sweep_stale_runs_dispatch_failure(
+    session: Session, seeded, app_settings, monkeypatch
+) -> None:
+    collection = collections_repo.get_collection_by_slug(session, "netflix-movie")
+    assert collection is not None
+    snapshot = _snapshot(session, collection, [1])
+    binding = _binding(session, collection)
+    run = runs_repo.create_run(
+        session,
+        binding_id=binding.id,
+        target_id=binding.target_id,
+        media_type=binding.media_type,
+        snapshot_id=snapshot.id,
+        mode="MIRROR",
+        trigger_type="MANUAL",
+        is_dry_run=False,
+    )
+    runs_repo.transition_run(session, run, SyncRunStatus.PREFLIGHT)
+    runs_repo.transition_run(session, run, SyncRunStatus.PLANNING)
+    runs_repo.transition_run(session, run, SyncRunStatus.APPLYING)
+    run.updated_at = utcnow() - timedelta(hours=2)
+    session.commit()
+    monkeypatch.setattr(
+        "app.jobs.tasks.enqueue_sync_run",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("down")),
+    )
+    outcome = scheduler.sweep_stale_runs(session, app_settings, now=utcnow())
+    assert outcome["failed"] == 1
+    assert runs_repo.get_run(session, run.id).status == SyncRunStatus.FAILED.value
+
+
+def test_sweep_orphan_locks(session: Session, app_settings, monkeypatch) -> None:
+    monkeypatch.setattr(scheduler, "sweep_orphan_dispatch_locks", lambda url, is_active: 3)
+    assert scheduler.sweep_orphan_locks(session, app_settings) == {"removed": 3}
+
+
+def test_scheduler_dispatch_failure_marks_run_failed(
+    session: Session, seeded, app_settings, monkeypatch
+) -> None:
+    collection = collections_repo.get_collection_by_slug(session, "netflix-movie")
+    assert collection is not None
+    _snapshot(session, collection, [1])
+    _binding(session, collection)
+    monkeypatch.setattr(
+        "app.jobs.tasks.enqueue_sync_run",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("down")),
+    )
+    outcome = scheduler.enqueue_due_bindings(session, app_settings, now=utcnow(), dispatch=True)
+    assert outcome.enqueued == 0
+    assert outcome.skipped == 1
+
+
+def test_scheduler_skips_when_dispatch_lock_is_held(
+    session: Session, seeded, app_settings, monkeypatch
+) -> None:
+    collection = collections_repo.get_collection_by_slug(session, "netflix-movie")
+    assert collection is not None
+    _snapshot(session, collection, [1])
+    _binding(session, collection)
+
+    class NoLock:
+        def acquire(self, key):
+            return None
+
+        def release(self, key, token):
+            return None
+
+    monkeypatch.setattr(scheduler, "build_dispatch_lock", lambda url: NoLock())
+    outcome = scheduler.enqueue_due_bindings(session, app_settings, now=utcnow(), dispatch=False)
+    assert outcome.skipped == 1
+
+
+def test_sweep_stale_runs_fails_pending(session: Session, seeded, app_settings) -> None:
+    collection = collections_repo.get_collection_by_slug(session, "netflix-movie")
+    assert collection is not None
+    snapshot = _snapshot(session, collection, [1])
+    binding = _binding(session, collection)
+    run = runs_repo.create_run(
+        session,
+        binding_id=binding.id,
+        target_id=binding.target_id,
+        media_type=binding.media_type,
+        snapshot_id=snapshot.id,
+        mode="MIRROR",
+        trigger_type="MANUAL",
+        is_dry_run=False,
+    )
+    runs_repo.transition_run(session, run, SyncRunStatus.PREFLIGHT)
+    run.updated_at = utcnow() - timedelta(hours=2)
+    session.commit()
+    outcome = scheduler.sweep_stale_runs(session, app_settings, now=utcnow())
+    assert outcome == {"reconciled": 0, "failed": 1}
+    assert runs_repo.get_run(session, run.id).status == SyncRunStatus.FAILED.value

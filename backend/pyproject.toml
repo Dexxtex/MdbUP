@@ -25,6 +25,8 @@ dependencies = [
 dev = [
   "pytest>=9.0.3,<10",
   "pytest-asyncio>=1.5,<2",
+  "pytest-cov>=6,<8",
+  "pgserver>=0.1",
   "respx>=0.21,<1",
   "ruff>=0.6,<1",
   "mypy>=1.11,<2",
@@ -60,3 +62,12 @@ ignore_missing_imports = true
 check_untyped_defs = true
 disallow_untyped_defs = false
 warn_unused_ignores = false
+
+[tool.coverage.run]
+source = ["app"]
+branch = false
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true
