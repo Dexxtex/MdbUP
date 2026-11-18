@@ -78,6 +78,15 @@ export function describeApiError(error: unknown): ErrorPresentation {
     };
   }
 
+  if (error.code === "SOURCE_NOT_AVAILABLE") {
+    return {
+      ...base,
+      title: "Fonte non disponibile",
+      message: error.message || "La fonte non è configurata: eseguire il seed.",
+      retryable: false,
+    };
+  }
+
   /**
    * `429 AUTH_RATE_LIMITED` è un rate limit di autenticazione, non una sessione
    * scaduta: senza questo ramo la UI mostrerebbe "Sessione scaduta"

@@ -52,7 +52,7 @@ services:
   # Applica le migrazioni DB all'avvio e serve sia le API (/api/*) sia la UI React
   api:
     <<: *app
-    command: ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers"]
+    command: ["sh", "-c", "alembic upgrade head && python -m app.cli seed-providers && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers"]
     ports:
       # Unica porta esposta sull'host (Frontend + API). Configurabile nel .env con WEB_PORT
       - "${WEB_PORT:-28080}:8000"

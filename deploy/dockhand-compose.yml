@@ -1,0 +1,166 @@
+# MdbUP — stack autonomo (4 servizi) per Dockhand / docker compose.
+#
+#   docker compose -f docker-compose.yml up -d
+#
+# Non serve .env, secrets/ o il servizio init: tutti i valori sono environment
+# variables impostate in Dockhand (o nella shell).
+#
+# Sono inclusi valori SEMPLICI per il primo avvio. Sono volutamente insicuri:
+# sostituiscili dalle variabili environment di Dockhand/shell prima di esporre
+# il servizio in rete.
+#
+#   POSTGRES_PASSWORD   default semplice: mdbup
+#   APP_ENCRYPTION_KEY  default Base64 di 32 byte (semplice, da cambiare)
+#   BOOTSTRAP_TOKEN     default semplice: bootstrap
+#   METRICS_TOKEN       default semplice: metrics
+#   APP_BASE_URL        default http://192.0.2.10:28080
+#   WEB_PORT            default 28080
+#
+# Generazione rapida (Python, nessun file da creare):
+#   POSTGRES_PASSWORD:   python -c "import secrets; print(secrets.token_urlsafe(24))"
+#   APP_ENCRYPTION_KEY:  python -c "import base64,os; print(base64.b64encode(os.urandom(32)).decode())"
+#   BOOTSTRAP_TOKEN:     python -c "import secrets; print(secrets.token_urlsafe(32))"
+#   METRICS_TOKEN:       python -c "import secrets; print(secrets.token_urlsafe(32))"
+#
+# I volumi sono nuovi (mdbup_v2_*): questo stack parte da un database vuoto.
+# Dopo il primo avvio NON cambiare POSTGRES_PASSWORD (il database è già
+# inizializzato) né APP_ENCRYPTION_KEY (le credenziali salvate non sarebbero
+# più decifrabili): per cambiarli serve ricreare i volumi `mdbup_v2_*` e
+# reinserire le credenziali dalle Impostazioni.
+
+name: mdbup
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-app: &app
+  image: ${MDBUP_IMAGE:-ghcr.io/dexxtex/mdbup:latest}
+  environment:
+    APP_ENV: production
+    APP_BASE_URL: ${APP_BASE_URL:-http://192.0.2.10:28080}
+    APP_TIMEZONE: Europe/Rome
+    LOG_LEVEL: INFO
+    LOG_FORMAT: json
+    COOKIE_SECURE: "false"
+    SESSION_COOKIE_NAME: mdbsync-session
+    CSRF_COOKIE_NAME: mdbsync-csrf
+    METRICS_ENABLED: "true"
+    DEFAULT_SOURCE: justwatch
+    CATALOG_SCHEDULE_ENABLED: "true"
+    DATABASE_URL: postgresql+psycopg://mdbup:${POSTGRES_PASSWORD:-mdbup}@postgres:5432/mdbup
+    APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
+    APP_ENCRYPTION_KEY_VERSION: "1"
+    BOOTSTRAP_TOKEN: ${BOOTSTRAP_TOKEN:-bootstrap}
+    METRICS_TOKEN: ${METRICS_TOKEN:-metrics}
+    BACKUP_DIR: /backups
+    BACKUP_STATUS_FILE: /backups/last_backup.json
+  volumes:
+    - backups:/backups:ro
+  user: "10001:10001"
+  read_only: true
+  init: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
+  logging: *logging
+
+services:
+  # 1. API + SPA + migrazioni Alembic.
+  api:
+    <<: *app
+    command: ["sh", "-c", "alembic upgrade head && python -m app.cli seed-providers && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers"]
+    ports:
+      - "${WEB_PORT:-28080}:8000"
+    cpus: 1.0
+    mem_limit: 512m
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # 2. Worker Celery + beat.
+  worker:
+    <<: *app
+    command: ["celery", "-A", "app.jobs.celery_app", "worker", "-B", "-s", "/tmp/celerybeat-schedule",
+              "-Q", "acquisitions,sync,maintenance", "-c", "2", "--max-tasks-per-child=200"]
+    cpus: 1.0
+    mem_limit: 768m
+    stop_grace_period: 60s
+    depends_on:
+      api:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.jobs.celery_app inspect ping -d celery@$$HOSTNAME"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # 3. PostgreSQL.
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mdbup
+      POSTGRES_USER: mdbup
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mdbup}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    command: ["postgres", "-c", "shared_buffers=256MB", "-c", "max_connections=60"]
+    cpus: 1.0
+    mem_limit: 1g
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # 4. Redis.
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redisdata:/data
+    cpus: 0.5
+    mem_limit: 320m
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  # Volumi nuovi: il vecchio stack non viene riutilizzato.
+  backups:
+    name: mdbup_v2_backups
+  pgdata:
+    name: mdbup_v2_pgdata
+  redisdata:
+    name: mdbup_v2_redisdata

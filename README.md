@@ -2,8 +2,7 @@
 
 Applicazione **self-hosted** per acquisire cataloghi e raccolte dei provider streaming in **Italia** e mantenere aggiornate liste statiche **MDBList** tramite API.
 
-> **Stato: Fase 9 completata e verificata live su server Ubuntu (Docker Compose).**
-> Stack **4/4 healthy** (`api`, `worker`, `postgres`, `redis`), migrazione `0005_snapshot_item_availability`. JustWatch è la **fonte predefinita** (configurabile) e il builder supporta **JustWatch / TMDb / Combinata locale**. Feed **Cambi Catalogo IT**, scheduling scaglionato (96 slot/24h, una acquisizione per tick) e throttle globale 1 req/s. Live: Prime Video **8.240** titoli, NOW **1.145**, Disney+ in arrivo **3**, Apple TV+ catalogo/classifica/in arrivo **116/105/3**, Netflix storico **5.525**. Le **6 liste MDBList** restano intatte (755/428/365/226/146/114), con dry-run `to_add=0,to_remove=0` su tutti i binding. La UI dark-first include matrice provider, feed cambi, builder contestuale, anteprima source-only, ricerca snapshot ed eventi stagioni/episodi. L'immagine è su GHCR (`ghcr.io/dexxtex/mdbup`); il compose usa l'immagine e pubblica API su **28080**, PostgreSQL/Redis solo su `127.0.0.1`. TLS/reverse proxy restano esterni.
+> **Stato: Fase 10 completata.** CI **100% verde**: `mypy`, `pip-audit`, `npm audit`, backend, frontend, E2E e build immagine. Il nuovo compose autonomo usa **4 servizi** (`api`, `worker`, `postgres`, `redis`), soli environment variables e seed automatico delle fonti. Gli snapshot invariati non duplicano più le righe `snapshot_item`: conservano `last_verified_at` e puntano allo snapshot proprietario. La diagnostica storage è esposta in `GET /api/system/status` e in Impostazioni → Backup & Manutenzione. Il nuovo stack parte da volumi `mdbup_v2_*`; le **6 liste MDBList esterne non sono state modificate**.
 
 ---
 
@@ -85,6 +84,16 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - Live: Prime Video **8.240**, NOW **1.145**, Disney+ in arrivo **3**, Apple TV+ **116/105/3**; 6 liste MDBList invariate.
 - Test: **357 backend**, **115 frontend**, **12 E2E**.
 - Dettagli: [`docs/phase9/STATUS.md`](docs/phase9/STATUS.md) e [`docs/phase9/BACKEND.md`](docs/phase9/BACKEND.md).
+
+### Fase 10 — CI verde, snapshot dedup e storage
+
+- **CI bloccante verde**: mypy 0 errori, pip-audit 0 vulnerabilità, npm audit 0, 361 test backend, 115 frontend, 12 E2E.
+- **Snapshot invariati deduplicati**: checksum deterministico, `items_from_snapshot_id`, `last_verified_at`; lo storico delle verifiche resta completo e Cambi Catalogo IT continua a funzionare.
+- **Retention** protegge lo snapshot che possiede gli item condivisi e l'ultima baseline valida.
+- **Storage**: `GET /api/system/status.storage` con byte e righe di snapshot/run; indicatore in Impostazioni.
+- **Compose autonomo**: 4 servizi, environment variables, default di primo avvio e `seed-providers` automatico all'avvio dell'API.
+- Test: **361 backend**, **115 frontend**, **12 E2E**.
+- Dettagli: [`docs/phase10/STATUS.md`](docs/phase10/STATUS.md).
 
 ### Fase 6 — hardening e regole avanzate
 
@@ -384,7 +393,7 @@ npm test
 npm run lint
 ```
 
-Stato attuale: **357 test backend**, **115 test frontend** e **12 test E2E Playwright** verdi; `ruff check`, `ruff format --check`, build Vite e lint verdi. I test unitari usano `respx`/fixture; la verifica live è stata eseguita separatamente su TMDb e MDBList reali.
+Stato attuale: **361 test backend**, **115 test frontend** e **12 test E2E Playwright** verdi; `ruff check`, `ruff format --check`, build Vite e lint verdi. I test unitari usano `respx`/fixture; la verifica live è stata eseguita separatamente su TMDb e MDBList reali.
 
 ---
 
@@ -527,6 +536,9 @@ Dettagli: [`docs/phase1/06-security.md`](docs/phase1/06-security.md).
 ### Fase 9
 - [`docs/phase9/STATUS.md`](docs/phase9/STATUS.md)
 - [`docs/phase9/BACKEND.md`](docs/phase9/BACKEND.md)
+
+### Fase 10
+- [`docs/phase10/STATUS.md`](docs/phase10/STATUS.md)
 
 ---
 
