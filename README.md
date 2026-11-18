@@ -240,7 +240,8 @@ relativi alla root, `env_file: .env` + override espliciti non segreti nella
 sezione `environment`):
 
 ```bash
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 # l'app espone HTTP su 28080; il TLS è del reverse proxy esterno
 ```
 
@@ -261,6 +262,7 @@ grep '^# public key:' /tmp/age-key.txt | cut -d: -f2 | tr -d ' ' > secrets/backu
 chmod 0700 secrets
 chmod 0644 secrets/*
 
+docker compose --env-file .env -f deploy/docker-compose.yml pull
 docker compose --env-file .env -f deploy/docker-compose.yml up -d
 ```
 
@@ -271,20 +273,21 @@ a ogni push su `main`, per i tag `v*` e manualmente da **Actions → Build image
 Run workflow**. La stessa immagine contiene API, worker e SPA.
 
 ```bash
-# opzione A: build locale (default)
-docker compose up -d --build
-
-# opzione B: immagine GHCR
-MDBUP_IMAGE=ghcr.io/dexxtex/mdbup:latest
+# default: immagine GHCR
 docker compose pull
-docker compose up -d --no-build
+docker compose up -d
+
+# build locale, se serve
+docker build -f deploy/Dockerfile.api -t mdbup-api:local .
+MDBUP_IMAGE=mdbup-api:local docker compose up -d
 ```
 
 L'immagine è `ghcr.io/dexxtex/mdbup`; i tag includono `latest`, `sha-<commit>`
-e il nome del branch/tag. Se il package GHCR non è pubblico, renderlo visibile
-da **GitHub → Packages → mdbup → Settings**.
+e il nome del branch/tag. Il compose usa `MDBUP_IMAGE` da `.env` e non ha
+`build:`: l'immagine si scarica con `docker compose pull`. Se il package GHCR
+non è pubblico, renderlo visibile da **GitHub → Packages → mdbup → Settings**.
 
-Servizi: `api`, `worker`, `postgres`, `redis`. Solo `api` pubblica la porta HTTP `28080`; PostgreSQL e Redis restano sulla rete `internal`. `worker` esegue anche Celery Beat (`-B`) e usa la rete `egress` per raggiungere TMDb/MDBList. Non ci sono container `proxy`, `frontend`, `migrate` o `scheduler` separati.
+Servizi: `api`, `worker`, `postgres`, `redis`. `api` pubblica `${WEB_PORT:-28080}`; PostgreSQL e Redis sono raggiungibili dall'host solo su `127.0.0.1` (`POSTGRES_PORT`, `REDIS_PORT`) e restano sulla rete `internal`. `worker` esegue anche Celery Beat (`-B`) e raggiunge TMDb/MDBList tramite la rete predefinita. Non ci sono container `proxy`, `frontend`, `migrate` o `scheduler` separati.
 
 Per HTTP su LAN (senza TLS) usare cookie senza prefisso `__Host-` e `COOKIE_SECURE=false`:
 
