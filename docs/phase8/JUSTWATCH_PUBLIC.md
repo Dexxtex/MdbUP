@@ -329,6 +329,8 @@ le 6 liste di produzione non sono state lette né scritte.
 | `tests/integration/test_justwatch_api.py` | blocco `justwatch` in `/sources`, campi provider, creazione collezione JustWatch (chart/catalogo, mapping non verificato, kind TMDb-only), policy binding + binding disabilitato, `DRY_RUN_REQUIRED` poi dry-run e run reale, episode-events e 422 su film, `availability_status`/`source_offer_types` negli item |
 | `tests/integration/test_justwatch_collections.py` | mapping verificato short+technical, Rakuten saltato, package non verificati, snapshot esistenti intatti |
 
-Suite backend: **314 test verdi** (`cd backend && REDIS_URL="" APP_ENV=test uv run pytest`),
-`ruff check` e `ruff format --check` puliti.
+Suite backend: **315 test verdi** (`cd backend && REDIS_URL="" APP_ENV=test uv run pytest`),
+`ruff check` e `ruff format --check` puliti. Frontend: **93 test Vitest** e **10 E2E
+Playwright** verdi; typecheck, build e lint puliti. Stato completo in
+[`STATUS.md`](STATUS.md).
 

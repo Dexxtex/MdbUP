@@ -1,33 +1,17 @@
-# MdbUP — stack compatto (4 servizi) con immagine precompilata.
-#
-#   docker compose pull
-#   docker compose up -d
-#
-# Servizi:
-#   api      FastAPI + SPA statica + migrazioni Alembic all'avvio
-#   worker   Celery worker + beat embedded (-B)
-#   postgres PostgreSQL
-#   redis    Redis (broker/cache)
-#
-# L'immagine applicativa arriva da GHCR. Per una build locale:
-#   docker build -f deploy/Dockerfile.api -t mdbup-api:local .
-#   MDBUP_IMAGE=mdbup-api:local docker compose up -d
-#
-# Porte pubblicate:
-#   api        ${WEB_PORT:-28080} -> 8000 (HTTP, per il reverse proxy)
-#   postgres   ${POSTGRES_PORT:-5432} -> 5432 (solo 127.0.0.1)
-#   redis      ${REDIS_PORT:-6379} -> 6379 (solo 127.0.0.1)
-#
-# I segreti restano in ./secrets/ (mai nel compose).
-
+# ==============================================================================
+# MdbUP — Stack compatto a 4 servizi (API + Frontend, Worker + Beat, DB, Redis)
+# Avvio / aggiornamento: docker compose up -d --remove-orphans
+# ==============================================================================
 name: mdbup
 
-x-logging: &default-logging
+# Rotazione automatica dei log per evitare che riempiano il disco del server
+x-logging: &logging
   driver: json-file
   options:
     max-size: "10m"
     max-file: "5"
 
+# Configurazione condivisa tra 'api' e 'worker' (stessa immagine, stesse variabili)
 x-app: &app
   image: ${MDBUP_IMAGE:-ghcr.io/dexxtex/mdbup:latest}
   env_file:
@@ -44,6 +28,13 @@ x-app: &app
     METRICS_ENABLED: ${METRICS_ENABLED:-true}
     BACKUP_DIR: /backups
     BACKUP_STATUS_FILE: /backups/last_backup.json
+  secrets:
+    - app_encryption_key
+    - bootstrap_token
+  volumes:
+    # Cartella backup montata in sola lettura per mostrarne lo stato nella UI
+    - ${BACKUP_HOST_DIR:-./backups}:/backups:ro
+  # Hardening sicurezza: utente non-root, filesystem in sola lettura, privilegi minimi
   user: "10001:10001"
   read_only: true
   init: true
@@ -54,22 +45,19 @@ x-app: &app
   security_opt:
     - no-new-privileges:true
   restart: unless-stopped
-  networks:
-    - default
-    - internal
-  logging: *default-logging
+  logging: *logging
 
 services:
+  # 1. API & FRONTEND WEB
+  # Applica le migrazioni DB all'avvio e serve sia le API (/api/*) sia la UI React
   api:
     <<: *app
     command: ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers"]
     ports:
+      # Unica porta esposta sull'host (Frontend + API). Configurabile nel .env con WEB_PORT
       - "${WEB_PORT:-28080}:8000"
-    secrets:
-      - app_encryption_key
-      - bootstrap_token
-    volumes:
-      - ${BACKUP_HOST_DIR:-./backups}:/backups:ro
+    cpus: 1.0
+    mem_limit: 512m
     depends_on:
       postgres:
         condition: service_healthy
@@ -81,23 +69,15 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 512M
 
+  # 2. WORKER & SCHEDULER (Celery + Beat integrato)
+  # Esegue in background le acquisizioni TMDb/JustWatch, i sync MDBList e le notifiche
   worker:
     <<: *app
-    command: ["celery", "-A", "app.jobs.celery_app", "worker", "-B",
-              "-s", "/tmp/celerybeat-schedule",
-              "-Q", "acquisitions,sync,maintenance", "-c", "2",
-              "--max-tasks-per-child=200"]
-    secrets:
-      - app_encryption_key
-      - bootstrap_token
-    volumes:
-      - ${BACKUP_HOST_DIR:-./backups}:/backups:ro
+    command: ["celery", "-A", "app.jobs.celery_app", "worker", "-B", "-s", "/tmp/celerybeat-schedule", "-Q", "acquisitions,sync,maintenance", "-c", "2", "--max-tasks-per-child=200"]
+    cpus: 1.0
+    mem_limit: 768m
+    stop_grace_period: 60s
     depends_on:
       api:
         condition: service_healthy
@@ -105,19 +85,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    stop_grace_period: 60s
     healthcheck:
       test: ["CMD-SHELL", "celery -A app.jobs.celery_app inspect ping -d celery@$$HOSTNAME"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 768M
 
+  # 3. DATABASE (PostgreSQL)
+  # Isolato nella rete interna Docker (nessuna porta aperta sull'host)
   postgres:
     image: postgres:16-alpine
     environment:
@@ -126,65 +102,48 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
     secrets:
       - postgres_password
-    ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-    networks:
-      - internal
     command: ["postgres", "-c", "shared_buffers=256MB", "-c", "max_connections=60"]
+    cpus: 1.0
+    mem_limit: 1g
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
-    logging: *default-logging
+    logging: *logging
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 20s
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 1G
 
+  # 4. CODA & CACHE (Redis)
+  # Gestisce le code Celery, i lock anti-sovrapposizione e il rate-limit del login
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb",
-              "--maxmemory-policy", "noeviction"]
-    ports:
-      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
     volumes:
       - redisdata:/data
-    networks:
-      - internal
+    cpus: 0.5
+    mem_limit: 320m
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
-    logging: *default-logging
+    logging: *logging
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
       start_period: 10s
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 320M
 
-networks:
-  default:
-  internal:
-    driver: bridge
-    internal: true
-
+# Volumi persistenti gestiti da Docker per i dati del database e di Redis
 volumes:
   pgdata:
   redisdata:
 
+# Chiavi e password lette da file locali (mai salvate in chiaro nel compose o nel .env)
 secrets:
   postgres_password:
     file: ./secrets/postgres_password

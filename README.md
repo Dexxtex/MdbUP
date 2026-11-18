@@ -2,8 +2,8 @@
 
 Applicazione **self-hosted** per acquisire cataloghi e raccolte dei provider streaming in **Italia** e mantenere aggiornate liste statiche **MDBList** tramite API.
 
-> **Stato: Fase 7 completata e verificata live su server Ubuntu (Docker Compose).**
-> Stack **4/4 healthy** (`api`, `worker`, `postgres`, `redis`), migrazione `0004_notification_retry`, code `sync`/`maintenance` vuote. Le **5 liste MDBList preesistenti** restano intatte: Netflix IT Azione/Avventura/Horror (**755/428/365**), Apple TV+ IT Serie TV (**226**) e Mediaset Infinity IT Film (**146**). È stata aggiunta **Disney+ IT — Animazione Top** (**114**) da una collezione locale derivata da uno snapshot Disney+ Animazione (532 titoli), con sync `SUCCEEDED` e dry-run `to_add=0`, `to_remove=0`. La UI è stata rifatta dark-first con design system, dashboard operativa, builder collezioni, pipeline binding/run e impostazioni a schede. La SPA è servita direttamente dall'API su **HTTP 28080**; TLS, HSTS e reverse proxy sono **esterni e non integrati** (Caddy, Nginx, Traefik, Tailscale, ecc.). La porta 443 resta libera. JustWatch è attivo tramite **endpoint pubblico GraphQL** con throttle locale (1 req/s); la Partner API resta disabilitata perché richiede contratto.
+> **Stato: Fase 8 completata e verificata live su server Ubuntu (Docker Compose).**
+> Stack **4/4 healthy** (`api`, `worker`, `postgres`, `redis`), migrazione `0005_snapshot_item_availability`, code `sync`/`maintenance` vuote. Le **6 liste MDBList** restano intatte: Netflix IT Azione/Avventura/Horror (**755/428/365**), Apple TV+ IT Serie TV (**226**), Mediaset Infinity IT Film (**146**) e Disney+ IT Animazione Top (**114**). La fonte JustWatch pubblica è attiva con **88 collezioni** (11 provider flatrate × 4 tipologie × 2 media type), throttle locale 1 req/s, cache e guardrail ToS. Apple TV+ Film è stato acquisito live: catalogo **116**, classifica **105**, in arrivo **3** (`UPCOMING`), tutti snapshot validi; la collezione Netflix esistente resta a **5.525** titoli. Nessuna sync MDBList è stata eseguita per JustWatch. La UI dark-first include Provider/Connettori JustWatch, badge di origine, builder dedicato, anteprima source-only e timeline stagioni/episodi. L'immagine è pubblicata su GHCR (`ghcr.io/dexxtex/mdbup`) e il compose usa l'immagine, non la build. La SPA è servita dall'API su **HTTP 28080**; TLS, HSTS e reverse proxy sono **esterni e non integrati**. La porta 443 resta libera; PostgreSQL/Redis sono pubblicati solo su `127.0.0.1`.
 
 ---
 
@@ -63,6 +63,17 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - Stack ridotto a **4 servizi**: SPA compilata dentro l'immagine API, migrazioni all'avvio, worker+beat in un solo processo; nessun reverse proxy integrato.
 - `GET /api/metrics` Prometheus protetto da token e `GET /api/system/status` per la UI; backup cron giornaliero + verifica settimanale con `backup-verify`.
 - Suite Playwright isolata con API mockate: 7 test E2E, nessuna chiamata a MDBList/TMDb reali.
+
+### Fase 8 — JustWatch pubblico, UI e guardrail
+
+- Fonte `justwatch` con catalogo, novità, in arrivo e classifiche separate; filtro `FLATRATE` di default, post-filter media/package/offerta e mapping provider verificati con `shortName` + `technicalName`.
+- Cache GraphQL (300 s, 512 voci) con hit/miss Redis; schema drift, 429 e timeout producono snapshot `INCOMPLETE`/`ANOMALY`, mai validi per MIRROR.
+- 12 mapping IT verificati; `justwatch-collections` crea 88 collezioni e salta Rakuten TV (senza flatrate). L'upsert non tocca snapshot esistenti.
+- Live: Apple TV+ Film catalogo **116**, classifica **105**, in arrivo **3**; `UPCOMING` distinto da `CURRENT`; preview source-only **READY**.
+- UI: card connettore in Provider/Impostazioni→Connettori, builder con fonte e tipologia, badge `Fonte: JustWatch (Aggregatore)`/`Classifica JustWatch`, anteprima e eventi stagioni/episodi.
+- Binding JustWatch disabilitato di default, accettazione policy esplicita e dry-run obbligatorio (`DRY_RUN_REQUIRED`).
+- Test: **315 backend**, **93 frontend**, **10 E2E**.
+- Dettagli: [`docs/phase8/STATUS.md`](docs/phase8/STATUS.md) e [`docs/phase8/JUSTWATCH_PUBLIC.md`](docs/phase8/JUSTWATCH_PUBLIC.md).
 
 ### Fase 6 — hardening e regole avanzate
 
@@ -362,7 +373,7 @@ npm test
 npm run lint
 ```
 
-Stato attuale: **272 test backend**, **75 test frontend** e **7 test E2E Playwright** verdi; `ruff check`, `ruff format --check`, build Vite e lint verdi. I test unitari usano `respx`/fixture; la verifica live è stata eseguita separatamente su TMDb e MDBList reali.
+Stato attuale: **315 test backend**, **93 test frontend** e **10 test E2E Playwright** verdi; `ruff check`, `ruff format --check`, build Vite e lint verdi. I test unitari usano `respx`/fixture; la verifica live è stata eseguita separatamente su TMDb e MDBList reali.
 
 ---
 
@@ -498,11 +509,15 @@ Dettagli: [`docs/phase1/06-security.md`](docs/phase1/06-security.md).
 - [`docs/phase7/STATUS.md`](docs/phase7/STATUS.md)
 - [`docs/phase7/BACKEND_NOTES.md`](docs/phase7/BACKEND_NOTES.md)
 
+### Fase 8
+- [`docs/phase8/STATUS.md`](docs/phase8/STATUS.md)
+- [`docs/phase8/JUSTWATCH_PUBLIC.md`](docs/phase8/JUSTWATCH_PUBLIC.md)
+
 ---
 
-## 13. Prossimo passo — Fase 8
+## 13. Prossimi passi
 
-1. Acquisire le altre collezioni provider verificate (Prime Video, NOW, RaiPlay, Paramount+) e sincronizzarle su richiesta.
+1. Acquisire, su richiesta, le altre collezioni JustWatch già create (Prime Video, NOW, RaiPlay, Paramount+, Disney+, Mediaset, Infinity+, Timvision, MUBI).
 2. E2E full-stack su stack isolato (backend reale + MDBList stub), oltre alla suite UI mockata.
 3. Alert esterni Prometheus/Alertmanager e dashboard Grafana.
 4. Drill di restore mensile automatizzato e verifica periodica della chiave age.
