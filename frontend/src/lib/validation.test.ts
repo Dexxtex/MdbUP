@@ -23,7 +23,10 @@ function draft(overrides: Partial<BindingDraft> = {}): BindingDraft {
   };
 }
 
-function issuePaths(result: { success: boolean; error?: { issues: { path: (string | number)[] }[] } }) {
+function issuePaths(result: {
+  success: boolean;
+  error?: { issues: { path: readonly PropertyKey[] }[] };
+}) {
   return (result.error?.issues ?? []).map((issue) => issue.path.join("."));
 }
 

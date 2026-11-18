@@ -67,11 +67,11 @@ const baseBindingDraftSchema = z.object({
   schedule: z.enum(SCHEDULE_VALUES),
   scheduleTime: timeOfDay,
   maxRemovalPct: z
-    .number({ invalid_type_error: "Inserisci un numero." })
+    .number({ error: "Inserisci un numero." })
     .min(0, "La soglia non può essere negativa.")
     .max(50, "Massimo 50%."),
   maxRemovalAbs: z
-    .number({ invalid_type_error: "Inserisci un numero." })
+    .number({ error: "Inserisci un numero." })
     .int("Usa un numero intero.")
     .min(0, "La soglia non può essere negativa.")
     .max(5000, "Massimo 5000 elementi."),
@@ -202,26 +202,26 @@ export const BINDING_POLICY_VERSION = "planning-v1";
 export const settingsSchema = z.object({
   timezone: z.string().trim().min(1, "Indica un fuso orario."),
   syncBatchSize: z
-    .number({ invalid_type_error: "Inserisci un numero." })
+    .number({ error: "Inserisci un numero." })
     .int("Usa un numero intero.")
     .min(1, "Minimo 1.")
     .max(1000, "Massimo 1000."),
   maxRemovalAbsolute: z
-    .number({ invalid_type_error: "Inserisci un numero." })
+    .number({ error: "Inserisci un numero." })
     .int("Usa un numero intero.")
     .min(0, "La soglia non può essere negativa.")
     .max(5000, "Massimo 5000."),
   maxRemovalPercent: z
-    .number({ invalid_type_error: "Inserisci un numero." })
+    .number({ error: "Inserisci un numero." })
     .min(0, "La soglia non può essere negativa.")
     .max(50, "Massimo 50%."),
   maxAdditionPercent: z
-    .number({ invalid_type_error: "Inserisci un numero." })
+    .number({ error: "Inserisci un numero." })
     .min(0, "La soglia non può essere negativa.")
     .max(100, "Massimo 100%."),
   notificationsSummaryEnabled: z.boolean(),
   notificationsSummaryHour: z
-    .number({ invalid_type_error: "Inserisci un'ora." })
+    .number({ error: "Inserisci un'ora." })
     .int("Usa un numero intero.")
     .min(0, "Minimo 0.")
     .max(23, "Massimo 23."),

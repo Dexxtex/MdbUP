@@ -185,7 +185,9 @@ def test_tv_failures_are_warnings_and_never_break_the_catalog(session: Session, 
 
     assert outcome.errors == 1
     assert outcome.warnings
-    assert "429" not in " ".join(outcome.warnings)  # the warning carries the error type
+    # The warning carries the exception type, never the sensitive message.
+    assert "JustWatch ha risposto" not in " ".join(outcome.warnings)
+    assert "RuntimeError" in " ".join(outcome.warnings)
     assert session.scalars(select(EpisodeEvent)).all() == []
 
 
