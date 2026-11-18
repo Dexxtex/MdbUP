@@ -15,7 +15,7 @@ x-logging: &logging
 x-app: &app
   image: ${MDBUP_IMAGE:-ghcr.io/dexxtex/mdbup:latest}
   env_file:
-    - .env
+    - ../.env
   environment:
     APP_ENV: ${APP_ENV:-production}
     APP_BASE_URL: ${APP_BASE_URL:-http://localhost:28080}
@@ -33,7 +33,7 @@ x-app: &app
     - bootstrap_token
   volumes:
     # Cartella backup montata in sola lettura per mostrarne lo stato nella UI
-    - ${BACKUP_HOST_DIR:-./backups}:/backups:ro
+    - ${BACKUP_HOST_DIR:-../backups}:/backups:ro
   # Hardening sicurezza: utente non-root, filesystem in sola lettura, privilegi minimi
   user: "10001:10001"
   read_only: true
@@ -146,8 +146,8 @@ volumes:
 # Chiavi e password lette da file locali (mai salvate in chiaro nel compose o nel .env)
 secrets:
   postgres_password:
-    file: ./secrets/postgres_password
+    file: ../secrets/postgres_password
   app_encryption_key:
-    file: ./secrets/app_encryption_key
+    file: ../secrets/app_encryption_key
   bootstrap_token:
-    file: ./secrets/bootstrap_token
+    file: ../secrets/bootstrap_token
