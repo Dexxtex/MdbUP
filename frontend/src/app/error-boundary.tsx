@@ -4,7 +4,7 @@ interface ErrorBoundaryState {
   hasError: boolean;
 }
 
-/** Fallback senza stack trace né dettagli interni (docs/phase1/07-frontend-api.md §8). */
+/** Fallback senza stack trace né dettagli interni (docs/phases/phase-01.md §8). */
 export class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
   state: ErrorBoundaryState = { hasError: false };
 

@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useApproveRun, useCancelRun } from "../api/mutations";
-import { isActiveRun, useRun, useRunOperations } from "../api/queries";
+import { useApproveRun, useCancelRun } from "../hooks/mutations";
+import { isActiveRun, useRun, useRunOperations } from "../hooks/queries";
 import type { Operation, OperationStatus } from "../api/types";
 import { DataTable, type Column } from "../components/ui/data-table";
 import {

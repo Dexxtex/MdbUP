@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1.7
 
-# MdbUP — immagine unica per api, worker, scheduler e migrate.
-# Una sola superficie di supply chain: i quattro servizi cambiano solo per `command`
-# (docs/phase1/08-ops-tests-risks.md §1).
+# MdbUP — immagine unica per api e worker.
+# Una sola superficie di supply chain: i due processi applicativi cambiano solo per `command`
+# (docs/phases/phase-01.md §1).
 #
 # Build (contesto = radice del repository):
 #   docker build -f deploy/Dockerfile.api -t mdbup-api:local .
@@ -53,13 +53,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app \
     PATH="/opt/venv/bin:${PATH}"
 
-# procps fornisce pgrep, usato dall'healthcheck del servizio `scheduler`.
 # `age` serve a `python -m app.cli backup-verify` per decifrare il dump e
 # controllare il magic PGDMP. Se il pacchetto non è disponibile nella base
 # image il build non fallisce: la CLI riporta "age non disponibile" e verifica
 # solo checksum e header.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends procps \
  && (apt-get install -y --no-install-recommends age \
      || echo "age non disponibile nella base image: backup-verify senza decifratura") \
  && rm -rf /var/lib/apt/lists/*
@@ -70,7 +68,7 @@ RUN groupadd --gid 10001 app \
 COPY --from=builder /opt/venv /opt/venv
 
 # Sorgenti, alembic.ini e alembic/ restano in /app: `alembic upgrade head`
-# (servizio `migrate`) e `app.main:app` risolvono dalla stessa directory.
+# (comando di avvio di `api`) e `app.main:app` risolvono dalla stessa directory.
 WORKDIR /app
 COPY --chown=10001:10001 backend/ /app/
 COPY --from=frontend /frontend/dist /app/static

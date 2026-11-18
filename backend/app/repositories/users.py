@@ -22,10 +22,6 @@ def count_users(db: Session) -> int:
     return int(db.scalar(select(func.count()).select_from(AppUser)) or 0)
 
 
-def get_by_id(db: Session, user_id: uuid.UUID) -> AppUser | None:
-    return db.get(AppUser, user_id)
-
-
 def get_by_email(db: Session, email: str) -> AppUser | None:
     return db.scalar(select(AppUser).where(AppUser.email == normalize_email(email)))
 

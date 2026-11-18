@@ -13,13 +13,13 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.api.errors import NotFoundError, SourceUnavailableError
 from app.connectors import registry
 from app.core.config import Settings
 from app.core.metrics import api_usage_snapshot
 from app.core.time import utcnow
 from app.db.models import Source
 from app.domain.enums import AuditActorType, OfferType, SourceStatus
+from app.domain.errors import NotFoundError, SourceUnavailableError
 from app.repositories import audit
 from app.repositories import collections as collections_repo
 from app.repositories import credentials as credentials_repo

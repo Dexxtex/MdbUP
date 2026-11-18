@@ -17,7 +17,6 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.errors import ConflictError, NotFoundError, SourceUnavailableError
 from app.connectors.base import (
     NormalizedItem,
     NotSupportedError,
@@ -41,6 +40,7 @@ from app.domain.enums import (
     SnapshotQuality,
     SnapshotStatus,
 )
+from app.domain.errors import ConflictError, NotFoundError, SourceUnavailableError
 from app.repositories import audit
 from app.repositories import availability as availability_repo
 from app.repositories import collections as collections_repo

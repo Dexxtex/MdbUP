@@ -13,16 +13,16 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.api.errors import ConflictError, NotFoundError
-from app.api.schemas_sync import PreviewRequest
 from app.core.config import Settings
 from app.core.time import utcnow
 from app.db.models import Collection, CollectionSnapshot, JobExecution, SyncBinding
+from app.domain.commands import PreviewRequest
 from app.domain.enums import (
     JobStatus,
     SchedulePolicy,
     SyncMode,
 )
+from app.domain.errors import ConflictError, NotFoundError
 from app.integrations.mdblist.client import MdbListError
 from app.repositories import bindings as bindings_repo
 from app.repositories import collections as collections_repo

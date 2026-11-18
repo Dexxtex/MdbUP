@@ -219,13 +219,6 @@ export function PageHeader({
   );
 }
 
-export function InlineCode({ children }: { children: ReactNode }) {
-  return (
-    <code className="rounded border border-line bg-surface-muted px-1.5 py-0.5 font-mono text-xs text-ink">
-      {children}
-    </code>
-  );
-}
 
 export function ToggleChip({
   pressed,

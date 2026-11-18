@@ -7,7 +7,7 @@ exposition can never disagree:
 * Celery queue depths read with ``LLEN`` on the Redis broker;
 * sync-run counters, pending approvals and the next scheduled bindings;
 * outbound TMDb/MDBList call counters;
-* the backup status file written by ``scripts/backup.sh`` / ``backup-verify``.
+* the backup status file written by ``deploy/scripts/backup.sh`` / ``backup-verify``.
 
 No collector ever raises: a missing broker, an unreadable status file or a
 missing credential degrade the reported value instead of failing the request.
@@ -26,7 +26,6 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.api.errors import AppError
 from app.core.config import APP_VERSION, Settings
 from app.core.crypto import encryption_key_available
 from app.core.logging import get_logger
@@ -41,6 +40,7 @@ from app.db.models import (
     SyncRun,
 )
 from app.domain.enums import SourceStatus, SyncRunStatus
+from app.domain.errors import AppError
 from app.repositories import sources as sources_repo
 from app.services import catalog_schedule
 from app.services import credentials as credentials_service

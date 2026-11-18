@@ -9,8 +9,6 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.api.errors import ConflictError, NotFoundError, ServiceUnavailableError
-from app.api.schemas_sync import ApproveRunIn, StartRunIn
 from app.core.config import Settings
 from app.core.locks import build_dispatch_lock
 from app.core.time import ensure_utc, utcnow
@@ -23,12 +21,14 @@ from app.db.models import (
     SyncOperation,
     SyncRun,
 )
+from app.domain.commands import ApproveRunIn, StartRunIn
 from app.domain.enums import (
     TERMINAL_RUN_STATUSES,
     SyncMode,
     SyncOperationStatus,
     SyncRunStatus,
 )
+from app.domain.errors import ConflictError, NotFoundError, ServiceUnavailableError
 from app.jobs import tasks
 from app.repositories import bindings as bindings_repo
 from app.repositories import collections as collections_repo

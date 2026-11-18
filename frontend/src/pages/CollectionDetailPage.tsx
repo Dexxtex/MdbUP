@@ -1,13 +1,13 @@
 import { useDeferredValue, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useAcquireCollection, useCreatePreview } from "../api/mutations";
+import { useAcquireCollection, useCreatePreview } from "../hooks/mutations";
 import {
   useCollection,
   useCollectionEpisodeEvents,
   useCollectionSnapshots,
   usePreview,
   useSnapshotItems,
-} from "../api/queries";
+} from "../hooks/queries";
 import type { EpisodeEvent, Snapshot, SnapshotItem } from "../api/types";
 import {
   CollectionSourceBadge,

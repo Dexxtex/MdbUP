@@ -103,7 +103,7 @@ def test_dashboard_reports_alerts(client, admin, seeded) -> None:
     assert body["counters"]["collections"] == 23
     assert body["counters"]["providers"] == 12
     # Only the contract-gated JustWatch Partner API stays disabled: the public
-    # endpoint source is active (docs/phase8/JUSTWATCH_PUBLIC.md).
+    # endpoint source is active (docs/phases/phase-08.md).
     assert body["counters"]["sources_disabled"] == 1
     codes = {alert["code"] for alert in body["alerts"]}
     assert "CREDENTIAL_MISSING" in codes

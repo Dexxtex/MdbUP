@@ -16,21 +16,9 @@ from app.api.deps import (
     get_settings_dep,
     require_csrf,
 )
-from app.api.errors import NotFoundError, SourceUnavailableError
-from app.connectors import registry
 from app.core.config import Settings
 from app.db.models import AppUser
-from app.domain.enums import (
-    COMBINED_SOURCE_KEY,
-    AuditActorType,
-    CollectionKind,
-    CollectionOrigin,
-    MediaType,
-)
-from app.jobs import tasks
-from app.repositories import audit
-from app.repositories import collections as collections_repo
-from app.repositories import sources as sources_repo
+from app.domain.enums import CollectionKind, CollectionOrigin, MediaType
 from app.services import collection_admin
 from app.services import collections as collections_service
 from app.services import tv_events as tv_events_service
@@ -191,42 +179,18 @@ def acquire_collection(
     settings: Settings = Depends(get_settings_dep),
     user: AppUser = Depends(get_current_user),
 ) -> schemas_catalog.AcquireOut:
-    collection = collections_repo.get_collection(db, collection_id)
-    if collection is None:
-        raise NotFoundError(
-            "Collezione non trovata.", details={"collection_id": str(collection_id)}
-        )
-    source = sources_repo.get_source(db, collection.source_id)
-    if source is None:
-        raise SourceUnavailableError(
-            "Fonte della collezione non trovata.",
-            details={"collection_id": str(collection_id)},
-        )
-    if source.key != COMBINED_SOURCE_KEY:
-        if not registry.is_registered(source.key):
-            raise SourceUnavailableError(
-                f"Connettore non disponibile per la fonte '{source.key}'.",
-                details={"source_key": source.key},
-            )
-        registry.ensure_source_credentials(db, settings, source.key)
-    job = tasks.enqueue_acquire_collection(db, settings, collection.id, actor_user_id=user.id)
-    audit.record(
+    accepted = collection_admin.enqueue_collection_acquisition(
         db,
-        action="collection_acquisition_enqueued",
-        entity_type="collection",
-        entity_id=collection.id,
+        settings,
+        collection_id,
         actor_user_id=user.id,
-        actor_type=AuditActorType.USER,
-        after={"job_id": str(job.id), "source_key": source.key},
         ip=get_client_ip(request),
         user_agent=request.headers.get("user-agent"),
         request_id=get_request_id(request),
     )
-    db.commit()
-    snapshot_id = job.result.get("snapshot_id") if job.result else None
     return schemas_catalog.AcquireOut(
-        job_id=job.id,
-        collection_id=collection.id,
-        status=job.status,
-        snapshot_id=snapshot_id,
+        job_id=accepted.job_id,
+        collection_id=accepted.collection_id,
+        status=accepted.status,
+        snapshot_id=accepted.snapshot_id,
     )

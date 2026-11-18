@@ -141,7 +141,7 @@ const dateBasisStyles: Record<DateBasis, string> = {
 /**
  * `AGGREGATOR_FIRST_SEEN` è una data osservata dall'aggregatore, non dal
  * provider: il nome della fonte va mostrato, altrimenti l'etichetta attribuisce
- * la data a un aggregatore che non è quello in uso (docs/phase1/07-frontend-api.md §2.2).
+ * la data a un aggregatore che non è quello in uso (docs/phases/phase-01.md §2.2).
  */
 export function DateBasisBadge({
   dateBasis,

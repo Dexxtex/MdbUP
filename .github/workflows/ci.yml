@@ -1,6 +1,6 @@
 name: CI
 
-# Gate di qualità di MdbUP (docs/phase1/08-ops-tests-risks.md §10).
+# Gate di qualità di MdbUP (docs/phases/phase-01.md §10).
 # Job bloccanti: lint, typecheck, test, migrations, build, security.
 
 on:

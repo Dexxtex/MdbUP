@@ -15,9 +15,6 @@ export interface ThemeRoot {
   style: { colorScheme: string };
 }
 
-export function isTheme(value: unknown): value is Theme {
-  return value === "dark" || value === "light";
-}
 
 /** Il tema scuro è il default: un valore assente o corrotto non lo cambia. */
 export function resolveTheme(stored: string | null | undefined): Theme {

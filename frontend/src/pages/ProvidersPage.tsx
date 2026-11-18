@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useBindings, useCollections, useProviders, useSources } from "../api/queries";
+import { useBindings, useCollections, useProviders, useSources } from "../hooks/queries";
 import type { Collection, Provider } from "../api/types";
 import { DataTable, type Column } from "../components/ui/data-table";
 import {

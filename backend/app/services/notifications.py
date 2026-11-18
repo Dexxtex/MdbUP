@@ -22,7 +22,6 @@ import redis
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from app.api.errors import ConflictError, NotFoundError, ValidationError
 from app.core.config import Settings
 from app.core.crypto import (
     ALGORITHM,
@@ -42,6 +41,7 @@ from app.domain.enums import (
     NotificationEventType,
     SyncRunStatus,
 )
+from app.domain.errors import ConflictError, NotFoundError, ValidationError
 from app.repositories import audit
 from app.repositories import bindings as bindings_repo
 from app.repositories import collections as collections_repo

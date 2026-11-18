@@ -7,8 +7,8 @@ import {
   type SVGProps,
 } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useLogout } from "../api/mutations";
-import { useRuns, useSession } from "../api/queries";
+import { useLogout } from "../hooks/mutations";
+import { useRuns, useSession } from "../hooks/queries";
 import { Button } from "../components/ui/primitives";
 import { HealthCluster } from "../components/ui/health-cluster";
 import { ThemeToggle } from "../components/ui/theme-toggle";

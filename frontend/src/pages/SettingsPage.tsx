@@ -8,8 +8,8 @@ import {
   useSaveCredential,
   useUpdateSettings,
   useVerifyCredential,
-} from "../api/mutations";
-import { useCredentials, useSettings, useSources } from "../api/queries";
+} from "../hooks/mutations";
+import { useCredentials, useSettings, useSources } from "../hooks/queries";
 import type {
   AppSettings,
   Credential,

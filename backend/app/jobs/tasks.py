@@ -14,13 +14,6 @@ from typing import Any, cast
 
 from sqlalchemy.orm import Session
 
-from app.api.errors import (
-    AppError,
-    CredentialMissingError,
-    NotFoundError,
-    ServiceUnavailableError,
-    SourceUnavailableError,
-)
 from app.connectors import registry
 from app.connectors.base import SourceConnector
 from app.core.config import Settings, get_settings
@@ -29,6 +22,13 @@ from app.core.time import utcnow
 from app.db.models import JobExecution
 from app.db.session import session_scope
 from app.domain.enums import COMBINED_SOURCE_KEY, AuditActorType, JobStatus, SyncRunStatus
+from app.domain.errors import (
+    AppError,
+    CredentialMissingError,
+    NotFoundError,
+    ServiceUnavailableError,
+    SourceUnavailableError,
+)
 from app.repositories import collections as collections_repo
 from app.repositories import runs as runs_repo
 from app.repositories import sources as sources_repo

@@ -11,7 +11,6 @@ from croniter import croniter
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.errors import AppError
 from app.core.config import Settings
 from app.core.metrics import api_usage_snapshot
 from app.core.time import ensure_utc, utcnow
@@ -24,6 +23,7 @@ from app.db.models import (
     SyncRun,
 )
 from app.domain.enums import JobStatus, SourceStatus, SyncRunStatus
+from app.domain.errors import AppError
 from app.repositories import collections as collections_repo
 from app.repositories import media as media_repo
 from app.repositories import providers as providers_repo

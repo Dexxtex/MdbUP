@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from typing import Any, Literal
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict
+
+from app.domain.commands import CollectionCreateIn, CollectionUpdateIn
+
+__all__ = ["CollectionCreateIn", "CollectionUpdateIn"]
 
 
 class SnapshotOut(BaseModel):
@@ -74,119 +78,6 @@ class GenreOut(BaseModel):
 class GenreListOut(BaseModel):
     media_type: str
     items: list[GenreOut]
-
-
-class CollectionCreateIn(BaseModel):
-    # CUSTOM_FILTER derives the primary provider from the first source collection.
-    provider_id: uuid.UUID | None = None
-    media_type: Literal["MOVIE", "SHOW"]
-    name: str = Field(min_length=3, max_length=300)
-    slug: str = Field(min_length=3, max_length=200, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-    source_key: Literal["tmdb", "justwatch", "combined"] = "tmdb"
-    kind: Literal["CATALOG", "RECENTLY_ADDED", "CUSTOM_FILTER", "CHART", "UPCOMING"] = "CATALOG"
-    # Only meaningful for source_key=combined.
-    combine_mode: Literal["UNION", "INTERSECTION"] = "UNION"
-    offer_types: list[Literal["FLATRATE", "RENT", "BUY", "ADS", "FREE"]] | None = None
-    genre_ids: list[int] = Field(default_factory=list, max_length=20)
-    exclude_genre_ids: list[int] = Field(default_factory=list, max_length=20)
-    monetization_type: Literal["FLATRATE", "RENT", "BUY", "ADS", "FREE"] = "FLATRATE"
-    window_days: int | None = Field(default=None, ge=1, le=90)
-    source_collection_id: uuid.UUID | None = None
-    source_collection_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
-    shared_snapshot_collection_id: uuid.UUID | None = None
-    min_vote_average: float | None = Field(default=None, ge=0, le=10)
-    min_vote_count: int | None = Field(default=None, ge=0)
-    year_from: int | None = Field(default=None, ge=1900, le=2100)
-    year_to: int | None = Field(default=None, ge=1900, le=2100)
-    original_language: str | None = Field(default=None, min_length=2, max_length=8)
-    local_sort_by: Literal[
-        "vote_average.desc", "vote_count.desc", "release_date.desc", "title.asc", "popularity.desc"
-    ] = "vote_average.desc"
-    description: str | None = Field(default=None, max_length=1000)
-    is_active: bool = True
-
-    @field_validator("genre_ids", "exclude_genre_ids")
-    @classmethod
-    def _unique_genres(cls, value: list[int]) -> list[int]:
-        return list(dict.fromkeys(value))
-
-    @field_validator("source_collection_ids")
-    @classmethod
-    def _unique_sources(cls, value: list[uuid.UUID]) -> list[uuid.UUID]:
-        return list(dict.fromkeys(value))
-
-    @field_validator("original_language")
-    @classmethod
-    def _language_code(cls, value: str | None) -> str | None:
-        return value.strip().lower() if value else None
-
-    @model_validator(mode="after")
-    def _year_range(self) -> CollectionCreateIn:
-        if (
-            self.year_from is not None
-            and self.year_to is not None
-            and self.year_from > self.year_to
-        ):
-            raise ValueError("year_from non può superare year_to.")
-        return self
-
-
-class CollectionUpdateIn(BaseModel):
-    name: str | None = Field(default=None, min_length=3, max_length=300)
-    # The source of an existing collection is immutable; it is validated, not changed.
-    source_key: Literal["tmdb", "justwatch", "combined"] | None = None
-    kind: Literal["CATALOG", "RECENTLY_ADDED", "CUSTOM_FILTER", "CHART", "UPCOMING"] | None = None
-    combine_mode: Literal["UNION", "INTERSECTION"] | None = None
-    offer_types: list[Literal["FLATRATE", "RENT", "BUY", "ADS", "FREE"]] | None = None
-    genre_ids: list[int] | None = Field(default=None, max_length=20)
-    exclude_genre_ids: list[int] | None = Field(default=None, max_length=20)
-    monetization_type: Literal["FLATRATE", "RENT", "BUY", "ADS", "FREE"] | None = None
-    window_days: int | None = Field(default=None, ge=1, le=90)
-    source_collection_id: uuid.UUID | None = None
-    source_collection_ids: list[uuid.UUID] | None = Field(default=None, max_length=20)
-    shared_snapshot_collection_id: uuid.UUID | None = None
-    min_vote_average: float | None = Field(default=None, ge=0, le=10)
-    min_vote_count: int | None = Field(default=None, ge=0)
-    year_from: int | None = Field(default=None, ge=1900, le=2100)
-    year_to: int | None = Field(default=None, ge=1900, le=2100)
-    original_language: str | None = Field(default=None, min_length=2, max_length=8)
-    local_sort_by: (
-        Literal[
-            "vote_average.desc",
-            "vote_count.desc",
-            "release_date.desc",
-            "title.asc",
-            "popularity.desc",
-        ]
-        | None
-    ) = None
-    description: str | None = Field(default=None, max_length=1000)
-    is_active: bool | None = None
-
-    @field_validator("genre_ids", "exclude_genre_ids")
-    @classmethod
-    def _unique_genres(cls, value: list[int] | None) -> list[int] | None:
-        return list(dict.fromkeys(value)) if value is not None else None
-
-    @field_validator("source_collection_ids")
-    @classmethod
-    def _unique_sources(cls, value: list[uuid.UUID] | None) -> list[uuid.UUID] | None:
-        return list(dict.fromkeys(value)) if value is not None else None
-
-    @field_validator("original_language")
-    @classmethod
-    def _language_code(cls, value: str | None) -> str | None:
-        return value.strip().lower() if value else None
-
-    @model_validator(mode="after")
-    def _year_range(self) -> CollectionUpdateIn:
-        if (
-            self.year_from is not None
-            and self.year_to is not None
-            and self.year_from > self.year_to
-        ):
-            raise ValueError("year_from non può superare year_to.")
-        return self
 
 
 class SnapshotListOut(BaseModel):

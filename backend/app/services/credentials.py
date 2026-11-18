@@ -15,13 +15,6 @@ from enum import StrEnum
 import httpx
 from sqlalchemy.orm import Session
 
-from app.api.errors import (
-    CredentialMissingError,
-    EncryptionKeyMissingError,
-    NotFoundError,
-    SourceUnavailableError,
-    ValidationError,
-)
 from app.core.config import Settings
 from app.core.crypto import (
     ALGORITHM,
@@ -36,6 +29,13 @@ from app.core.crypto import (
 from app.core.logging import get_logger
 from app.db.models import Credential
 from app.domain.enums import AuditActorType, CredentialScope
+from app.domain.errors import (
+    CredentialMissingError,
+    EncryptionKeyMissingError,
+    NotFoundError,
+    SourceUnavailableError,
+    ValidationError,
+)
 from app.integrations.tmdb.client import tmdb_auth_mode
 from app.repositories import audit
 from app.repositories import credentials as credentials_repo

@@ -9,11 +9,11 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.api.errors import ConflictError, NotFoundError, ValidationError
-from app.api.schemas_sync import TargetCreateIn
 from app.core.config import Settings
 from app.db.models import MdblistTarget
+from app.domain.commands import TargetCreateIn
 from app.domain.enums import AuditActorType, MediaType
+from app.domain.errors import ConflictError, NotFoundError, ValidationError
 from app.integrations.mdblist.client import MdbListError
 from app.integrations.mdblist.models import MdbListList
 from app.repositories import audit

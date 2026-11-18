@@ -72,13 +72,13 @@ export function justWatchCacheTtlLabel(seconds?: number | null): string {
   return `${Number((seconds / 3600).toFixed(1))} h`;
 }
 
-export const AVAILABILITY_STATUS_LABELS: Record<string, string> = {
+const AVAILABILITY_STATUS_LABELS: Record<string, string> = {
   CURRENT: "Disponibile",
   UPCOMING: "In arrivo",
   LEAVING: "In uscita",
 };
 
-export const AVAILABILITY_STATUS_TONES: Record<string, Tone> = {
+const AVAILABILITY_STATUS_TONES: Record<string, Tone> = {
   CURRENT: "success",
   UPCOMING: "info",
   LEAVING: "warning",

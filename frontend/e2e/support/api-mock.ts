@@ -12,7 +12,7 @@ export interface RecordedCall {
   body: unknown;
 }
 
-export interface MockResponse {
+interface MockResponse {
   status?: number;
   body?: unknown;
 }
@@ -25,7 +25,7 @@ interface MockRoute {
   handler: MockHandler;
 }
 
-/** Envelope errore unico (`docs/phase1/07-frontend-api.md` §6). */
+/** Envelope errore unico (`docs/phases/phase-01.md` §6). */
 export function errorEnvelope(
   code: string,
   category: ErrorCategory,

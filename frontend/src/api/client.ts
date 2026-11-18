@@ -3,7 +3,7 @@ import type { ErrorCategory, ErrorEnvelope } from "./types";
 const DEFAULT_BASE_URL = "/api";
 const CSRF_HEADER = "X-CSRF-Token";
 
-export const API_BASE_URL = (
+const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ?? DEFAULT_BASE_URL
 ).replace(/\/+$/, "");
 
@@ -17,7 +17,7 @@ const CSRF_COOKIE_NAMES: readonly string[] = [
   "mdbsync-csrf",
 ].filter((name): name is string => typeof name === "string" && name.length > 0);
 
-export function readCookie(name: string): string | null {
+function readCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
   const prefix = `${name}=`;
   for (const part of document.cookie.split(";")) {
@@ -78,7 +78,7 @@ export function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError;
 }
 
-export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface ApiRequestInit {
   method?: HttpMethod;

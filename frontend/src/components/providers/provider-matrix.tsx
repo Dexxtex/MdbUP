@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAcquireCollection } from "../../api/mutations";
+import { useAcquireCollection } from "../../hooks/mutations";
 import type { Binding, Collection, MediaType, Provider } from "../../api/types";
 import {
   buildProviderMatrix,

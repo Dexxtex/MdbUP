@@ -56,7 +56,6 @@ from app.integrations.justwatch.queries import (
     QUERY_NEW_TITLES,
     QUERY_PACKAGES,
     QUERY_POPULAR_TITLES,
-    QUERY_SEARCH_TITLES,
     QUERY_SEASONS,
     QUERY_STREAMING_CHARTS,
 )
@@ -516,31 +515,6 @@ class JustWatchClient:
             release_year=release_year,
             presentation_types=presentation_types,
             operation="popularTitles",
-        )
-
-    def search_titles(
-        self,
-        country: str,
-        language: str,
-        query: str,
-        *,
-        offset: int = 0,
-        limit: int = MAX_PAGE_SIZE,
-        source: str = "",
-        object_type: MediaType | None = None,
-    ) -> JustWatchPage:
-        flt = _build_filter(packages=None, object_type=object_type, monetization_types=None) or {}
-        flt["searchQuery"] = query
-        return self._paged(
-            QUERY_SEARCH_TITLES,
-            "searchTitles",
-            country,
-            language,
-            offset=offset,
-            limit=limit,
-            extra_variables={"source": source},
-            explicit_filter=flt,
-            operation="searchTitles",
         )
 
     def new_titles(

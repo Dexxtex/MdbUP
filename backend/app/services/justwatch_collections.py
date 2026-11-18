@@ -33,13 +33,13 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
-from app.api.errors import ValidationError
 from app.connectors.base import SourceCollection
 from app.connectors.justwatch.connector import JustWatchConnector
 from app.connectors.registry import create_connector
 from app.core.config import Settings
 from app.db.models import Provider
 from app.domain.enums import CollectionKind, CollectionOrigin, DateBasis, OfferType
+from app.domain.errors import ValidationError
 from app.integrations.justwatch.models import JustWatchPackage
 from app.repositories import collections as collections_repo
 from app.repositories import providers as providers_repo

@@ -2,7 +2,7 @@ import type { Binding, Collection, MediaType, Provider } from "../api/types";
 import { isJustWatchSource } from "./justwatch";
 
 /** Gli 8 servizi italiani della matrice comparativa Fase 9. */
-export const PROVIDER_MATRIX_SERVICES: readonly string[] = [
+const PROVIDER_MATRIX_SERVICES: readonly string[] = [
   "Netflix",
   "Prime Video",
   "Disney+",
@@ -45,7 +45,7 @@ export function isSnapshotStale(
   return now - new Date(lastSnapshotAt).getTime() > staleAfterMs;
 }
 
-export interface MediaSnapshotState {
+interface MediaSnapshotState {
   mapped: boolean;
   collections: number;
   lastSnapshotAt: string | null;

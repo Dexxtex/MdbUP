@@ -36,11 +36,17 @@ backups
 htmlcov
 **/*.egg-info
 
-# Test: non servono nel runtime (la CI li esegue sull'host)
+# Test e contratti: non servono nel runtime (la CI li esegue sull'host)
 backend/tests
+frontend/e2e
+frontend/playwright.config.ts
+frontend/openapi.json
+frontend/test-results
+frontend/playwright-report
 
 # Node
 **/node_modules
 **/dist
 **/.vite
 **/*.tsbuildinfo
+frontend/.playwright

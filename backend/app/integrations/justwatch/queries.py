@@ -69,32 +69,6 @@ query PopularTitles(
     + FRAGMENT_TITLE
 )
 
-QUERY_SEARCH_TITLES = (
-    """
-query SearchTitles(
-    $country: Country!
-    $language: Language!
-    $first: Int!
-    $offset: Int
-    $source: String!
-    $filter: TitleFilter
-) {
-  searchTitles(
-    country: $country
-    first: $first
-    offset: $offset
-    source: $source
-    filter: $filter
-  ) {
-    totalCount
-    pageInfo { hasNextPage endCursor }
-    edges { node { ...TitleDetails } }
-  }
-}
-"""
-    + FRAGMENT_TITLE
-)
-
 QUERY_NEW_TITLES = (
     """
 query NewTitles(

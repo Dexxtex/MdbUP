@@ -17,8 +17,6 @@ from app.api.deps import (
 )
 from app.core.config import Settings
 from app.db.models import AppUser
-from app.domain.enums import AuditActorType
-from app.repositories import audit
 from app.services import config_portability
 
 router = APIRouter(prefix="/config", tags=["config"])
@@ -26,22 +24,19 @@ router = APIRouter(prefix="/config", tags=["config"])
 
 @router.get("/export", summary="Esporta la configurazione senza segreti")
 def export_config(
+    request: Request,
     db: Session = Depends(get_db_dep),
     settings: Settings = Depends(get_settings_dep),
     admin: AppUser = Depends(require_admin),
 ) -> dict[str, Any]:
-    payload = config_portability.export_config(db, settings)
-    audit.record(
+    return config_portability.export_config(
         db,
-        action="config_exported",
-        entity_type="app_config",
-        entity_id="json",
+        settings,
         actor_user_id=admin.id,
-        actor_type=AuditActorType.USER,
-        after={"version": payload["version"]},
+        ip=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        request_id=get_request_id(request),
     )
-    db.commit()
-    return payload
 
 
 @router.post(
@@ -56,15 +51,12 @@ def import_config(
     settings: Settings = Depends(get_settings_dep),
     admin: AppUser = Depends(require_admin),
 ) -> dict[str, int]:
-    result = config_portability.import_config(db, settings, payload, actor_user_id=admin.id)
-    audit.record(
+    return config_portability.import_config(
         db,
-        action="config_imported",
-        entity_type="app_config",
-        entity_id="json",
+        settings,
+        payload,
         actor_user_id=admin.id,
-        actor_type=AuditActorType.USER,
-        after={**result, "ip": get_client_ip(request), "request_id": get_request_id(request)},
+        ip=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        request_id=get_request_id(request),
     )
-    db.commit()
-    return result

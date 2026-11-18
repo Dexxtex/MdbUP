@@ -11,7 +11,6 @@ from collections.abc import Callable
 
 from sqlalchemy.orm import Session
 
-from app.api.errors import SourceUnavailableError
 from app.connectors.base import SourceConnector
 from app.connectors.justwatch.connector import (
     JUSTWATCH_SOURCE_KEY,
@@ -19,6 +18,7 @@ from app.connectors.justwatch.connector import (
 )
 from app.connectors.tmdb.connector import TMDB_SOURCE_KEY, TMDbConnector
 from app.core.config import Settings
+from app.domain.errors import SourceUnavailableError
 from app.integrations.justwatch.client import JustWatchClient
 from app.integrations.tmdb.client import DEFAULT_BASE_URL, TMDbClient
 from app.services import credentials as credentials_service

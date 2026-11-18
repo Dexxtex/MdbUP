@@ -80,7 +80,7 @@ PROVIDER_SEED: tuple[ProviderSeed, ...] = (
     ProviderSeed(slug="mediaset-infinity", name="Mediaset Infinity"),
 )
 
-# Italian TMDb watch-provider ids from docs/phase2/AGENT_BRIEFS.md (Lane B).
+# Italian TMDb watch-provider ids from docs/phases/phase-02.md (Lane B).
 TMDB_PROVIDER_SEED: tuple[TmdbProviderSeed, ...] = (
     TmdbProviderSeed(slug="netflix", external_id="8", tv_external_id="8"),
     TmdbProviderSeed(slug="prime-video", external_id="119", tv_external_id="119"),
@@ -302,7 +302,7 @@ def _upsert_tmdb_mappings(
     for seed in TMDB_PROVIDER_SEED:
         provider = providers[seed.slug]
         metadata = {
-            "seed": "docs/phase2/AGENT_BRIEFS.md",
+            "seed": "docs/phases/phase-02.md",
             "note": "ID TMDb IT: eseguire verify-providers per la conferma live.",
             "movie_provider_id": seed.external_id,
             "tv_provider_id": seed.tv_external_id,

@@ -26,7 +26,6 @@ from sqlalchemy import select, text
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import Session
 
-from app.api.errors import NotFoundError
 from app.core.config import Settings
 from app.core.logging import get_logger
 from app.core.time import ensure_utc, utcnow
@@ -48,6 +47,7 @@ from app.domain.enums import (
     SyncOperationStatus,
     SyncRunStatus,
 )
+from app.domain.errors import NotFoundError
 from app.integrations.mdblist.client import (
     MdbListAuthError,
     MdbListClient,

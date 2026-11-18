@@ -1,7 +1,7 @@
 """Backup verification: checksum, age header and (optionally) the dump magic.
 
 ``BACKUP_STATUS_FILE`` is the single source of truth for ``/api/metrics`` and
-``/api/system/status``: ``scripts/backup.sh`` writes it after a successful
+``/api/system/status``: ``deploy/scripts/backup.sh`` writes it after a successful
 backup, ``backup-verify`` refreshes it after a deeper check. Only the standard
 library and an optional ``age`` binary are used; the identity file is never
 logged and the decrypted dump lives in a temporary file that is always removed.

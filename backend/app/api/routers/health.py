@@ -4,10 +4,7 @@ from __future__ import annotations
 
 from typing import Literal, cast
 
-import redis
 from fastapi import APIRouter, Depends, Request, Response
-from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api import schemas
@@ -20,36 +17,11 @@ from app.api.errors import (
 )
 from app.core.config import APP_VERSION, Settings
 from app.core.crypto import encryption_key_available
-from app.core.logging import get_logger
 from app.core.security import constant_time_equals
 from app.db.models import AppUser
 from app.services import system_status
 
-logger = get_logger(__name__)
-
 router = APIRouter(tags=["system"])
-
-
-def _database_ready(db: Session) -> bool:
-    try:
-        db.execute(text("SELECT 1"))
-    except SQLAlchemyError as exc:
-        logger.error("readiness_db_unavailable", error=type(exc).__name__)
-        return False
-    return True
-
-
-def _redis_ready(settings: Settings) -> bool:
-    if not settings.redis_url:
-        return False
-    try:
-        client = redis.Redis.from_url(
-            settings.redis_url, socket_timeout=0.5, socket_connect_timeout=0.5
-        )
-        return bool(client.ping())
-    except redis.RedisError as exc:
-        logger.warning("readiness_redis_unavailable", error=type(exc).__name__)
-        return False
 
 
 @router.get("/health", response_model=schemas.HealthOut, summary="Liveness")
@@ -69,8 +41,8 @@ def ready(
     settings: Settings = Depends(get_settings_dep),
 ) -> schemas.ReadinessOut:
     checks = {
-        "db": _database_ready(db),
-        "redis": _redis_ready(settings),
+        "db": system_status.database_ready(db),
+        "redis": system_status.redis_ready(settings),
         "encryption_key": encryption_key_available(settings),
     }
     status = "ok" if all(checks.values()) else "degraded"

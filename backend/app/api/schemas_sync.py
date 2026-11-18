@@ -2,17 +2,32 @@
 
 from __future__ import annotations
 
-import re
 import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.schemas_catalog import CollectionOut
-from app.domain.enums import MediaType, SchedulePolicy, SyncMode
+from app.domain.commands import (
+    ApproveRunIn,
+    BindingCreateIn,
+    BindingUpdateIn,
+    PreviewRequest,
+    StartRunIn,
+    TargetCreateIn,
+    ThresholdsIn,
+)
 
-_SCHEDULE_TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+__all__ = [
+    "ApproveRunIn",
+    "BindingCreateIn",
+    "BindingUpdateIn",
+    "PreviewRequest",
+    "StartRunIn",
+    "TargetCreateIn",
+    "ThresholdsIn",
+]
 
 
 class TargetOut(BaseModel):
@@ -37,98 +52,6 @@ class TargetListOut(BaseModel):
     page: int = 1
     page_size: int = 25
     has_more: bool = False
-
-
-class TargetCreateIn(BaseModel):
-    """``mode=new`` creates a list; ``mode=existing`` links a numeric list id."""
-
-    mode: Literal["new", "existing"] = "new"
-    name: str | None = Field(default=None, min_length=3, max_length=80)
-    private: bool = False
-    media_type: MediaType
-    remote_list_id: int | None = Field(default=None, gt=0)
-
-    @model_validator(mode="after")
-    def _validate_mode(self) -> TargetCreateIn:
-        if self.mode == "new" and not self.name:
-            raise ValueError("Il nome della lista è obbligatorio per mode=new.")
-        if self.mode == "existing" and self.remote_list_id is None:
-            raise ValueError("remote_list_id è obbligatorio per mode=existing.")
-        return self
-
-
-class ThresholdsIn(BaseModel):
-    max_removal_pct: float = Field(default=10.0, ge=0, le=100)
-    max_removal_abs: int = Field(default=50, ge=0, le=100_000)
-    max_addition_pct: float = Field(default=50.0, ge=0, le=100)
-
-
-class BindingCreateIn(BaseModel):
-    collection_id: uuid.UUID
-    target_id: uuid.UUID
-    # JustWatch is an aggregator without provider-declared dates: the operator
-    # must accept that explicitly. Such bindings are always created disabled.
-    justwatch_policy_accepted: bool = False
-    mode: SyncMode = SyncMode.MIRROR
-    schedule: Literal["MANUAL", "DAILY", "WEEKLY"] = "MANUAL"
-    schedule_time: str | None = None
-    thresholds: ThresholdsIn = Field(default_factory=ThresholdsIn)
-    preserve_order: bool = False
-    reorder_enabled: bool = True
-    schedule_policy: SchedulePolicy = SchedulePolicy.AUTO_APPLY_IF_SAFE
-    require_review: bool = True
-    enabled: bool = False
-    policy_version: str | None = Field(default=None, max_length=32)
-    max_plan_age_minutes: int = Field(default=60, ge=1, le=1440)
-    auto_apply_max_removals: int = Field(default=5, ge=0, le=1000)
-    auto_apply_max_removal_ratio: float = Field(default=2.0, ge=0, le=100)
-
-    @model_validator(mode="after")
-    def _validate_schedule(self) -> BindingCreateIn:
-        if self.schedule != "MANUAL" and (
-            not self.schedule_time or not _SCHEDULE_TIME.match(self.schedule_time)
-        ):
-            raise ValueError("schedule_time deve essere nel formato HH:MM.")
-        if self.mode is SyncMode.MIRROR and (
-            self.thresholds.max_removal_pct == 0 and self.thresholds.max_removal_abs == 0
-        ):
-            raise ValueError("MIRROR richiede almeno una soglia di rimozione positiva.")
-        return self
-
-
-class BindingUpdateIn(BaseModel):
-    """Partial update; omitted fields keep their current value."""
-
-    mode: SyncMode | None = None
-    schedule: Literal["MANUAL", "DAILY", "WEEKLY", "INTERVAL", "CRON"] | None = None
-    schedule_time: str | None = None
-    schedule_interval_hours: int | None = Field(default=None, ge=1, le=24 * 30)
-    schedule_cron: str | None = Field(default=None, max_length=64)
-    thresholds: ThresholdsIn | None = None
-    max_remove_count: int | None = Field(default=None, ge=0, le=100_000)
-    max_remove_percent: float | None = Field(default=None, ge=0, le=100)
-    enabled: bool | None = None
-    policy_version: str | None = Field(default=None, max_length=32)
-    max_plan_age_minutes: int | None = Field(default=None, ge=1, le=1440)
-    auto_apply_max_removals: int | None = Field(default=None, ge=0, le=1000)
-    auto_apply_max_removal_ratio: float | None = Field(default=None, ge=0, le=100)
-    preserve_order: bool | None = None
-    reorder_enabled: bool | None = None
-    schedule_policy: SchedulePolicy | None = None
-    require_review: bool | None = None
-    target_private: bool | None = None
-
-    @model_validator(mode="after")
-    def _validate_schedule_shape(self) -> BindingUpdateIn:
-        if self.schedule in ("DAILY", "WEEKLY") and (
-            not self.schedule_time or not _SCHEDULE_TIME.match(self.schedule_time)
-        ):
-            raise ValueError("schedule_time deve essere nel formato HH:MM.")
-        if self.schedule == "INTERVAL" and self.schedule_interval_hours is None:
-            raise ValueError("schedule_interval_hours è obbligatorio per schedule=INTERVAL.")
-        if self.schedule == "CRON" and not self.schedule_cron:
-            raise ValueError("schedule_cron è obbligatorio per schedule=CRON.")
-        return self
 
 
 class BindingOut(BaseModel):
@@ -166,15 +89,6 @@ class BindingListOut(BaseModel):
     page: int = 1
     page_size: int = 25
     has_more: bool = False
-
-
-class PreviewRequest(BaseModel):
-    collection_id: uuid.UUID
-    target_id: uuid.UUID | None = None
-    mode: SyncMode | None = None
-    thresholds: ThresholdsIn | None = None
-    snapshot_id: uuid.UUID | None = None
-    policy_version: str | None = Field(default=None, max_length=32)
 
 
 class PreviewCountsOut(BaseModel):
@@ -305,17 +219,6 @@ class OperationListOut(BaseModel):
     page: int = 1
     page_size: int = 100
     has_more: bool = False
-
-
-class StartRunIn(BaseModel):
-    dry_run: bool = False
-    idempotency_key: str | None = Field(default=None, max_length=128)
-    snapshot_id: uuid.UUID | None = None
-
-
-class ApproveRunIn(BaseModel):
-    plan_hash: str = Field(min_length=16, max_length=128)
-    note: str | None = Field(default=None, max_length=500)
 
 
 class JobAcceptedOut(BaseModel):

@@ -134,7 +134,7 @@ class Settings(BaseSettings):
     metrics_token: str = ""
 
     # Read-only backup directory shared with the api/worker containers. The
-    # status file is written by ``scripts/backup.sh`` and ``backup-verify``.
+    # status file is written by ``deploy/scripts/backup.sh`` and ``backup-verify``.
     backup_dir: str = "/backups"
     backup_status_file: str = ""
     backup_age_identity_file: str = ""

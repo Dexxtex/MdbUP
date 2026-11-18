@@ -9,7 +9,6 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.logging import redact_mapping
@@ -47,9 +46,3 @@ def record(
     db.add(entry)
     db.flush()
     return entry
-
-
-def list_recent(db: Session, *, limit: int = 50) -> list[AuditLog]:
-    return list(
-        db.scalars(select(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit)).all()
-    )

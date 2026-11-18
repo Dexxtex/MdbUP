@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { useSession } from "../api/queries";
+import { useSession } from "../hooks/queries";
 import { ErrorState, TableSkeleton } from "../components/ui/feedback";
 import { isUnauthorized } from "../lib/errors";
 

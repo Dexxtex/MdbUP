@@ -1,4 +1,4 @@
-import { useDashboard, useSession, useSystemStatus } from "../../api/queries";
+import { useDashboard, useSession, useSystemStatus } from "../../hooks/queries";
 import type { HealthState } from "../../api/types";
 import { cn } from "../../lib/cn";
 import { HEALTH_STATE_LABELS, deriveHealth } from "../../lib/health";

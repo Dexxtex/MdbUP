@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useUpdateBinding } from "../api/mutations";
-import { useBinding } from "../api/queries";
+import { useUpdateBinding } from "../hooks/mutations";
+import { useBinding } from "../hooks/queries";
 import type { ScheduleFrequency, SyncMode } from "../api/types";
 import { ErrorState, InlineNotice, TableSkeleton } from "../components/ui/feedback";
 import {

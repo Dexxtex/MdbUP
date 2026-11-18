@@ -9,8 +9,8 @@ from datetime import date, datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.errors import NotFoundError
 from app.db.models import CollectionSnapshot, Media, SnapshotItem
+from app.domain.errors import NotFoundError
 from app.repositories import snapshots as snapshots_repo
 
 
@@ -71,13 +71,6 @@ def snapshot_summary(snapshot: CollectionSnapshot) -> SnapshotSummary:
         invalid_reason=snapshot.invalid_reason,
         last_verified_at=snapshot.last_verified_at,
     )
-
-
-def get_snapshot_summary(db: Session, snapshot_id: uuid.UUID) -> SnapshotSummary:
-    snapshot = snapshots_repo.get_snapshot(db, snapshot_id)
-    if snapshot is None:
-        raise NotFoundError("Snapshot non trovato.", details={"snapshot_id": str(snapshot_id)})
-    return snapshot_summary(snapshot)
 
 
 def _offer_types(payload: dict[str, object]) -> list[str]:

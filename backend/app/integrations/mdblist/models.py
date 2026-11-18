@@ -143,11 +143,3 @@ class MdbListReorderResult:
     updated: int = 0
     not_found: int = 0
     raw: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class MdbListMembership:
-    """List ids that contain a given media item."""
-
-    list_ids: tuple[int, ...] = ()
-    raw: dict[str, Any] = field(default_factory=dict)

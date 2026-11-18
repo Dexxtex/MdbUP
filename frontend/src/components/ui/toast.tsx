@@ -11,7 +11,7 @@ import {
 import { cn } from "../../lib/cn";
 import { IconAlert, IconCheck, IconDot, IconX } from "./icons";
 
-export type ToastTone = "success" | "error" | "info";
+type ToastTone = "success" | "error" | "info";
 
 export interface ToastInput {
   title: string;

@@ -23,7 +23,7 @@ CSRF_TOKEN_BYTES = 32
 
 logger = get_logger(__name__)
 
-# Argon2id parameters from docs/phase1/06-security.md.
+# Argon2id parameters from docs/phases/phase-01.md
 _password_hasher = PasswordHasher(
     time_cost=3,
     memory_cost=65536,

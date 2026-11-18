@@ -7,8 +7,8 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from app.api.errors import NotFoundError
 from app.db.models import Collection, CollectionSnapshot, Provider, Source
+from app.domain.errors import NotFoundError
 from app.repositories import collections as collections_repo
 from app.repositories import providers as providers_repo
 from app.repositories import snapshots as snapshots_repo

@@ -26,6 +26,7 @@ frontend/dist/
 frontend/.vite/
 frontend/test-results/
 frontend/playwright-report/
+frontend/.playwright/
 *.tsbuildinfo
 
 # Runtime / dati locali
@@ -34,6 +35,8 @@ backups/
 *.log
 *.sqlite3
 *.db
+*.tmp
+tmp_*
 
 # Editor / OS
 .vscode/
@@ -41,5 +44,3 @@ backups/
 .DS_Store
 Thumbs.db
 
-# Artefatti di orchestrazione locale
-scripts/workflows/*.local.js

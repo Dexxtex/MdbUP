@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useApproveRun, useCancelRun, useStartRun } from "../../api/mutations";
-import { useRun } from "../../api/queries";
+import { useApproveRun, useCancelRun, useStartRun } from "../../hooks/mutations";
+import { useRun } from "../../hooks/queries";
 import type { RunStatus } from "../../api/types";
 import { formatNumber } from "../../lib/format";
 import { ErrorState, InlineNotice } from "../ui/feedback";

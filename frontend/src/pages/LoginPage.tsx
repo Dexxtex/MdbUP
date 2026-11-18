@@ -1,8 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { useLogin } from "../api/mutations";
-import { useSession } from "../api/queries";
+import { useLogin } from "../hooks/mutations";
+import { useSession } from "../hooks/queries";
 import { ErrorState } from "../components/ui/feedback";
 import { Button, Field, Input } from "../components/ui/primitives";
 import { ThemeToggle } from "../components/ui/theme-toggle";

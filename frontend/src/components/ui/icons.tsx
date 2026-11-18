@@ -284,14 +284,6 @@ export function IconRefresh(props: IconProps) {
   );
 }
 
-export function IconCalendar(props: IconProps) {
-  return (
-    <svg {...baseProps(props)}>
-      <rect x="3.5" y="4.5" width="13" height="12" rx="1.6" />
-      <path d="M3.5 8.5h13M7 3v3M13 3v3" />
-    </svg>
-  );
-}
 
 export function IconSpinner(props: IconProps) {
   return (

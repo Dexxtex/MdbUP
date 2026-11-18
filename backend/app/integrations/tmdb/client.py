@@ -4,7 +4,7 @@ TMDb accepts both a v3 ``api_key`` query parameter and a v4 read access token
 as ``Authorization: Bearer``. The credential shape decides the mode: a JWT
 (three dot-separated segments) uses the header, anything else uses ``api_key``.
 
-Endpoints are limited to the ones verified in ``docs/phase1/01-source-matrix.md``:
+Endpoints are limited to the ones verified in ``docs/phases/phase-01.md``:
 watch providers, discover, external ids and find. The client never logs the
 credential and never follows redirects.
 """

@@ -7,7 +7,7 @@ import {
   useRuns,
   useSources,
   useSystemStatus,
-} from "../api/queries";
+} from "../hooks/queries";
 import type {
   AlertSeverity,
   DashboardAlert,

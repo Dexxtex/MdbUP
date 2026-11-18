@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
-import { useBootstrap } from "../api/mutations";
+import { useBootstrap } from "../hooks/mutations";
 import { ErrorState } from "../components/ui/feedback";
 import { Button, Card, Field, Input } from "../components/ui/primitives";
 import { ThemeToggle } from "../components/ui/theme-toggle";

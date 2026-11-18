@@ -49,7 +49,3 @@ TMDB_GENRES: dict[str, tuple[tuple[int, str], ...]] = {
 
 def genres_for(media_type: str) -> tuple[tuple[int, str], ...]:
     return TMDB_GENRES.get(media_type, ())
-
-
-def genre_name(media_type: str, genre_id: int) -> str | None:
-    return dict(genres_for(media_type)).get(genre_id)

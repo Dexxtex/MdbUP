@@ -6,7 +6,6 @@ import type {
 } from "../api/types";
 import { sourceLabel, type Tone } from "./status";
 
-export const DEFAULT_CATALOG_CHANGE_WINDOW: CatalogChangeWindow = "24h";
 
 export const CATALOG_CHANGE_WINDOWS: readonly {
   value: CatalogChangeWindow;

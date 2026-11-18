@@ -19,7 +19,7 @@ export function bindingTargetName(binding: Binding): string {
   return binding.target_id.slice(0, 8);
 }
 
-export const COLLECTION_KIND_LABELS: Record<CollectionKind, string> = {
+const COLLECTION_KIND_LABELS: Record<CollectionKind, string> = {
   CATALOG: "Catalogo",
   RECENTLY_ADDED: "Novità",
   CUSTOM_FILTER: "Combinata locale",

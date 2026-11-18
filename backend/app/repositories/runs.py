@@ -363,10 +363,6 @@ def create_operation(
     return operation
 
 
-def get_operation(db: Session, operation_id: uuid.UUID) -> SyncOperation | None:
-    return db.get(SyncOperation, operation_id)
-
-
 def list_operations(
     db: Session,
     run_id: uuid.UUID,

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { useCollections, useProviders } from "../api/queries";
+import { useCollections, useProviders } from "../hooks/queries";
 import type { Collection } from "../api/types";
 import {
   CollectionSourceBadge,

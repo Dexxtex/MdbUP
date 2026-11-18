@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useProviders, useRuns } from "../api/queries";
+import { useProviders, useRuns } from "../hooks/queries";
 import type { Run, RunStatus } from "../api/types";
 import { DataTable, type Column } from "../components/ui/data-table";
 import {

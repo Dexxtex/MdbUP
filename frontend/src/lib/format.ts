@@ -2,7 +2,7 @@
  * Tutti gli orari sono mostrati nel fuso dell'app (Europe/Rome). Il valore UTC e
  * l'età relativa restano disponibili nel tooltip (`<Timestamp />`).
  */
-export const APP_TIME_ZONE = "Europe/Rome";
+const APP_TIME_ZONE = "Europe/Rome";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("it-IT", {
   dateStyle: "short",

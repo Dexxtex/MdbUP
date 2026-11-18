@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useStartRun, useUpdateBinding } from "../api/mutations";
-import { useBindings } from "../api/queries";
+import { useStartRun, useUpdateBinding } from "../hooks/mutations";
+import { useBindings } from "../hooks/queries";
 import type { Binding, ScheduleFrequency, SyncMode } from "../api/types";
 import {
   EmptyState,

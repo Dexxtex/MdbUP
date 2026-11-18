@@ -8,8 +8,8 @@ import {
   useDeleteNotificationChannel,
   useTestNotificationChannel,
   useUpdateNotificationChannel,
-} from "../api/mutations";
-import { useNotificationChannels, useSystemStatus } from "../api/queries";
+} from "../hooks/mutations";
+import { useNotificationChannels, useSystemStatus } from "../hooks/queries";
 import type {
   NotificationChannel,
   NotificationKind,

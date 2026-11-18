@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from zoneinfo import ZoneInfo
 
 
 def utcnow() -> datetime:
@@ -20,11 +19,6 @@ def ensure_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
-
-
-def to_timezone(value: datetime, tz_name: str) -> datetime:
-    """Convert a stored datetime to the display timezone."""
-    return ensure_utc(value).astimezone(ZoneInfo(tz_name))
 
 
 def isoformat_utc(value: datetime) -> str:

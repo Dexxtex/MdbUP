@@ -11,14 +11,6 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.api.errors import (
-    AlreadyBootstrappedError,
-    AuthError,
-    BootstrapDisabledError,
-    InvalidBootstrapTokenError,
-    InvalidCredentialsError,
-    ValidationError,
-)
 from app.core.config import Settings
 from app.core.security import (
     CSRF_TOKEN_BYTES,
@@ -34,6 +26,14 @@ from app.core.security import (
 from app.core.time import ensure_utc, utcnow
 from app.db.models import AppUser, UserSession
 from app.domain.enums import AuditActorType
+from app.domain.errors import (
+    AlreadyBootstrappedError,
+    AuthError,
+    BootstrapDisabledError,
+    InvalidBootstrapTokenError,
+    InvalidCredentialsError,
+    ValidationError,
+)
 from app.repositories import audit, users
 
 # Verifying against a fixed hash keeps the "unknown email" and "wrong password"

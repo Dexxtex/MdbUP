@@ -11,13 +11,14 @@ from __future__ import annotations
 import re
 import uuid
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from app.api.errors import ConflictError, NotFoundError, ValidationError
-from app.api.schemas_catalog import CollectionCreateIn, CollectionUpdateIn
+from app.connectors import registry
 from app.core.config import Settings
 from app.db.models import Collection, ProviderMapping
+from app.domain.commands import CollectionCreateIn, CollectionUpdateIn
 from app.domain.enums import (
     COMBINED_DERIVATION,
     COMBINED_SOURCE_KEY,
@@ -28,7 +29,9 @@ from app.domain.enums import (
     MediaType,
     OfferType,
 )
+from app.domain.errors import ConflictError, NotFoundError, SourceUnavailableError, ValidationError
 from app.domain.genres import genres_for
+from app.jobs import tasks
 from app.repositories import audit
 from app.repositories import collections as collections_repo
 from app.repositories import providers as providers_repo
@@ -1226,3 +1229,63 @@ def _update_justwatch_collection(
     )
     db.commit()
     return collections_service.get_collection(db, collection.id)
+
+
+@dataclass(frozen=True)
+class CollectionAcquisition:
+    job_id: uuid.UUID
+    collection_id: uuid.UUID
+    status: str
+    snapshot_id: uuid.UUID | None
+
+
+def enqueue_collection_acquisition(
+    db: Session,
+    settings: Settings,
+    collection_id: uuid.UUID,
+    *,
+    actor_user_id: uuid.UUID | None = None,
+    ip: str | None = None,
+    user_agent: str | None = None,
+    request_id: str | None = None,
+) -> CollectionAcquisition:
+    """Validate the source/connector and enqueue one acquisition job."""
+    collection = collections_repo.get_collection(db, collection_id)
+    if collection is None:
+        raise NotFoundError(
+            "Collezione non trovata.", details={"collection_id": str(collection_id)}
+        )
+    source = sources_repo.get_source(db, collection.source_id)
+    if source is None:
+        raise SourceUnavailableError(
+            "Fonte della collezione non trovata.",
+            details={"collection_id": str(collection_id)},
+        )
+    if source.key != COMBINED_SOURCE_KEY:
+        if not registry.is_registered(source.key):
+            raise SourceUnavailableError(
+                f"Connettore non disponibile per la fonte '{source.key}'.",
+                details={"source_key": source.key},
+            )
+        registry.ensure_source_credentials(db, settings, source.key)
+    job = tasks.enqueue_acquire_collection(db, settings, collection.id, actor_user_id=actor_user_id)
+    audit.record(
+        db,
+        action="collection_acquisition_enqueued",
+        entity_type="collection",
+        entity_id=collection.id,
+        actor_user_id=actor_user_id,
+        actor_type=AuditActorType.USER if actor_user_id else AuditActorType.SYSTEM,
+        after={"job_id": str(job.id), "source_key": source.key},
+        ip=ip,
+        user_agent=user_agent,
+        request_id=request_id,
+    )
+    db.commit()
+    snapshot_id = job.result.get("snapshot_id") if job.result else None
+    return CollectionAcquisition(
+        job_id=job.id,
+        collection_id=collection.id,
+        status=job.status,
+        snapshot_id=snapshot_id,
+    )

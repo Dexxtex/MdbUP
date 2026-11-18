@@ -64,11 +64,6 @@ def mark_verified(db: Session, credential: Credential, *, at: datetime | None = 
     db.flush()
 
 
-def mark_used(db: Session, credential: Credential, *, at: datetime | None = None) -> None:
-    credential.last_used_at = at or utcnow()
-    db.flush()
-
-
 def get_source_id_by_key(db: Session, source_key: str) -> uuid.UUID | None:
     """Resolve a source id by key.
 

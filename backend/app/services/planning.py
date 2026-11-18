@@ -13,7 +13,7 @@ import hashlib
 import json
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from app.db.models import CollectionSnapshot, SyncBinding
@@ -335,26 +335,3 @@ def plan_summary(plan: SyncPlan) -> dict[str, Any]:
         "remote_duplicates_sample": [key.label() for key in plan.remote_duplicates[:SAMPLE_SIZE]],
         "suppressed_sample": [key.label() for key in plan.suppressed[:SAMPLE_SIZE]],
     }
-
-
-@dataclass
-class PlanSamples:
-    """Small, JSON-safe preview view of a plan (used by ``POST /previews``)."""
-
-    to_add: list[str] = field(default_factory=list)
-    to_remove: list[str] = field(default_factory=list)
-    unchanged: list[str] = field(default_factory=list)
-    unresolved: list[dict[str, Any]] = field(default_factory=list)
-    unmapped_remote: list[dict[str, Any]] = field(default_factory=list)
-    remote_duplicates: list[str] = field(default_factory=list)
-
-
-def plan_samples(plan: SyncPlan) -> PlanSamples:
-    return PlanSamples(
-        to_add=[key.label() for key in plan.to_add[:SAMPLE_SIZE]],
-        to_remove=[key.label() for key in plan.to_remove[:SAMPLE_SIZE]],
-        unchanged=[key.label() for key in plan.unchanged[:SAMPLE_SIZE]],
-        unresolved=list(plan.unresolved[:SAMPLE_SIZE]),
-        unmapped_remote=list(plan.unmapped_remote[:SAMPLE_SIZE]),
-        remote_duplicates=[key.label() for key in plan.remote_duplicates[:SAMPLE_SIZE]],
-    )

@@ -1,4 +1,4 @@
-import type { CollectionCreatePayload } from "../api/mutations";
+import type { CollectionCreatePayload } from "../api/types";
 import type {
   BuilderSource,
   CollectionKind,
@@ -8,9 +8,9 @@ import type {
   OfferType,
 } from "../api/types";
 
-export const COMBINED_SOURCE_LABEL = "Combinata locale (JustWatch + TMDb)";
-export const JUSTWATCH_SOURCE_LABEL = "Fonte: JustWatch (Aggregatore)";
-export const JUSTWATCH_CHART_SOURCE_LABEL = "Classifica JustWatch";
+const COMBINED_SOURCE_LABEL = "Combinata locale (JustWatch + TMDb)";
+const JUSTWATCH_SOURCE_LABEL = "Fonte: JustWatch (Aggregatore)";
+const JUSTWATCH_CHART_SOURCE_LABEL = "Classifica JustWatch";
 
 /** `settings.default_source` può mancare o essere invalido: JustWatch vince. */
 export function resolveDefaultSource(value: unknown): DefaultSource {

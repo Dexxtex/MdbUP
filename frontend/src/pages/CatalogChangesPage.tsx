@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useCatalogChanges, useProviders } from "../api/queries";
+import { useCatalogChanges, useProviders } from "../hooks/queries";
 import type {
   CatalogChangeDirection,
   CatalogChangeItem,

@@ -184,7 +184,7 @@ export const SOURCE_COLLECTION_PRIME: Collection = {
 
 /* Fase 8 — fonte JustWatch: aggregatore, nessuna data ufficiale di aggiunta. */
 
-export const SOURCE_TMDB: Source = {
+const SOURCE_TMDB: Source = {
   id: "44444444-4444-4444-8444-444444444441",
   key: "tmdb",
   name: "TMDb",
@@ -210,7 +210,7 @@ export const SOURCE_TMDB: Source = {
   last_success_at: "2026-01-02T08:30:00Z",
 };
 
-export const SOURCE_JUSTWATCH: Source = {
+const SOURCE_JUSTWATCH: Source = {
   id: "44444444-4444-4444-8444-444444444442",
   key: "justwatch",
   name: "JustWatch",
@@ -260,7 +260,7 @@ export const SOURCE_JUSTWATCH: Source = {
   last_success_at: "2026-01-02T08:30:00Z",
 };
 
-export const SOURCES: SourceList = { items: [SOURCE_TMDB, SOURCE_JUSTWATCH] };
+const SOURCES: SourceList = { items: [SOURCE_TMDB, SOURCE_JUSTWATCH] };
 
 export const JUSTWATCH_SNAPSHOT_ID = "88888888-8888-4888-8888-888888888882";
 
@@ -388,7 +388,7 @@ export const JUSTWATCH_EPISODE_EVENTS: EpisodeEventList = {
   total: 2,
 };
 
-export const TARGET: Target = {
+const TARGET: Target = {
   id: "55555555-5555-4555-8555-555555555551",
   remote_list_id: "9012",
   remote_slug: "azione-combinata",
@@ -608,7 +608,7 @@ export const CATALOG_CHANGES: CatalogChangeResponse = {
   },
 };
 
-export const DASHBOARD: DashboardResponse = {
+const DASHBOARD: DashboardResponse = {
   counters: {
     media: 1280,
     collections: 2,
@@ -628,7 +628,7 @@ export const DASHBOARD: DashboardResponse = {
   },
 };
 
-export const SYSTEM_STATUS: SystemStatus = {
+const SYSTEM_STATUS: SystemStatus = {
   health: { api: true, database: true, redis: true, worker: true, tmdb: "OK", mdblist: "OK" },
   queues: {},
   runs: {},

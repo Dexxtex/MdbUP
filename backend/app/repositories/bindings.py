@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 
 from app.core.time import utcnow
 from app.db.models import SyncBinding
-from app.domain.enums import SchedulePolicy
 
 
 def get_binding(db: Session, binding_id: uuid.UUID) -> SyncBinding | None:
@@ -129,11 +128,3 @@ def list_due_bindings(
         .limit(limit)
     )
     return list(db.scalars(stmt).all())
-
-
-def is_always_approve(binding: SyncBinding) -> bool:
-    return binding.schedule_policy == SchedulePolicy.ALWAYS_APPROVE.value
-
-
-def is_dry_run_only(binding: SyncBinding) -> bool:
-    return binding.schedule_policy == SchedulePolicy.DRY_RUN_ONLY.value

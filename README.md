@@ -2,7 +2,7 @@
 
 Applicazione **self-hosted** per acquisire cataloghi e raccolte dei provider streaming in **Italia** e mantenere aggiornate liste statiche **MDBList** tramite API.
 
-> **Stato: Fase 10 completata.** CI **100% verde**: `mypy`, `pip-audit`, `npm audit`, backend, frontend, E2E e build immagine. Il nuovo compose autonomo usa **4 servizi** (`api`, `worker`, `postgres`, `redis`), soli environment variables e seed automatico delle fonti. Gli snapshot invariati non duplicano più le righe `snapshot_item`: conservano `last_verified_at` e puntano allo snapshot proprietario. La diagnostica storage è esposta in `GET /api/system/status` e in Impostazioni → Backup & Manutenzione. Il nuovo stack parte da volumi `mdbup_v2_*`; le **6 liste MDBList esterne non sono state modificate**.
+> **Stato: Fase 11 completata lato repository.** Struttura riordinata in monolite modulare, file residui del vecchio stack rimossi, dipendenze e codice morto ripuliti, documentazione consolidata in `docs/phases/`. Lo stack resta a **4 servizi** (`api`, `worker`, `postgres`, `redis`) con API/SPA su **28080**, volumi `mdbup_v2_*` e seed automatico. Restano invariati i vincoli: nessuna cancellazione/ricreazione delle **6 liste MDBList** e nessuna modifica ai volumi persistenti. La verifica live di scheduler e dry-run delle 6 liste richiede accesso allo stack di produzione ed è rimandata all'operatore.
 
 ---
 
@@ -20,6 +20,8 @@ Applicazione **self-hosted** per acquisire cataloghi e raccolte dei provider str
 - Mostra dashboard, provider, collezioni, binding, run e impostazioni.
 
 ### Risultato live (17 novembre 2026)
+
+> Conteggi storici della verifica precedente al reset del database per il nuovo stack Dockhand. Le liste MDBList esterne restano intatte; i binding vanno ricreati sul nuovo database.
 
 | Collezione | Snapshot TMDb | Lista MDBList | Film |
 |---|---|---|---|
@@ -72,7 +74,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - UI: card connettore in Provider/Impostazioni→Connettori, builder con fonte e tipologia, badge `Fonte: JustWatch (Aggregatore)`/`Classifica JustWatch`, anteprima e eventi stagioni/episodi.
 - Binding JustWatch disabilitato di default, accettazione policy esplicita e dry-run obbligatorio (`DRY_RUN_REQUIRED`).
 - Test: **315 backend**, **93 frontend**, **10 E2E**.
-- Dettagli: [`docs/phase8/STATUS.md`](docs/phase8/STATUS.md) e [`docs/phase8/JUSTWATCH_PUBLIC.md`](docs/phase8/JUSTWATCH_PUBLIC.md).
+- Dettagli: [`docs/phases/phase-08.md`](docs/phases/phase-08.md) e [`docs/phases/phase-08.md`](docs/phases/phase-08.md).
 
 ### Fase 9 — multi-fonte, Cambi Catalogo IT e scheduling
 
@@ -83,7 +85,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - **Matrice provider** JustWatch/TMDb, widget dashboard, ricerca snapshot, eventi stagioni/episodi e avvisi In arrivo.
 - Live: Prime Video **8.240**, NOW **1.145**, Disney+ in arrivo **3**, Apple TV+ **116/105/3**; 6 liste MDBList invariate.
 - Test: **357 backend**, **115 frontend**, **12 E2E**.
-- Dettagli: [`docs/phase9/STATUS.md`](docs/phase9/STATUS.md) e [`docs/phase9/BACKEND.md`](docs/phase9/BACKEND.md).
+- Dettagli: [`docs/phases/phase-09.md`](docs/phases/phase-09.md) e [`docs/phases/phase-09.md`](docs/phases/phase-09.md).
 
 ### Fase 10 — CI verde, snapshot dedup e storage
 
@@ -93,7 +95,17 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - **Storage**: `GET /api/system/status.storage` con byte e righe di snapshot/run; indicatore in Impostazioni.
 - **Compose autonomo**: 4 servizi, environment variables, default di primo avvio e `seed-providers` automatico all'avvio dell'API.
 - Test: **361 backend**, **115 frontend**, **12 E2E**.
-- Dettagli: [`docs/phase10/STATUS.md`](docs/phase10/STATUS.md).
+- Dettagli: [`docs/phases/phase-10.md`](docs/phases/phase-10.md).
+
+### Fase 11 — pulizia, riorganizzazione e architettura definitiva
+
+- Rimossi `frontend/Dockerfile`, `frontend/nginx.conf`, `.dockerignore` del vecchio frontend e i compose duplicati in `deploy/`.
+- Script operativi spostati in `deploy/scripts/`; compose unico alla root; documentazione consolidata in `docs/phases/phase-01.md` … `phase-11.md` e `docs/ARCHITECTURE.md`.
+- Backend: comandi/errori spostati in `app/domain/`, servizi senza dipendenze da `app.api`, API senza SQL diretto; rimossi moduli/helper non usati e dipendenze inutilizzate.
+- Frontend: hook spostati in `src/hooks/`, export morti rimossi, payload API separati dai componenti.
+- `.gitignore` e `.dockerignore` aggiornati per escludere cache, test, build, backup e segreti.
+- Test: **364 backend**, **115 frontend**, **12 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi.
+- Dettagli: [`docs/phases/phase-11.md`](docs/phases/phase-11.md).
 
 ### Fase 6 — hardening e regole avanzate
 
@@ -168,7 +180,7 @@ uv run python -m app.cli justwatch-collections --provider netflix
 Live: collezione `netflix-movie-justwatch` acquisita con **5.525 titoli**, snapshot `COMPLETE`/`CLEAN`/valido, 0 unresolved, 60 pagine; preview source-only `READY` con `to_add=5525`. Nessuna sync MDBList è stata eseguita per questa fonte.
 
 Dettagli, limiti misurati e superficie API verificata:
-[`docs/phase8/JUSTWATCH_PUBLIC.md`](docs/phase8/JUSTWATCH_PUBLIC.md).
+[`docs/phases/phase-08.md`](docs/phases/phase-08.md).
 
 ---
 
@@ -185,31 +197,42 @@ Dettagli, limiti misurati e superficie API verificata:
 ## 4. Struttura
 
 ```text
-backend/
-  app/
-    api/            # router FastAPI, deps, error envelope
-    core/           # config, logging, crypto, security
-    db/             # base, session, models SQLAlchemy
-    domain/         # enum e tipi di dominio
-    repositories/   # accesso al database
-    services/       # auth, acquisition, planning, sync, reconciliation
-    connectors/     # SourceConnector + TMDb + JustWatch (opt-in)
-    integrations/   # client TMDb, MDBList e JustWatch pubblico
-    jobs/           # Celery app, task, scheduler
-  alembic/          # migrazioni 0001_initial … 0003_notifications
-  tests/            # unit, integration, contract
-frontend/
-  src/              # SPA React
-deploy/
-  docker-compose.yml
-  Dockerfile.api
-scripts/
-  backup.sh
-  restore.sh
-docs/
-  phase1/           # verifica fonti e progettazione
-  phase2/           # contratto di implementazione e stato
+.
+├── docker-compose.yml          # stack autonomo a 4 servizi
+├── .env.example                # variabili e default documentati
+├── .dockerignore / .gitignore
+├── README.md
+├── backend/
+│   ├── app/
+│   │   ├── api/                # router HTTP, deps auth/CSRF, schemi request/response
+│   │   ├── domain/             # enum, comandi, errori e regole pure
+│   │   ├── services/           # casi d'uso: acquisizione, diff, sync, notifiche
+│   │   ├── connectors/         # adattatori TMDb, JustWatch, CSV e interfaccia
+│   │   ├── integrations/       # client HTTP MDBList/TMDb/JustWatch
+│   │   ├── repositories/       # query SQLAlchemy
+│   │   ├── db/                 # session, base e modelli ORM
+│   │   ├── jobs/               # Celery app, task, beat e scheduler
+│   │   └── core/               # config, logging, crypto, lock, metriche
+│   ├── alembic/                # migrazioni 0001 … 0006
+│   └── tests/                  # unit, integration, contract
+├── frontend/
+│   ├── src/api/                # client HTTP, tipi, query keys
+│   ├── src/hooks/              # hook TanStack Query
+│   ├── src/components/         # UI base e componenti dominio
+│   ├── src/pages/              # pagine React
+│   ├── src/lib/                # funzioni pure, formato, validazione, tema
+│   └── e2e/                    # Playwright
+├── deploy/
+│   ├── Dockerfile.api          # immagine unica API + worker + SPA
+│   └── scripts/                # backup, verify e restore host
+└── docs/
+    ├── ARCHITECTURE.md         # architettura definitiva, flussi, sicurezza
+    └── phases/                 # report consolidati phase-01 … phase-11
 ```
+
+Non esistono più `frontend/Dockerfile`, `frontend/nginx.conf`, compose
+duplicati in `deploy/` o pacchetti frontend legacy: l'unica superficie di build
+è `deploy/Dockerfile.api` con contesto dalla root.
 
 ---
 
@@ -259,49 +282,59 @@ Aprire `http://localhost:5173`. Il dev server Vite inoltra `/api` a `http://loca
 Per cambiare la password dell'admin (revoca anche le sessioni attive):
 
 ```bash
-docker compose --env-file .env -f deploy/docker-compose.yml exec -T api   python -m app.cli reset-password --email admin@example.com
+docker compose exec -T api python -m app.cli reset-password --email admin@example.com
 ```
 
 ---
 
 ## 6. Avvio con Docker Compose
 
-Dalla radice del repository è disponibile anche `docker-compose.yml` (percorsi
-relativi alla root, `env_file: .env` + override espliciti non segreti nella
-sezione `environment`):
+Il compose della root è **autonomo**: non serve `.env`, non serve `secrets/` e
+non esiste un servizio `init` o `migrate`. I valori sono environment variables
+con default semplici per il primo avvio; in Dockhand basta incollare
+`docker-compose.yml` e avviare lo stack.
 
 ```bash
 docker compose pull
 docker compose up -d
-# l'app espone HTTP su 28080; il TLS è del reverse proxy esterno
+# API + SPA: http://<host>:28080
 ```
 
-```bash
-cp .env.example .env
-mkdir -p secrets
+Variabili principali:
 
-# Generare i segreti (esempi; non committarli)
-python -c "import secrets; print(secrets.token_urlsafe(32))" > secrets/postgres_password
-python -c "import base64,os; print(base64.b64encode(os.urandom(32)).decode())" > secrets/app_encryption_key
-python -c "import secrets; print(secrets.token_urlsafe(32))" > secrets/bootstrap_token
-# chiave pubblica age per i backup
-age-keygen -o /tmp/age-key.txt 2>/dev/null || true
-grep '^# public key:' /tmp/age-key.txt | cut -d: -f2 | tr -d ' ' > secrets/backup_age_recipient
+| Variabile | Default | Note |
+|---|---|---|
+| `MDBUP_IMAGE` | `ghcr.io/dexxtex/mdbup:latest` | immagine unica |
+| `WEB_PORT` | `28080` | porta HTTP pubblicata dall'API |
+| `POSTGRES_PASSWORD` | `mdbup` | **non cambiarla dopo il primo avvio** |
+| `APP_ENCRYPTION_KEY` | Base64 di 32 byte | **non cambiarla dopo il primo avvio** |
+| `BOOTSTRAP_TOKEN` | `bootstrap` | usato una sola volta su `/bootstrap` |
+| `METRICS_TOKEN` | `metrics` | token Prometheus |
+| `APP_BASE_URL` | `http://<host>:28080` | origine esatta per CSRF/cookie |
+| `DEFAULT_SOURCE` | `justwatch` | fonte predefinita del builder |
+| `CATALOG_SCHEDULE_ENABLED` | `true` | scheduling scaglionato |
 
-# I container girano come UID 10001 e leggono i secret come bind-mount:
-# la directory deve essere 0700, i file leggibili (0644).
-chmod 0700 secrets
-chmod 0644 secrets/*
+I default sono volutamente semplici e **da sostituire** prima di esporre il
+servizio. Dopo il primo avvio cambiare `POSTGRES_PASSWORD` o
+`APP_ENCRYPTION_KEY` rende il database/credenziali illeggibili: per farlo
+servirebbe ricreare i volumi `mdbup_v2_*`.
 
-docker compose --env-file .env -f deploy/docker-compose.yml pull
-docker compose --env-file .env -f deploy/docker-compose.yml up -d
+All'avvio l'API esegue:
+
+```text
+alembic upgrade head
+python -m app.cli seed-providers
+uvicorn app.main:app ...
 ```
+
+Il seed è idempotente e garantisce fonti, provider e mapping anche su un
+database vuoto. Il worker esegue Celery Beat embedded (`-B`).
 
 ### Immagine precompilata (GHCR)
 
 Il workflow `Build image` pubblica l'immagine unica su GitHub Container Registry
 a ogni push su `main`, per i tag `v*` e manualmente da **Actions → Build image →
-Run workflow**. La stessa immagine contiene API, worker e SPA.
+Run workflow**.
 
 ```bash
 # default: immagine GHCR
@@ -314,23 +347,26 @@ MDBUP_IMAGE=mdbup-api:local docker compose up -d
 ```
 
 L'immagine è `ghcr.io/dexxtex/mdbup`; i tag includono `latest`, `sha-<commit>`
-e il nome del branch/tag. Il compose usa `MDBUP_IMAGE` da `.env` e non ha
-`build:`: l'immagine si scarica con `docker compose pull`. Se il package GHCR
-non è pubblico, renderlo visibile da **GitHub → Packages → mdbup → Settings**.
+e il nome del branch/tag. Se il package GHCR non è pubblico, renderlo visibile
+da **GitHub → Packages → mdbup → Settings**.
 
-Servizi: `api`, `worker`, `postgres`, `redis`. `api` pubblica `${WEB_PORT:-28080}`; PostgreSQL e Redis sono raggiungibili dall'host solo su `127.0.0.1` (`POSTGRES_PORT`, `REDIS_PORT`) e restano sulla rete `internal`. `worker` esegue anche Celery Beat (`-B`) e raggiunge TMDb/MDBList tramite la rete predefinita. Non ci sono container `proxy`, `frontend`, `migrate` o `scheduler` separati.
+Servizi: **`api`, `worker`, `postgres`, `redis`**. `api` pubblica
+`${WEB_PORT:-28080}`; PostgreSQL e Redis restano sulla rete interna e non sono
+esposti sull'host. `worker` esegue anche Celery Beat (`-B`) e raggiunge
+TMDb/MDBList tramite la rete predefinita. Non ci sono container `proxy`,
+`frontend`, `migrate` o `scheduler` separati.
 
-Per HTTP su LAN (senza TLS) usare cookie senza prefisso `__Host-` e `COOKIE_SECURE=false`:
+Per HTTP su LAN (senza TLS):
 
 ```env
-APP_BASE_URL=http://192.0.2.10:28080
-SESSION_COOKIE_NAME=mdbsync-session
-CSRF_COOKIE_NAME=mdbsync-csrf
+APP_BASE_URL=http://<host>:28080
 COOKIE_SECURE=false
 WEB_PORT=28080
 ```
 
-Con un reverse proxy TLS usare `APP_BASE_URL=https://<dominio>` e `COOKIE_SECURE=true`. I nomi cookie possono restare `mdbsync-session`/`mdbsync-csrf`: con `COOKIE_SECURE=true` il backend aggiunge automaticamente il prefisso `__Host-` e imposta `Secure`; in LAN il prefisso viene rimosso anche se il `.env` contiene `__Host-…`.
+Con un reverse proxy TLS usare `APP_BASE_URL=https://<dominio>` e
+`COOKIE_SECURE=true`: i cookie diventano `__Host-mdbsync-session` /
+`__Host-mdbsync-csrf`, `Secure`, `Path=/`, senza `Domain`.
 
 ### Reverse proxy esterno
 
@@ -362,38 +398,48 @@ Prerequisiti: `age` sull'host, chiave pubblica in `secrets/backup_age_recipient`
 
 ```bash
 # backup manuale
-PATH=/home/mdbup/bin:$PATH BACKUP_DIR=/home/mdbup/mdbup-backups ./scripts/backup.sh
+PATH=/home/mdbup/bin:$PATH BACKUP_DIR=/home/mdbup/mdbup-backups ./deploy/scripts/backup.sh
 
 # crontab consigliato per mdbup
-0 3 * * * cd /home/mdbup/mdbup && PATH=/home/mdbup/bin:$PATH BACKUP_DIR=/home/mdbup/mdbup-backups ./scripts/backup.sh >> /home/mdbup/mdbup-backups/backup.log 2>&1
+0 3 * * * cd /home/mdbup/mdbup && PATH=/home/mdbup/bin:$PATH BACKUP_DIR=/home/mdbup/mdbup-backups ./deploy/scripts/backup.sh >> /home/mdbup/mdbup-backups/backup.log 2>&1
 ```
 
-Il restore è documentato in `scripts/restore.sh`; per un drill usare un database scratch, non il DB live. La Fase 7 ha verificato il backup `mdbup-20261117T201311Z.dump.age` (4.0 MB, checksum OK) e il comando `python -m app.cli backup-verify` (checksum/header; la decifratura completa richiede la chiave age sull'host). Il cronjob giornaliero è installato su `mdbup`:
+Il restore è documentato in `deploy/scripts/restore.sh`; per un drill usare un database scratch, non il DB live. La Fase 7 ha verificato il backup `mdbup-20261117T201311Z.dump.age` (4.0 MB, checksum OK) e il comando `python -m app.cli backup-verify` (checksum/header; la decifratura completa richiede la chiave age sull'host). Il cronjob giornaliero è installato su `mdbup`:
 
 ```cron
-0 3 * * * cd /home/mdbup/mdbup && PATH=/home/mdbup/bin:$PATH BACKUP_DIR=/home/mdbup/mdbup-backups ./scripts/backup.sh >> /home/mdbup/mdbup-backups/backup.log 2>&1
-30 3 * * 0 cd /home/mdbup/mdbup && PATH=/home/mdbup/bin:$PATH BACKUP_DIR=/home/mdbup/mdbup-backups BACKUP_STATUS_FILE=/home/mdbup/mdbup-backups/last_backup.json BACKUP_AGE_IDENTITY_FILE=/home/mdbup/mdbup-age-keys.txt ./scripts/backup-verify.sh >> /home/mdbup/mdbup-backups/backup-verify.log 2>&1
+0 3 * * * cd /home/mdbup/mdbup && PATH=/home/mdbup/bin:$PATH BACKUP_DIR=/home/mdbup/mdbup-backups ./deploy/scripts/backup.sh >> /home/mdbup/mdbup-backups/backup.log 2>&1
+30 3 * * 0 cd /home/mdbup/mdbup && PATH=/home/mdbup/bin:$PATH BACKUP_DIR=/home/mdbup/mdbup-backups BACKUP_STATUS_FILE=/home/mdbup/mdbup-backups/last_backup.json BACKUP_AGE_IDENTITY_FILE=/home/mdbup/mdbup-age-keys.txt ./deploy/scripts/backup-verify.sh >> /home/mdbup/mdbup-backups/backup-verify.log 2>&1
 ```
 
-`scripts/backup.sh` scrive `last_backup.json` (timestamp, file, size, sha256, status) letto da `/api/metrics` e `/api/system/status`; la retention GFS non tocca il file di stato. In aggiunta, `BACKUP_RETENTION_DAYS=180` rimuove gli archivi più vecchi di 180 giorni (0 disabilita il limite); l'archivio più recente non viene mai eliminato.
+`deploy/scripts/backup.sh` scrive `last_backup.json` (timestamp, file, size, sha256, status) letto da `/api/metrics` e `/api/system/status`; la retention GFS non tocca il file di stato. In aggiunta, `BACKUP_RETENTION_DAYS=180` rimuove gli archivi più vecchi di 180 giorni (0 disabilita il limite); l'archivio più recente non viene mai eliminato.
 
 ---
 
 ## 7. Test
 
 ```bash
+# Backend
 cd backend
-REDIS_URL="" APP_ENV=test uv run pytest -q
+REDIS_URL="" APP_ENV=test uv run pytest
 uv run ruff check .
-uv run python -m compileall app
+uv run ruff format --check .
+uv run mypy app
+uv run --with pip-audit pip-audit
 
+# Frontend
 cd ../frontend
-npm run build
-npm test
+npm run typecheck
 npm run lint
+npm test
+npm run build
+npm run test:e2e
+npm audit --omit=dev
 ```
 
-Stato attuale: **361 test backend**, **115 test frontend** e **12 test E2E Playwright** verdi; `ruff check`, `ruff format --check`, build Vite e lint verdi. I test unitari usano `respx`/fixture; la verifica live è stata eseguita separatamente su TMDb e MDBList reali.
+Stato attuale: **364 test backend**, **115 test frontend** e **12 test E2E
+Playwright** verdi; `ruff check`, `ruff format --check`, `mypy`, build Vite,
+lint e audit senza vulnerabilità. I test unitari usano `respx`/fixture; la
+verifica live è stata eseguita separatamente su TMDb e MDBList reali.
 
 ---
 
@@ -453,7 +499,7 @@ Tutte le mutazioni richiedono `X-CSRF-Token`; gli errori usano l'envelope `{erro
 - Docker: non-root, read-only, `cap_drop: ALL`, `no-new-privileges`; PostgreSQL/Redis non pubblicati.
 - Backup PostgreSQL cifrati con `age`; chiave di cifratura custodita separatamente.
 
-Dettagli: [`docs/phase1/06-security.md`](docs/phase1/06-security.md).
+Dettagli: [`docs/phases/phase-01.md`](docs/phases/phase-01.md).
 
 ---
 
@@ -497,48 +543,18 @@ Dettagli: [`docs/phase1/06-security.md`](docs/phase1/06-security.md).
 
 ## 12. Documentazione
 
-### Fase 1
-- [`docs/phase1/00-executive-summary.md`](docs/phase1/00-executive-summary.md)
-- [`docs/phase1/01-source-matrix.md`](docs/phase1/01-source-matrix.md)
-- [`docs/phase1/02-mdblist-api.md`](docs/phase1/02-mdblist-api.md)
-- [`docs/phase1/03-architecture.md`](docs/phase1/03-architecture.md)
-- [`docs/phase1/04-data-model.md`](docs/phase1/04-data-model.md)
-- [`docs/phase1/05-sync-engine.md`](docs/phase1/05-sync-engine.md)
-- [`docs/phase1/06-security.md`](docs/phase1/06-security.md)
-- [`docs/phase1/07-frontend-api.md`](docs/phase1/07-frontend-api.md)
-- [`docs/phase1/08-ops-tests-risks.md`](docs/phase1/08-ops-tests-risks.md)
-- [`docs/phase1/09-phase-plan.md`](docs/phase1/09-phase-plan.md)
-- [`docs/phase1/10-open-questions.md`](docs/phase1/10-open-questions.md)
-- [`docs/phase1/schema.sql`](docs/phase1/schema.sql)
-
-### Fase 2
-- [`docs/phase2/IMPLEMENTATION.md`](docs/phase2/IMPLEMENTATION.md)
-- [`docs/phase2/AGENT_BRIEFS.md`](docs/phase2/AGENT_BRIEFS.md)
-- [`docs/phase2/STATUS.md`](docs/phase2/STATUS.md)
-
-### Fase 4
-- [`docs/phase4/STATUS.md`](docs/phase4/STATUS.md)
-
-### Fase 5
-- [`docs/phase5/STATUS.md`](docs/phase5/STATUS.md)
-
-### Fase 6
-- [`docs/phase6/STATUS.md`](docs/phase6/STATUS.md)
-
-### Fase 7
-- [`docs/phase7/STATUS.md`](docs/phase7/STATUS.md)
-- [`docs/phase7/BACKEND_NOTES.md`](docs/phase7/BACKEND_NOTES.md)
-
-### Fase 8
-- [`docs/phase8/STATUS.md`](docs/phase8/STATUS.md)
-- [`docs/phase8/JUSTWATCH_PUBLIC.md`](docs/phase8/JUSTWATCH_PUBLIC.md)
-
-### Fase 9
-- [`docs/phase9/STATUS.md`](docs/phase9/STATUS.md)
-- [`docs/phase9/BACKEND.md`](docs/phase9/BACKEND.md)
-
-### Fase 10
-- [`docs/phase10/STATUS.md`](docs/phase10/STATUS.md)
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architettura definitiva a 4 servizi, flussi dati, sicurezza e mappa directory.
+- [`docs/phases/phase-01.md`](docs/phases/phase-01.md) — fonti, architettura, modello dati e piano.
+- [`docs/phases/phase-02.md`](docs/phases/phase-02.md) — contratto di implementazione e stato.
+- [`docs/phases/phase-03.md`](docs/phases/phase-03.md) — implementazione core.
+- [`docs/phases/phase-04.md`](docs/phases/phase-04.md) — automazione.
+- [`docs/phases/phase-05.md`](docs/phases/phase-05.md) — estensione multi-fonte.
+- [`docs/phases/phase-06.md`](docs/phases/phase-06.md) — hardening.
+- [`docs/phases/phase-07.md`](docs/phases/phase-07.md) — backup, notifiche, metriche e UI/UX.
+- [`docs/phases/phase-08.md`](docs/phases/phase-08.md) — JustWatch pubblico e guardrail.
+- [`docs/phases/phase-09.md`](docs/phases/phase-09.md) — multi-fonte, Cambi Catalogo IT e scheduling.
+- [`docs/phases/phase-10.md`](docs/phases/phase-10.md) — CI, snapshot dedup e storage.
+- [`docs/phases/phase-11.md`](docs/phases/phase-11.md) — pulizia, riorganizzazione e verifica finale.
 
 ---
 

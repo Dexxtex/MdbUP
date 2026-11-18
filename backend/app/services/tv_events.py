@@ -15,11 +15,11 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.errors import NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.core.time import utcnow
 from app.db.models import Collection, CollectionSnapshot, Media, SnapshotItem
 from app.domain.enums import AuditActorType, MediaType
+from app.domain.errors import NotFoundError, ValidationError
 from app.integrations.tmdb.client import TMDbClient, TMDbError
 from app.repositories import audit
 from app.repositories import collections as collections_repo

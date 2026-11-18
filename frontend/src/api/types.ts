@@ -43,9 +43,9 @@ export type SourceStatus =
   | "ERROR"
   | "DISABLED";
 
-export type SourceType = "API" | "DATA_EXPORT" | "MANUAL_CSV";
+type SourceType = "API" | "DATA_EXPORT" | "MANUAL_CSV";
 
-export type JobStatus =
+type JobStatus =
   | "QUEUED"
   | "RUNNING"
   | "SUCCEEDED"
@@ -56,11 +56,9 @@ export type JobStatus =
 /* Sync: target, binding, preview, run (`app/api/schemas_sync.py`). */
 export type SyncMode = Schemas["SyncMode"];
 export type RunStatus = Schemas["SyncRunStatus"];
-export type OperationAction = Schemas["SyncOperationAction"];
+type OperationAction = Schemas["SyncOperationAction"];
 export type OperationStatus = Schemas["SyncOperationStatus"];
-export type SchedulePolicy = Schemas["SchedulePolicy"];
 export type ScheduleFrequency = "MANUAL" | "DAILY" | "WEEKLY" | "INTERVAL" | "CRON";
-export type PreviewState = Schemas["PreviewOut"]["state"];
 
 /** `CredentialOut.kind` è una stringa: i valori sono quelli di `CredentialKind`. */
 export type CredentialKind = "TMDB" | "MDBLIST" | "JUSTWATCH";
@@ -117,7 +115,7 @@ export type ProviderList = Schemas["ProviderListOut"];
  * tipizzati sono quelli prodotti da `app/services/sources.py`; il backend
  * include solo i mapping verificati, senza un flag per riga.
  */
-export interface JustWatchMapping {
+interface JustWatchMapping {
   provider_slug: string;
   provider_name: string;
   external_id: string | null;
@@ -127,7 +125,7 @@ export interface JustWatchMapping {
   collections_count: number;
 }
 
-export interface JustWatchSourceInfo {
+interface JustWatchSourceInfo {
   throttle_ms: number | null;
   cache_ttl_seconds: number | null;
   cache_max_entries: number | null;
@@ -142,9 +140,9 @@ export interface JustWatchSourceInfo {
 
 /**
  * `SourceOut.capabilities` è un dizionario libero: qui le chiavi note
- * (docs/phase1/07-frontend-api.md §4.3).
+ * (docs/phases/phase-01.md §4.3).
  */
-export interface SourceCapabilities {
+interface SourceCapabilities {
   catalog?: boolean;
   recently_added?: boolean;
   upcoming?: boolean;
@@ -184,7 +182,7 @@ export type Snapshot = Omit<Schemas["SnapshotOut"], "status" | "quality"> & {
 export type SnapshotList = Omit<Schemas["SnapshotListOut"], "items"> & {
   items: Snapshot[];
 };
-export type AvailabilityStatus = "CURRENT" | "UPCOMING" | "LEAVING";
+type AvailabilityStatus = "CURRENT" | "UPCOMING" | "LEAVING";
 
 /** Fonte predefinita del builder, persistita in `settings.default_source`. */
 export type DefaultSource = "justwatch" | "tmdb";
@@ -276,7 +274,7 @@ export interface CatalogChangeItem {
   episode_event_type: EpisodeEventType | null;
 }
 
-export interface CatalogChangeCounters {
+interface CatalogChangeCounters {
   added_today: number;
   removed_today: number;
   added_window: number;
@@ -294,7 +292,7 @@ export interface CatalogChangeResponse {
 }
 
 /* Dashboard (`app/api/schemas_catalog.py` + `app/services/dashboard.py`). */
-export type DashboardCounters = Schemas["DashboardOut"]["counters"];
+type DashboardCounters = Schemas["DashboardOut"]["counters"];
 export type DashboardAlert = Schemas["DashboardAlertOut"];
 
 /** Riga di `DashboardOut.recent_snapshots`. */
@@ -430,7 +428,7 @@ export type Binding = Omit<
   media_type: MediaType;
   mode: SyncMode;
   schedule: ScheduleFrequency;
-  schedule_policy: SchedulePolicy;
+  schedule_policy: "AUTO_APPLY_IF_SAFE" | "ALWAYS_APPROVE" | "DRY_RUN_ONLY";
 };
 export type BindingList = Omit<Schemas["BindingListOut"], "items"> & {
   items: Binding[];
@@ -474,10 +472,6 @@ export type Run = Omit<Schemas["RunOut"], "status" | "mode" | "summary"> & {
   mode: SyncMode;
   summary?: RunSummary;
 };
-export type RunList = Omit<Schemas["RunListOut"], "items"> & {
-  items: Run[];
-};
-
 export type Operation = Omit<Schemas["OperationOut"], "action" | "status"> & {
   action: OperationAction;
   status: OperationStatus;
@@ -498,7 +492,7 @@ export interface SystemStatusService {
   last_heartbeat_at?: string | null;
 }
 
-export interface SystemStatusHealth {
+interface SystemStatusHealth {
   api?: boolean;
   database?: boolean;
   redis?: boolean;
@@ -507,7 +501,7 @@ export interface SystemStatusHealth {
   mdblist?: string;
 }
 
-export interface SystemStatusBackup {
+interface SystemStatusBackup {
   status?: string | null;
   message?: string | null;
   last_valid_at?: string | null;
@@ -519,7 +513,7 @@ export interface SystemStatusBackup {
   error?: string | null;
 }
 
-export interface SystemStatusUpcoming {
+interface SystemStatusUpcoming {
   binding_id: string;
   collection_name: string;
   target_name: string;
@@ -527,14 +521,14 @@ export interface SystemStatusUpcoming {
 }
 
 /** Acquisizione catalogo scaglionata nelle prossime 24 ore (Fase 9). */
-export interface SystemStatusCatalogAcquisition {
+interface SystemStatusCatalogAcquisition {
   collection_id: string;
   collection_name: string;
   provider_name: string;
   next_acquire_at: string;
 }
 
-export interface SystemStatusStorage {
+interface SystemStatusStorage {
   snapshot_bytes?: number | null;
   run_bytes?: number | null;
   total_bytes?: number | null;
@@ -575,3 +569,31 @@ export interface SystemStatus {
 export type JobAccepted = Schemas["JobAcceptedOut"];
 export type RunAccepted = Schemas["RunAcceptedOut"];
 export type PreviewAccepted = Schemas["PreviewAcceptedOut"];
+
+
+export interface CollectionCreatePayload {
+  provider_id?: string;
+  source_key?: "tmdb" | "justwatch" | "combined";
+  combine_mode?: CombineMode;
+  media_type: string;
+  name: string;
+  slug: string;
+  kind: string;
+  offer_types?: OfferType[];
+  genre_ids: number[];
+  monetization_type: string;
+  window_days?: number;
+  source_collection_id?: string;
+  source_collection_ids?: string[];
+  shared_snapshot_collection_id?: string;
+  exclude_genre_ids?: number[];
+  min_vote_average?: number;
+  min_vote_count?: number;
+  year_from?: number;
+  year_to?: number;
+  original_language?: string;
+  local_sort_by?: string;
+  description?: string;
+  is_active?: boolean;
+}
+

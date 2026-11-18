@@ -16,11 +16,11 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.errors import ValidationError
 from app.core.config import APP_VERSION, Settings
 from app.core.time import ensure_utc, utcnow
 from app.db.models import Collection, NotificationChannel, Provider
 from app.domain.enums import AuditActorType
+from app.domain.errors import ValidationError
 from app.repositories import audit
 from app.repositories import bindings as bindings_repo
 from app.repositories import collections as collections_repo
@@ -31,10 +31,6 @@ from app.repositories import targets as targets_repo
 from app.services.bindings import compute_next_run_at
 
 CONFIG_VERSION = 1
-
-
-def _provider_slug_map(db: Session) -> dict[uuid.UUID, str]:
-    return {provider.id: provider.slug for provider in providers_repo.list_providers(db)}
 
 
 def _collection_slug_map(db: Session) -> dict[uuid.UUID, str]:
@@ -73,8 +69,16 @@ def _export_filters(
     return exported
 
 
-def export_config(db: Session, settings: Settings) -> dict[str, Any]:
-    """Build a portable, secret-free configuration document."""
+def export_config(
+    db: Session,
+    settings: Settings,
+    *,
+    actor_user_id: uuid.UUID | None = None,
+    ip: str | None = None,
+    user_agent: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    """Build a portable, secret-free configuration document and audit it."""
     providers = providers_repo.list_providers(db)
     provider_slugs = {provider.id: provider.slug for provider in providers}
     collection_slugs = _collection_slug_map(db)
@@ -175,7 +179,7 @@ def export_config(db: Session, settings: Settings) -> dict[str, Any]:
         }
         for channel in db.scalars(select(NotificationChannel)).all()
     ]
-    return {
+    payload = {
         "version": CONFIG_VERSION,
         "app_version": APP_VERSION,
         "exported_at": utcnow().isoformat(),
@@ -196,6 +200,20 @@ def export_config(db: Session, settings: Settings) -> dict[str, Any]:
         "settings": settings_repo.effective_values(db, settings),
         "notification_channels": channels,
     }
+    audit.record(
+        db,
+        action="config_exported",
+        entity_type="app_config",
+        entity_id="json",
+        actor_user_id=actor_user_id,
+        actor_type=AuditActorType.USER if actor_user_id else AuditActorType.SYSTEM,
+        after={"version": payload["version"]},
+        ip=ip,
+        user_agent=user_agent,
+        request_id=request_id,
+    )
+    db.commit()
+    return payload
 
 
 def _import_filters(
@@ -231,6 +249,9 @@ def import_config(
     payload: dict[str, Any],
     *,
     actor_user_id: uuid.UUID | None = None,
+    ip: str | None = None,
+    user_agent: str | None = None,
+    request_id: str | None = None,
 ) -> dict[str, int]:
     """Upsert a configuration document; never delete existing data."""
     if not isinstance(payload, dict) or payload.get("version") != CONFIG_VERSION:
@@ -466,6 +487,9 @@ def import_config(
             "bindings": bindings_count,
             "settings": settings_count,
         },
+        ip=ip,
+        user_agent=user_agent,
+        request_id=request_id,
     )
     db.commit()
     return {

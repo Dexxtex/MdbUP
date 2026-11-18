@@ -19,17 +19,10 @@ function readNumber(
   return typeof value === "number" ? value : null;
 }
 
-function readString(
-  details: Record<string, unknown> | undefined,
-  key: string,
-): string | null {
-  const value = details?.[key];
-  return typeof value === "string" ? value : null;
-}
 
 /**
  * Testi UI derivati dalla categoria: il messaggio grezzo del server non viene
- * mai mostrato (docs/phase1/07-frontend-api.md §6).
+ * mai mostrato (docs/phases/phase-01.md §6).
  */
 export function describeApiError(error: unknown): ErrorPresentation {
   if (!isApiError(error)) {
@@ -90,7 +83,7 @@ export function describeApiError(error: unknown): ErrorPresentation {
   /**
    * `429 AUTH_RATE_LIMITED` è un rate limit di autenticazione, non una sessione
    * scaduta: senza questo ramo la UI mostrerebbe "Sessione scaduta"
-   * (docs/phase1/07-frontend-api.md §6: "429 mostra un countdown").
+   * (docs/phases/phase-01.md §6: "429 mostra un countdown").
    */
   if (
     error.category === "AUTH" &&
@@ -190,7 +183,3 @@ export function isUnauthorized(error: unknown): boolean {
   return error instanceof ApiError && error.isUnauthorized;
 }
 
-export function readBlockedReason(error: unknown): string | null {
-  if (!isApiError(error)) return null;
-  return readString(error.details, "reason");
-}

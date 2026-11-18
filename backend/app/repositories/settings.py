@@ -129,10 +129,6 @@ SETTING_SPECS: dict[str, SettingSpec] = {
 }
 
 
-class UnknownSettingError(ValueError):
-    """Raised when a patch references a key outside ``SETTING_SPECS``."""
-
-
 class InvalidSettingValueError(ValueError):
     """Raised when a value does not match the type/bounds of its spec."""
 

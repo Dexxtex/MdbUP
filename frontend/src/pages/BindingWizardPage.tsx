@@ -7,7 +7,7 @@ import {
   useCreateBinding,
   useCreatePreview,
   useCreateTarget,
-} from "../api/mutations";
+} from "../hooks/mutations";
 import { queryKeys } from "../api/query-keys";
 import {
   useCollection,
@@ -16,7 +16,7 @@ import {
   useProviders,
   useSources,
   useTargets,
-} from "../api/queries";
+} from "../hooks/queries";
 import type { Collection } from "../api/types";
 import { DateBasisBadge, OriginBadge } from "../components/ui/badges";
 import {

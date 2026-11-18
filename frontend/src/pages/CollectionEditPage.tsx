@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import {
   useCreateCollection,
   useUpdateCollection,
-} from "../api/mutations";
+} from "../hooks/mutations";
 import {
   useCollection,
   useCollections,
@@ -11,7 +11,7 @@ import {
   useProviders,
   useSettings,
   useSources,
-} from "../api/queries";
+} from "../hooks/queries";
 import type {
   BuilderSource,
   Collection,

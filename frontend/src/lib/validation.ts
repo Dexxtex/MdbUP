@@ -36,15 +36,15 @@ export const bootstrapSchema = z
 
 export type BootstrapValues = z.infer<typeof bootstrapSchema>;
 
-export const MEDIA_TYPE_VALUES = ["MOVIE", "SHOW"] as const;
-export const SYNC_MODE_VALUES = ["MIRROR", "APPEND_ONLY"] as const;
-export const SCHEDULE_VALUES = ["MANUAL", "DAILY", "WEEKLY"] as const;
-export const SCHEDULE_POLICY_VALUES = [
+const MEDIA_TYPE_VALUES = ["MOVIE", "SHOW"] as const;
+const SYNC_MODE_VALUES = ["MIRROR", "APPEND_ONLY"] as const;
+const SCHEDULE_VALUES = ["MANUAL", "DAILY", "WEEKLY"] as const;
+const SCHEDULE_POLICY_VALUES = [
   "AUTO_APPLY_IF_SAFE",
   "ALWAYS_APPROVE",
   "DRY_RUN_ONLY",
 ] as const;
-export const PREVIEW_STATE_VALUES = ["RUNNING", "READY", "BLOCKED", "FAILED"] as const;
+const PREVIEW_STATE_VALUES = ["RUNNING", "READY", "BLOCKED", "FAILED"] as const;
 
 const timeOfDay = z
   .string()

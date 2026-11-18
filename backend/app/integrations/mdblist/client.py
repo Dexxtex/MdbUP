@@ -1,6 +1,6 @@
 """Synchronous MDBList API client (API key in the ``apikey`` query parameter).
 
-Only endpoints verified in ``docs/phase1/02-mdblist-api.md`` are used. Reads may
+Only endpoints verified in ``docs/phases/phase-01.md`` are used. Reads may
 retry once on a short ``429``; writes never retry blindly because a timeout or a
 5xx after the request was sent leaves the remote outcome unknown. The caller
 records ``UNCERTAIN`` and reconciles by reading the list.
@@ -24,7 +24,6 @@ from app.integrations.mdblist.models import (
     MdbListItemPage,
     MdbListList,
     MdbListListItem,
-    MdbListMembership,
     MdbListMutationResult,
     MdbListReorderResult,
     MdbListUser,
@@ -303,30 +302,6 @@ class MdbListClient:
             user_name=_str_or_none(user.get("user_name")) or _str_or_none(user.get("username")),
             raw=payload,
         )
-
-    def get_user_lists(
-        self,
-        *,
-        sort: str | None = None,
-        unified: bool | None = None,
-        include_shared: bool | None = None,
-    ) -> list[MdbListList]:
-        path = "/lists/user"
-        params: dict[str, Any] = {}
-        if sort:
-            params["sort"] = sort
-        if unified is not None:
-            params["unified"] = unified
-        if include_shared is not None:
-            params["include_shared"] = include_shared
-        payload = self._json(
-            self._request("GET", path, params=params, retry_429=True, retry_transient=True), path
-        )
-        entries = payload.get("lists") if isinstance(payload, dict) else payload
-        if not isinstance(entries, list):
-            raise MdbListSchemaError(f"Payload MDBList inatteso su {path}.")
-        lists = [parsed for entry in entries if (parsed := _parse_list(entry)) is not None]
-        return lists
 
     def get_list(self, list_id: int | str) -> MdbListList:
         path = f"/lists/{list_id}"
@@ -607,33 +582,3 @@ class MdbListClient:
             not_found=_int_or_none(payload.get("not_found")) or 0,
             raw=payload,
         )
-
-    def membership(
-        self,
-        mediatype: str,
-        *,
-        tmdb: int | None = None,
-        imdb: str | None = None,
-        tvdb: int | None = None,
-        trakt: int | None = None,
-    ) -> MdbListMembership:
-        path = "/lists/user/membership"
-        params: dict[str, Any] = {"mediatype": mediatype.lower()}
-        if tmdb is not None:
-            params["tmdb"] = tmdb
-        if imdb:
-            params["imdb"] = imdb
-        if tvdb is not None:
-            params["tvdb"] = tvdb
-        if trakt is not None:
-            params["trakt"] = trakt
-        payload = self._json_dict(
-            self._request("GET", path, params=params, retry_429=True, retry_transient=True), path
-        )
-        contains = payload.get("contains")
-        ids = tuple(
-            value
-            for value in (contains or [])
-            if isinstance(value, int) and not isinstance(value, bool)
-        )
-        return MdbListMembership(list_ids=ids, raw=payload)

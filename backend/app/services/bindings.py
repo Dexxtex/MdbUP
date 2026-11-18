@@ -10,12 +10,12 @@ from zoneinfo import ZoneInfo
 from croniter import croniter
 from sqlalchemy.orm import Session
 
-from app.api.errors import ConflictError, NotFoundError, ValidationError
-from app.api.schemas_sync import BindingCreateIn, BindingUpdateIn
 from app.core.config import Settings
 from app.core.time import ensure_utc, utcnow
 from app.db.models import MdblistTarget, SyncBinding
+from app.domain.commands import BindingCreateIn, BindingUpdateIn
 from app.domain.enums import AuditActorType, SyncMode
+from app.domain.errors import ConflictError, NotFoundError, ValidationError
 from app.repositories import audit
 from app.repositories import bindings as bindings_repo
 from app.repositories import collections as collections_repo
