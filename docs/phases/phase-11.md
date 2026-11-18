@@ -1,8 +1,9 @@
 # Fase 11 — Pulizia, riorganizzazione e architettura definitiva
 
 **Data:** 2026-11-18
-**Stato:** completata lato repository, test e build immagine. La verifica live su
-produzione (scheduler e dry-run delle 6 liste) resta in carico all'operatore.
+**Stato:** completata lato repository, test, build immagine e smoke test dei 4
+servizi in CI. La verifica live su produzione (scheduler e dry-run delle 6 liste)
+resta in carico all'operatore.
 
 ---
 
@@ -157,15 +158,27 @@ negli script puntano ai nuovi path.
 | `npm audit --omit=dev` | **0 vulnerabilità** |
 | `knip` | nessun export/file non usato (solo tipi generati OpenAPI) |
 
+### Verifica Docker in CI
+
+Il daemon Docker non è disponibile nell'ambiente locale (`docker: command not
+found`), quindi la verifica dei container è stata eseguita dal workflow
+**Compose smoke** su GitHub Actions:
+
+- build pulita di `deploy/Dockerfile.api`;
+- `docker compose up -d` con i 4 servizi;
+- attesa di `api`, `worker`, `postgres`, `redis` in stato `healthy`;
+- `GET http://127.0.0.1:28080/api/health` con `status=ok`;
+- cleanup con `docker compose down -v`.
+
+Esito: **success** (run `44310429762`, commit `ed0c40c`). Il workflow Build image
+ha inoltre pubblicato l'immagine GHCR con esito **success**.
+
 ### Limiti della verifica
 
-- **Build Docker locale non eseguita**: nell'ambiente di lavoro non è disponibile
-  un daemon Docker (`docker: command not found`). La build dell'immagine è
-  verificata dal workflow GitHub Actions `Build image` su push; l'avvio dei 4
-  container va eseguito sull'host dell'operatore.
-- **Verifica live non eseguita da questo agente**: l'accesso al server è
-  riservato all'operatore. Non sono stati quindi verificati dal vivo gli 88 slot
-  dello scheduler né il dry-run `to_add=0,to_remove=0` sulle 6 liste MDBList.
+- **Verifica live di produzione non eseguita da questo agente**: l'accesso al
+  server è riservato all'operatore. Non sono stati quindi verificati dal vivo gli
+  88 slot dello scheduler né il dry-run `to_add=0,to_remove=0` sulle 6 liste
+  MDBList; la verifica va eseguita dall'operatore dopo il deploy.
 - Nessuna lista MDBList è stata modificata, svuotata o ricreata durante la
   Fase 11. I volumi persistenti non sono stati toccati.
 
