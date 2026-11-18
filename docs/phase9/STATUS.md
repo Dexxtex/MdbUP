@@ -33,7 +33,7 @@ nuove collezioni.
 | Stack | `api`, `worker`, `postgres`, `redis` **4/4 healthy** |
 | Migrazione | `0005_snapshot_item_availability` |
 | Immagine | `ghcr.io/dexxtex/mdbup:latest` |
-| Digest | `sha256:8328da576cccef463240cb76beac5a8650b071367c721a21c578f6e7630680f0` |
+| Digest | `sha256:6d84cb4a96dc99184b2e70a2e47b642ead6c28a39b3d9248f8b79bc6971dfdef` |
 | Fonte predefinita | `justwatch` |
 | Scheduling | `catalog_schedule_enabled=true`; 88 prossime acquisizioni nelle 24h; primo job scaglionato accodato (Paramount Plus — Serie — Catalogo) |
 | Porte | API `28080`; PostgreSQL/Redis solo `127.0.0.1` |
