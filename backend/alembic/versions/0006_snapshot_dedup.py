@@ -39,11 +39,11 @@ def _has_index(bind: sa.engine.Connection, table: str, name: str) -> bool:
     return name in {index["name"] for index in sa.inspect(bind).get_indexes(table)}
 
 
-def _has_fk(bind: sa.engine.Connection, table: str, name: str) -> bool:
+def _fk_name(bind: sa.engine.Connection, table: str, name: str) -> str | None:
     for fk in sa.inspect(bind).get_foreign_keys(table):
         if fk.get("name") == name or fk.get("constrained_columns") == [ITEMS_COLUMN]:
-            return True
-    return False
+            return fk.get("name")
+    return None
 
 
 def upgrade() -> None:
@@ -65,7 +65,7 @@ def upgrade() -> None:
         )
     if not _has_index(bind, TABLE, INDEX):
         op.create_index(INDEX, TABLE, [ITEMS_COLUMN])
-    if bind.dialect.name == "postgresql" and not _has_fk(bind, TABLE, FK):
+    if bind.dialect.name == "postgresql" and _fk_name(bind, TABLE, FK) is None:
         op.create_foreign_key(
             FK,
             TABLE,
@@ -80,8 +80,10 @@ def downgrade() -> None:
     bind = op.get_bind()
     if not _has_table(bind, TABLE):
         return
-    if bind.dialect.name == "postgresql" and _has_fk(bind, TABLE, FK):
-        op.drop_constraint(FK, TABLE, type_="foreignkey")
+    if bind.dialect.name == "postgresql":
+        fk_name = _fk_name(bind, TABLE, FK)
+        if fk_name is not None:
+            op.drop_constraint(fk_name, TABLE, type_="foreignkey")
     if _has_index(bind, TABLE, INDEX):
         op.drop_index(INDEX, table_name=TABLE)
     if bind.dialect.name != "postgresql":
