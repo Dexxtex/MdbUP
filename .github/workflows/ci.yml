@@ -247,14 +247,6 @@ jobs:
           cache-from: type=gha,scope=api
           cache-to: type=gha,scope=api,mode=max
 
-      - name: Build immagine frontend
-        uses: docker/build-push-action@v6
-        with:
-          context: frontend
-          file: frontend/Dockerfile
-          push: false
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,scope=frontend,mode=max
 
       - name: Setup Node
         uses: actions/setup-node@v4
