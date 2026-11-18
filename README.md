@@ -264,6 +264,26 @@ chmod 0644 secrets/*
 docker compose --env-file .env -f deploy/docker-compose.yml up -d
 ```
 
+### Immagine precompilata (GHCR)
+
+Il workflow `Build image` pubblica l'immagine unica su GitHub Container Registry
+a ogni push su `main`, per i tag `v*` e manualmente da **Actions → Build image →
+Run workflow**. La stessa immagine contiene API, worker e SPA.
+
+```bash
+# opzione A: build locale (default)
+docker compose up -d --build
+
+# opzione B: immagine GHCR
+MDBUP_IMAGE=ghcr.io/dexxtex/mdbup:latest
+docker compose pull
+docker compose up -d --no-build
+```
+
+L'immagine è `ghcr.io/dexxtex/mdbup`; i tag includono `latest`, `sha-<commit>`
+e il nome del branch/tag. Se il package GHCR non è pubblico, renderlo visibile
+da **GitHub → Packages → mdbup → Settings**.
+
 Servizi: `api`, `worker`, `postgres`, `redis`. Solo `api` pubblica la porta HTTP `28080`; PostgreSQL e Redis restano sulla rete `internal`. `worker` esegue anche Celery Beat (`-B`) e usa la rete `egress` per raggiungere TMDb/MDBList. Non ci sono container `proxy`, `frontend`, `migrate` o `scheduler` separati.
 
 Per HTTP su LAN (senza TLS) usare cookie senza prefisso `__Host-` e `COOKIE_SECURE=false`:

@@ -20,7 +20,7 @@
 name: mdbup
 
 x-app: &app
-  image: mdbup-api:local
+  image: ${MDBUP_IMAGE:-mdbup-api:local}
   build:
     context: ..
     dockerfile: deploy/Dockerfile.api
