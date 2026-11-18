@@ -86,10 +86,11 @@ Backup pre-deploy: `mdbup-20261118T110636Z.dump.age` (7.0 MB).
 | Backend `ruff check` / `format --check` | puliti |
 | Frontend `typecheck` / `build` / `lint` | verdi |
 | Frontend Vitest | **115 passed** |
-| Playwright E2E | **11 passed** |
+| Playwright E2E | **12 passed** |
 
-E2E aggiunto per il feed Cambi Catalogo IT; restano coperti builder JustWatch,
-switch fonte, preview source-only, eventi stagione/episodio e badge di origine.
+E2E aggiunto per il feed Cambi Catalogo IT e per la matrice provider; restano
+coperti builder JustWatch, switch fonte, preview source-only, eventi
+stagione/episodio e badge di origine.
 
 ---
 

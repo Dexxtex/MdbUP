@@ -14,17 +14,35 @@ on:
     branches: [main]
     tags: ["v*"]
     paths:
-      - "backend/**"
-      - "frontend/**"
-      - "deploy/**"
-      - "docker-compose.yml"
+      - "backend/app/**"
+      - "backend/alembic/**"
+      - "backend/alembic.ini"
+      - "backend/pyproject.toml"
+      - "backend/uv.lock"
+      - "frontend/src/**"
+      - "frontend/public/**"
+      - "frontend/index.html"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "frontend/vite.config.ts"
+      - "frontend/tsconfig*.json"
+      - "deploy/Dockerfile.api"
       - ".github/workflows/build-image.yml"
   pull_request:
     paths:
-      - "backend/**"
-      - "frontend/**"
-      - "deploy/**"
-      - "docker-compose.yml"
+      - "backend/app/**"
+      - "backend/alembic/**"
+      - "backend/alembic.ini"
+      - "backend/pyproject.toml"
+      - "backend/uv.lock"
+      - "frontend/src/**"
+      - "frontend/public/**"
+      - "frontend/index.html"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "frontend/vite.config.ts"
+      - "frontend/tsconfig*.json"
+      - "deploy/Dockerfile.api"
       - ".github/workflows/build-image.yml"
   workflow_dispatch:
     inputs:

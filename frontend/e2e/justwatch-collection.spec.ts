@@ -297,3 +297,40 @@ test("una serie JustWatch mostra gli eventi stagione/episodio e gli item con dis
   expect(api.mutations()).toEqual([]);
   expect(api.unmatched).toEqual([]);
 });
+
+test("la matrice provider confronta JustWatch e TMDb e offre le azioni rapide", async ({
+  page,
+}) => {
+  const api = new ApiMock(page);
+  mockAuthenticatedSession(api);
+  mockSources(api);
+  api.json("GET", "/api/providers", {
+    items: [PROVIDER_APPLE_TV, PROVIDER_PARAMOUNT_UNMAPPED],
+    total: 2,
+  });
+  api.json("GET", "/api/collections", {
+    items: [justwatchCollection()],
+    total: 1,
+  });
+  api.json("GET", "/api/bindings", {
+    items: [],
+    total: 0,
+    page: 1,
+    page_size: 25,
+    has_more: false,
+  });
+  mockAppShell(api);
+  await api.install();
+
+  await page.goto("/app/providers");
+  await expect(page.getByTestId("provider-matrix")).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "JustWatch (Default)" })).toBeVisible();
+  const appleRow = page.getByTestId("matrix-row-apple-tv-plus");
+  await expect(appleRow).toContainText("Apple TV+");
+  await expect(appleRow.getByTestId("matrix-justwatch-apple-tv-plus")).toBeVisible();
+  await expect(appleRow.getByTestId("matrix-combined-apple-tv-plus")).toBeVisible();
+
+  await page.getByTestId("matrix-filter-stale").click();
+  await expect(page.getByTestId("provider-matrix")).toBeVisible();
+  expect(api.unmatched).toEqual([]);
+});

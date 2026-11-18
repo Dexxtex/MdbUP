@@ -83,7 +83,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - **Scheduling scaglionato**: 96 slot da 15 min, una acquisizione JustWatch per tick, lock Redis, throttle globale 1 req/s, cache condivisa.
 - **Matrice provider** JustWatch/TMDb, widget dashboard, ricerca snapshot, eventi stagioni/episodi e avvisi In arrivo.
 - Live: Prime Video **8.240**, NOW **1.145**, Disney+ in arrivo **3**, Apple TV+ **116/105/3**; 6 liste MDBList invariate.
-- Test: **357 backend**, **115 frontend**, **11 E2E**.
+- Test: **357 backend**, **115 frontend**, **12 E2E**.
 - Dettagli: [`docs/phase9/STATUS.md`](docs/phase9/STATUS.md) e [`docs/phase9/BACKEND.md`](docs/phase9/BACKEND.md).
 
 ### Fase 6 — hardening e regole avanzate
@@ -384,7 +384,7 @@ npm test
 npm run lint
 ```
 
-Stato attuale: **357 test backend**, **115 test frontend** e **11 test E2E Playwright** verdi; `ruff check`, `ruff format --check`, build Vite e lint verdi. I test unitari usano `respx`/fixture; la verifica live è stata eseguita separatamente su TMDb e MDBList reali.
+Stato attuale: **357 test backend**, **115 test frontend** e **12 test E2E Playwright** verdi; `ruff check`, `ruff format --check`, build Vite e lint verdi. I test unitari usano `respx`/fixture; la verifica live è stata eseguita separatamente su TMDb e MDBList reali.
 
 ---
 
