@@ -33,9 +33,9 @@ nuove collezioni.
 | Stack | `api`, `worker`, `postgres`, `redis` **4/4 healthy** |
 | Migrazione | `0005_snapshot_item_availability` |
 | Immagine | `ghcr.io/dexxtex/mdbup:latest` |
-| Digest | `sha256:f8a50757d71bdd2fb9ddcf0a8744951e22adc309638b5bd274d0b1057aee6d6d` |
+| Digest | `sha256:8328da576cccef463240cb76beac5a8650b071367c721a21c578f6e7630680f0` |
 | Fonte predefinita | `justwatch` |
-| Scheduling | `catalog_schedule_enabled=true`; 88 prossime acquisizioni nelle 24h |
+| Scheduling | `catalog_schedule_enabled=true`; 88 prossime acquisizioni nelle 24h; primo job scaglionato accodato (Paramount Plus — Serie — Catalogo) |
 | Porte | API `28080`; PostgreSQL/Redis solo `127.0.0.1` |
 
 ### Acquisizioni JustWatch live
