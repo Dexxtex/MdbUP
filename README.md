@@ -353,8 +353,10 @@ da **GitHub → Packages → mdbup → Settings**.
 
 Servizi: **`api`, `worker`, `postgres`, `redis`**. `api` pubblica
 `${WEB_PORT:-28080}`; PostgreSQL e Redis restano sulla rete interna e non sono
-esposti sull'host. `worker` esegue anche Celery Beat (`-B`) e raggiunge
-TMDb/MDBList tramite la rete predefinita. Non ci sono container `proxy`,
+esposti sull'host. API e worker usano `REDIS_URL=redis://redis:6379/0`,
+`CELERY_BROKER_URL=redis://redis:6379/1` e `CELERY_RESULT_BACKEND=redis://redis:6379/2`.
+`worker` esegue anche Celery Beat (`-B`) e raggiunge TMDb/MDBList tramite la rete
+predefinita. Non ci sono container `proxy`,
 `frontend`, `migrate` o `scheduler` separati.
 
 Per HTTP su LAN (senza TLS):

@@ -15,6 +15,7 @@
 #   METRICS_TOKEN       default semplice: metrics
 #   APP_BASE_URL        default http://192.0.2.10:28080
 #   WEB_PORT            default 28080
+#   REDIS/Celery        URL interne allo stack: redis://redis:6379/0..2
 #
 # Generazione rapida (Python, nessun file da creare):
 #   POSTGRES_PASSWORD:   python -c "import secrets; print(secrets.token_urlsafe(24))"
@@ -51,6 +52,9 @@ x-app: &app
     DEFAULT_SOURCE: justwatch
     CATALOG_SCHEDULE_ENABLED: "true"
     DATABASE_URL: postgresql+psycopg://mdbup:${POSTGRES_PASSWORD:-mdbup}@postgres:5432/mdbup
+    REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+    CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/1}
+    CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
     APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
     APP_ENCRYPTION_KEY_VERSION: "1"
     BOOTSTRAP_TOKEN: ${BOOTSTRAP_TOKEN:-bootstrap}
