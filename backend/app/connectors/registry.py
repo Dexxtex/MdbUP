@@ -17,10 +17,12 @@ from app.connectors.justwatch.connector import (
     JustWatchConnector,
 )
 from app.connectors.tmdb.connector import TMDB_SOURCE_KEY, TMDbConnector
+from app.connectors.tvdb.connector import TVDB_SOURCE_KEY, TVDbConnector
 from app.core.config import Settings
 from app.domain.errors import SourceUnavailableError
 from app.integrations.justwatch.client import JustWatchClient
 from app.integrations.tmdb.client import DEFAULT_BASE_URL, TMDbClient
+from app.integrations.tvdb.client import TVDbClient
 from app.services import credentials as credentials_service
 from app.services.credentials import CredentialKind
 
@@ -29,7 +31,7 @@ ConnectorFactory = Callable[[Session, Settings], SourceConnector]
 # Credentials required before a connector can be built for a source key.
 _REQUIRED_CREDENTIALS: dict[str, CredentialKind] = {
     TMDB_SOURCE_KEY: CredentialKind.TMDB,
-    "tvdb": CredentialKind.TVDB,
+    TVDB_SOURCE_KEY: CredentialKind.TVDB,
 }
 
 
@@ -69,9 +71,20 @@ def _build_justwatch(db: Session, settings: Settings) -> SourceConnector:
     return JustWatchConnector(client, language=settings.justwatch_language)
 
 
+def _build_tvdb(db: Session, settings: Settings) -> SourceConnector:
+    token = credentials_service.get_secret(db, settings, CredentialKind.TVDB)
+    client = TVDbClient(
+        token,
+        timeout=float(settings.http_timeout_seconds),
+        max_retries=settings.http_max_retries,
+    )
+    return TVDbConnector(client)
+
+
 _FACTORIES: dict[str, ConnectorFactory] = {
     TMDB_SOURCE_KEY: _build_tmdb,
     JUSTWATCH_SOURCE_KEY: _build_justwatch,
+    TVDB_SOURCE_KEY: _build_tvdb,
 }
 
 

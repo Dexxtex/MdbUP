@@ -202,6 +202,21 @@ class SourceListOut(BaseModel):
     items: list[SourceOut]
 
 
+class TVDbCompanyOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    company_id: str
+    name: str
+    company_type: str | None = None
+    slug: str | None = None
+    country: str | None = None
+
+
+class TVDbCompanyListOut(BaseModel):
+    items: list[TVDbCompanyOut]
+    total: int
+
+
 class EpisodeEventOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

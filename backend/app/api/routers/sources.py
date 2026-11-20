@@ -18,6 +18,7 @@ from app.api.deps import (
 from app.core.config import Settings
 from app.db.models import AppUser
 from app.services import sources as sources_service
+from app.services import tvdb as tvdb_service
 
 router = APIRouter(tags=["sources"])
 
@@ -35,6 +36,23 @@ def list_sources(
     items = sources_service.list_sources(db, settings)
     return schemas_catalog.SourceListOut(
         items=[schemas_catalog.SourceOut.model_validate(item) for item in items]
+    )
+
+
+@router.get(
+    "/sources/tvdb/companies",
+    response_model=schemas_catalog.TVDbCompanyListOut,
+    summary="Company TVDB (metadati, nessuna disponibilità per paese)",
+)
+def list_tvdb_companies(
+    db: Session = Depends(get_db_dep),
+    settings: Settings = Depends(get_settings_dep),
+    _user: AppUser = Depends(get_current_user),
+) -> schemas_catalog.TVDbCompanyListOut:
+    items = tvdb_service.list_streaming_companies(db, settings)
+    return schemas_catalog.TVDbCompanyListOut(
+        items=[schemas_catalog.TVDbCompanyOut.model_validate(item) for item in items],
+        total=len(items),
     )
 
 

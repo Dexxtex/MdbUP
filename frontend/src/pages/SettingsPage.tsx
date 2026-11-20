@@ -498,7 +498,9 @@ function ConnectorsPanel() {
   const settings = useSettings();
   const updateSettings = useUpdateSettings();
   const justwatchSource = (sources.data ?? []).find((source) => source.key === "justwatch");
+  const tvdbSource = (sources.data ?? []).find((source) => source.key === "tvdb");
   const healthcheck = useHealthcheckSource(justwatchSource?.id ?? "");
+  const tvdbHealthcheck = useHealthcheckSource(tvdbSource?.id ?? "");
   const [defaultSource, setDefaultSource] = useState<DefaultSource>("justwatch");
   const [catalogScheduleEnabled, setCatalogScheduleEnabled] = useState(false);
 
@@ -629,6 +631,42 @@ function ConnectorsPanel() {
         ) : null}
 
         {justwatchSource ? <JustWatchConnectorCard source={justwatchSource} /> : null}
+
+        {tvdbSource ? (
+          <Card className="mt-4" testId="tvdb-healthcheck">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-ink">TheTVDB (metadati)</h3>
+                <p className="text-sm text-ink-muted">
+                  TVDB fornisce company ID e metadati, non la disponibilità per paese.
+                  {tvdbSource.credential_configured
+                    ? " La API key è configurata."
+                    : " Configura la API key in Credenziali prima del test."}
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => tvdbHealthcheck.mutate()}
+                busy={tvdbHealthcheck.isPending}
+                disabled={!tvdbSource.credential_configured}
+                data-testid="tvdb-healthcheck-button"
+              >
+                Test connettività TheTVDB
+              </Button>
+            </div>
+            {tvdbHealthcheck.isError ? <ErrorState error={tvdbHealthcheck.error} /> : null}
+            {tvdbHealthcheck.isSuccess ? (
+              <div className="mt-3">
+                <InlineNotice tone={tvdbHealthcheck.data.ok ? "success" : "warning"}>
+                  {tvdbHealthcheck.data.message}
+                  {tvdbHealthcheck.data.latency_ms != null
+                    ? ` · ${tvdbHealthcheck.data.latency_ms} ms`
+                    : ""}
+                </InlineNotice>
+              </div>
+            ) : null}
+          </Card>
+        ) : null}
       </section>
     </div>
   );
