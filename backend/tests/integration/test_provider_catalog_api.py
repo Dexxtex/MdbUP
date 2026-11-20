@@ -132,3 +132,19 @@ def test_catalog_adds_tvdb_company_without_country_claim(client, admin, app_sett
     assert item["available_in_country"] is None
     assert item["sources"] == ["tvdb"]
     assert {entry["source_key"]: entry["status"] for entry in body["sources"]}["tvdb"] == "OK"
+
+
+@respx.mock
+def test_catalog_works_without_tmdb_or_tvdb_credentials(client, admin) -> None:
+    assert seed_sources() == 0
+    respx.post(JUSTWATCH).mock(return_value=httpx.Response(200, json={"data": {"packages": []}}))
+
+    response = client.get("/api/providers/catalog")
+
+    assert response.status_code == 200, response.text
+    statuses = {item["source_key"]: item["status"] for item in response.json()["sources"]}
+    assert statuses == {
+        "tmdb": "MISSING_CREDENTIAL",
+        "justwatch": "OK",
+        "tvdb": "MISSING_CREDENTIAL",
+    }

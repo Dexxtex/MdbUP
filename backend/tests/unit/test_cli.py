@@ -6,9 +6,11 @@ import argparse
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import select
 
 from app import cli
 from app.core.config import Settings
+from app.db.models import Provider
 from app.db.session import get_session_factory
 from app.repositories import collections as collections_repo
 from app.repositories import users
@@ -268,3 +270,13 @@ def test_remove_demo_collections_dry_run_then_apply(db, seeded, capsys) -> None:
     assert remove_demo_collections(apply=True) == 0
     with _session() as session:
         assert collections_repo.list_collections(session) == []
+
+
+def test_remove_demo_providers_after_collections(db, seeded, capsys) -> None:
+    from app.seed import remove_demo_collections, remove_demo_providers
+
+    assert remove_demo_collections(apply=True) == 0
+    assert remove_demo_providers(apply=True) == 0
+    with _session() as session:
+        assert collections_repo.list_collections(session) == []
+        assert session.scalar(select(Provider).limit(1)) is None

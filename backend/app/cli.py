@@ -385,6 +385,13 @@ def build_parser() -> argparse.ArgumentParser:
         "seed-providers",
         help="Inserisce dati dimostrativi: provider, fonti e mapping; non crea collezioni",
     )
+    remove_providers = subparsers.add_parser(
+        "remove-demo-providers",
+        help="Rimuove i provider demo non usati da collezioni (default: dry-run)",
+    )
+    remove_providers.add_argument(
+        "--apply", action="store_true", help="Applica la rimozione (default: dry-run)"
+    )
     remove_demo = subparsers.add_parser(
         "remove-demo-collections",
         help="Rimuove le collezioni TMDb demo (default: dry-run)",
@@ -483,6 +490,10 @@ def main(argv: list[str] | None = None) -> int:
         return seed_sources()
     if args.command == "seed-providers":
         return seed_reference_data()
+    if args.command == "remove-demo-providers":
+        from app.seed import remove_demo_providers
+
+        return remove_demo_providers(apply=args.apply)
     if args.command == "remove-demo-collections":
         from app.seed import remove_demo_collections
 

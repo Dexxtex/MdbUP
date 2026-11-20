@@ -274,6 +274,39 @@ def _demo_collections(db: Session) -> list[Collection]:
     ]
 
 
+def remove_demo_providers(*, apply: bool = False) -> int:
+    """Remove seed providers that no collection references.
+
+    A provider used by an operator-created collection is protected: deleting it
+    would leave a dangling catalog. The operator must remove those collections
+    explicitly first.
+    """
+    slugs = tuple(seed.slug for seed in PROVIDER_SEED)
+    with session_scope() as db:
+        providers = list(db.scalars(select(Provider).where(Provider.slug.in_(slugs))))
+        referenced = {
+            row.provider_id
+            for row in db.scalars(select(Collection)).all()
+            if row.provider_id is not None
+        }
+        removable = [item for item in providers if item.id not in referenced]
+        blocked = [item for item in providers if item.id in referenced]
+        print(
+            f"provider demo trovati: {len(providers)}, "
+            f"senza collezioni: {len(removable)}, con collezioni: {len(blocked)}"
+        )
+        if not apply:
+            print("dry-run: usa --apply per rimuovere quelli senza collezioni")
+            return 0
+        for provider in removable:
+            db.delete(provider)
+        print(
+            f"provider demo rimossi: {len(removable)}"
+            + (f", protetti perché usati da collezioni: {len(blocked)}" if blocked else "")
+        )
+    return 0
+
+
 def remove_demo_collections(*, apply: bool = False, force: bool = False) -> int:
     """Remove demo TMDb collections, guarding bound collections unless forced.
 

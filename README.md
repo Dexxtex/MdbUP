@@ -104,7 +104,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - Backend: comandi/errori spostati in `app/domain/`, servizi senza dipendenze da `app.api`, API senza SQL diretto; rimossi moduli/helper non usati e dipendenze inutilizzate.
 - Frontend: hook spostati in `src/hooks/`, export morti rimossi, payload API separati dai componenti.
 - `.gitignore` e `.dockerignore` aggiornati per escludere cache, test, build, backup e segreti.
-- Test: **434 backend**, **197 frontend**, **13 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
+- Test: **441 backend**, **197 frontend**, **13 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
 - Dettagli: [`docs/phases/phase-11.md`](docs/phases/phase-11.md).
 
 ### Fase 6 — hardening e regole avanzate
@@ -221,7 +221,7 @@ modificabili e non vengono dichiarati verificati live finché non lo sono davver
 │   │   ├── db/                 # session, base e modelli ORM
 │   │   ├── jobs/               # Celery app, task, beat e scheduler
 │   │   └── core/               # config, logging, crypto, lock, metriche
-│   ├── alembic/                # migrazioni 0001 … 0007
+│   ├── alembic/                # migrazioni 0001 … 0008
 │   └── tests/                  # unit, integration, contract
 ├── frontend/
 │   ├── src/api/                # client HTTP, tipi, query keys
@@ -345,6 +345,13 @@ docker compose exec api python -m app.cli remove-demo-collections --apply  # sen
 docker compose exec api python -m app.cli remove-demo-collections --apply --force  # anche con binding
 ```
 
+Per i provider demo rimasti (quelli usati da collezioni sono protetti):
+
+```bash
+docker compose exec api python -m app.cli remove-demo-providers          # dry-run
+docker compose exec api python -m app.cli remove-demo-providers --apply  # senza collezioni
+```
+
 `--force` elimina i binding collegati (non le liste MDBList remote): usarlo solo dopo aver verificato che quelle liste non siano più gestite da MdbUP.
 
 ### Immagine precompilata (GHCR)
@@ -455,12 +462,12 @@ npm run test:e2e
 npm audit --omit=dev
 ```
 
-Stato attuale: **434 test backend**, **197 test frontend** e **13 test E2E
+Stato attuale: **441 test backend**, **197 test frontend** e **13 test E2E
 Playwright** verdi; `ruff check`, `ruff format --check`, `mypy`, build Vite,
 lint e audit senza vulnerabilità. I test unitari usano `respx`/fixture; la
 verifica live è stata eseguita separatamente su TMDb e MDBList reali.
 
-Coverage gate: backend **90.10%** statement, frontend **96.01%** linee / **90.18%** branch / **95.15%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
+Coverage gate: backend **90.13%** statement, frontend **96.01%** linee / **90.18%** branch / **95.15%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
 
 ---
 

@@ -398,6 +398,17 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
               .join(" · ")}
           </p>
         ) : null}
+        {catalog.data?.sources.some(
+          (source) => source.source_key === "tvdb" && source.status === "MISSING_CREDENTIAL",
+        ) ? (
+          <p className="mt-2 text-xs text-ink-muted">
+            TheTVDB è opzionale: per vedere le sue company aggiungi la API key in{" "}
+            <Link className="text-accent underline" to="/app/settings">
+              Impostazioni → Credenziali
+            </Link>
+            . TVDB fornisce company ID e metadati, non la disponibilità italiana.
+          </p>
+        ) : null}
         {catalog.isError ? <ErrorState error={catalog.error} /> : null}
       </div>
       <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>

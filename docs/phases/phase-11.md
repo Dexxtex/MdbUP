@@ -150,7 +150,7 @@ negli script puntano ai nuovi path.
 
 | Controllo | Esito |
 |---|---|
-| `pytest` backend | **434 passed** |
+| `pytest` backend | **441 passed** |
 | `mypy app` | **0 errori**, 134 file |
 | `ruff check` | pulito |
 | `ruff format --check` | **205 file** formattati |
@@ -160,7 +160,7 @@ negli script puntano ai nuovi path.
 | `npm run typecheck` | verde |
 | `npm run lint` | verde |
 | `npm run build` | verde |
-| Coverage backend (statement) | **90.10%** (gate 90%) |
+| Coverage backend (statement) | **90.13%** (gate 90%) |
 | Coverage frontend logica (line/branch/function) | **96.01% / 90.18% / 95.15%** |
 | `npm audit --omit=dev` | **0 vulnerabilità** |
 | `knip` | nessun export/file non usato (solo tipi generati OpenAPI) |
@@ -221,5 +221,5 @@ docker compose up -d
 ```
 
 Per il deploy: aggiornare il compose in Dockhand, redeploy senza rimuovere i
-volumi `mdbup_v2_*`, quindi verificare `/api/health`, migrazione `0007`, scheduler
+volumi `mdbup_v2_*`, quindi verificare `/api/health`, migrazione `0008`, scheduler
 e dry-run delle 6 liste dal pannello dell'app.
