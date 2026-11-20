@@ -7,6 +7,7 @@ import type {
   Provider,
   ProviderCandidate,
   ProviderCreatePayload,
+  OfferType,
 } from "../api/types";
 import { DataTable, type Column } from "../components/ui/data-table";
 import {
@@ -41,6 +42,56 @@ const KNOWN_PROVIDERS = [
   "NOW",
   "Mediaset Infinity",
   "RaiPlay",
+];
+
+const PROVIDER_KINDS: {
+  value: ProviderCreatePayload["kind"];
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "SVOD",
+    label: "SVOD — Abbonamento",
+    description: "Accesso incluso in un abbonamento mensile o annuale.",
+  },
+  {
+    value: "TVOD",
+    label: "TVOD — Noleggio/acquisto singolo",
+    description: "Paghi solo il titolo che noleggi o acquisti.",
+  },
+  {
+    value: "AVOD",
+    label: "AVOD — Gratuito con pubblicità",
+    description: "Catalogo gratuito finanziato dalla pubblicità.",
+  },
+  {
+    value: "TVE",
+    label: "TVE — TV Everywhere",
+    description: "Accesso tramite l’abbonamento TV o pay-TV.",
+  },
+  {
+    value: "STORE",
+    label: "STORE — Negozio digitale",
+    description: "Negozio di film e serie in acquisto.",
+  },
+  {
+    value: "CINEMA",
+    label: "CINEMA — Sala/catena",
+    description: "Programmazione cinematografica, non streaming.",
+  },
+  {
+    value: "CHANNEL",
+    label: "CHANNEL — Canale/add-on",
+    description: "Canale lineare o canale aggiuntivo di una piattaforma.",
+  },
+];
+
+const OFFER_OPTIONS: { value: OfferType; label: string; description: string }[] = [
+  { value: "FLATRATE", label: "FLATRATE", description: "Incluso nell’abbonamento." },
+  { value: "RENT", label: "RENT", description: "Noleggio del singolo titolo." },
+  { value: "BUY", label: "BUY", description: "Acquisto definitivo del titolo." },
+  { value: "ADS", label: "ADS", description: "Visione gratuita con pubblicità." },
+  { value: "FREE", label: "FREE", description: "Gratuito senza acquisto." },
 ];
 
 const STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
@@ -277,9 +328,7 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
     justwatch_technical_name: "",
     tvdb_company_id: "",
   });
-  // Raw text: splitting per keystroke would eat commas before the operator
-  // finishes typing the next offer.
-  const [offersText, setOffersText] = useState("FLATRATE");
+  const [offers, setOffers] = useState<OfferType[]>(["FLATRATE"]);
   const catalog = useProviderCatalog("IT");
   const [catalogQuery, setCatalogQuery] = useState("");
   const [selectedCandidate, setSelectedCandidate] = useState("");
@@ -308,11 +357,10 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
       justwatch_technical_name: candidate.justwatch_technical_name ?? "",
       tvdb_company_id: candidate.tvdb_company_id ?? "",
     });
-    setOffersText(
-      candidate.justwatch_monetization_types.length > 0
-        ? candidate.justwatch_monetization_types.join(", ")
-        : "FLATRATE",
+    const candidateOffers = candidate.justwatch_monetization_types.filter(
+      (value): value is OfferType => OFFER_OPTIONS.some((option) => option.value === value),
     );
+    setOffers(candidateOffers.length > 0 ? candidateOffers : ["FLATRATE"]);
   };
 
   const sourceLabel = (source: string) =>
@@ -320,10 +368,6 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const offers = offersText
-      .split(",")
-      .map((value) => value.trim().toUpperCase())
-      .filter(Boolean);
     await createProvider.mutateAsync({
       ...payload,
       slug: payload.slug.trim(),
@@ -412,7 +456,12 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
         {catalog.isError ? <ErrorState error={catalog.error} /> : null}
       </div>
       <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
-        <Field id="provider-slug" label="Slug" hint="Solo minuscole, numeri e trattini.">
+        <h3 className="text-sm font-semibold text-ink sm:col-span-2">Identità del provider</h3>
+        <Field
+          id="provider-slug"
+          label="Slug"
+          hint="Identificativo univoco per URL e collezioni: minuscole, numeri e trattini."
+        >
           <Input
             id="provider-slug"
             value={payload.slug}
@@ -421,7 +470,7 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
             required
           />
         </Field>
-        <Field id="provider-name" label="Nome">
+        <Field id="provider-name" label="Nome visualizzato" hint="Come comparirà nella dashboard e nelle collezioni.">
           <Input
             id="provider-name"
             value={payload.name}
@@ -430,7 +479,14 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
             required
           />
         </Field>
-        <Field id="provider-kind" label="Tipo">
+        <Field
+          id="provider-kind"
+          label="Modello commerciale"
+          hint={
+            PROVIDER_KINDS.find((item) => item.value === payload.kind)?.description ??
+            "Classificazione del servizio."
+          }
+        >
           <Select
             id="provider-kind"
             value={payload.kind}
@@ -441,28 +497,42 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
               })
             }
           >
-            {["SVOD", "TVOD", "AVOD", "TVE", "STORE", "CINEMA", "CHANNEL"].map((kind) => (
-              <option key={kind} value={kind}>
-                {kind}
+            {PROVIDER_KINDS.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
               </option>
             ))}
           </Select>
         </Field>
-        <Field id="provider-tmdb-movie" label="ID TMDb film" hint="Facoltativo.">
+        <h3 className="text-sm font-semibold text-ink sm:col-span-2">Mapping TMDb</h3>
+        <Field
+          id="provider-tmdb-movie"
+          label="ID TMDb film"
+          hint="ID numerico del provider TMDb per i film. Compilato dal catalogo; facoltativo."
+        >
           <Input
             id="provider-tmdb-movie"
             value={payload.tmdb_movie_id ?? ""}
             onChange={(event) => setPayload({ ...payload, tmdb_movie_id: event.target.value })}
           />
         </Field>
-        <Field id="provider-tmdb-tv" label="ID TMDb serie" hint="Facoltativo.">
+        <Field
+          id="provider-tmdb-tv"
+          label="ID TMDb serie"
+          hint="ID numerico del provider TMDb per le serie. Può essere assente per alcuni servizi."
+        >
           <Input
             id="provider-tmdb-tv"
             value={payload.tmdb_tv_id ?? ""}
             onChange={(event) => setPayload({ ...payload, tmdb_tv_id: event.target.value })}
           />
         </Field>
-        <Field id="provider-justwatch-short" label="Codice JustWatch" hint="Es. nfx, prv.">
+        <h3 className="text-sm font-semibold text-ink sm:col-span-2">Mapping JustWatch</h3>
+        <Field
+          id="provider-justwatch-short"
+          label="Codice breve JustWatch"
+          hint="shortName del package, es. nfx o prv. È l’identificativo usato nelle collezioni."
+        >
           <Input
             id="provider-justwatch-short"
             value={payload.justwatch_short_name ?? ""}
@@ -471,7 +541,11 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
             }
           />
         </Field>
-        <Field id="provider-justwatch-technical" label="Technical name JustWatch" hint="Es. netflix.">
+        <Field
+          id="provider-justwatch-technical"
+          label="Nome tecnico JustWatch"
+          hint="technicalName del package, es. netflix. Non è l’ID e serve alla verifica live."
+        >
           <Input
             id="provider-justwatch-technical"
             value={payload.justwatch_technical_name ?? ""}
@@ -480,18 +554,53 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
             }
           />
         </Field>
-        <Field id="provider-tvdb-company" label="Company ID TVDB" hint="Facoltativo; non implica disponibilità in Italia.">
+        <Field
+          id="provider-justwatch-offers"
+          label="Offerte JustWatch"
+          hint="Seleziona tutte le modalità che il package espone per questo servizio."
+        >
+          <div className="flex flex-wrap gap-2" data-testid="provider-offers">
+            {OFFER_OPTIONS.map((option) => (
+              <ToggleChip
+                key={option.value}
+                pressed={offers.includes(option.value)}
+                title={option.description}
+                testId={`provider-offer-${option.value}`}
+                onClick={() =>
+                  setOffers((current) =>
+                    current.includes(option.value)
+                      ? current.filter((value) => value !== option.value)
+                      : [...current, option.value],
+                  )
+                }
+              >
+                {option.label}
+              </ToggleChip>
+            ))}
+          </div>
+          <details className="mt-2 text-xs text-ink-muted">
+            <summary className="cursor-pointer font-medium text-ink">
+              Cosa significano queste offerte?
+            </summary>
+            <ul className="mt-2 space-y-1">
+              {OFFER_OPTIONS.map((option) => (
+                <li key={option.value}>
+                  <strong className="text-ink">{option.label}</strong>: {option.description}
+                </li>
+              ))}
+            </ul>
+          </details>
+        </Field>
+        <h3 className="text-sm font-semibold text-ink sm:col-span-2">TheTVDB (metadati)</h3>
+        <Field
+          id="provider-tvdb-company"
+          label="Company ID TheTVDB"
+          hint="ID numerico della company TVDB. Metadati: non implica disponibilità in Italia."
+        >
           <Input
             id="provider-tvdb-company"
             value={payload.tvdb_company_id ?? ""}
             onChange={(event) => setPayload({ ...payload, tvdb_company_id: event.target.value })}
-          />
-        </Field>
-        <Field id="provider-justwatch-offers" label="Offerte JustWatch" hint="Separate da virgola.">
-          <Input
-            id="provider-justwatch-offers"
-            value={offersText}
-            onChange={(event) => setOffersText(event.target.value)}
           />
         </Field>
         <div className="flex items-end gap-2 sm:col-span-2">

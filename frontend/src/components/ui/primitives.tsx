@@ -227,6 +227,7 @@ export function ToggleChip({
   className,
   disabled,
   testId,
+  title,
 }: {
   pressed: boolean;
   onClick: () => void;
@@ -234,6 +235,7 @@ export function ToggleChip({
   className?: string;
   disabled?: boolean;
   testId?: string;
+  title?: string;
 }) {
   return (
     <button
@@ -241,6 +243,7 @@ export function ToggleChip({
       aria-pressed={pressed}
       disabled={disabled}
       data-testid={testId}
+      title={title}
       onClick={onClick}
       className={cn(
         "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
