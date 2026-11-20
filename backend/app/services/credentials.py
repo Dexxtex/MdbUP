@@ -167,7 +167,9 @@ def _cipher(settings: Settings) -> SecretCipher:
 def list_status(db: Session) -> list[CredentialStatus]:
     """Return every known credential kind with masked metadata only."""
     rows = credentials_repo.list_credentials(db)
-    by_identity = {(row.scope, row.key): row for row in rows}
+    # SOURCE-scoped credentials share the same key ("api_key") across sources:
+    # source_id is part of the identity, otherwise TMDb would appear as TVDB.
+    by_identity = {(row.scope, row.source_id, row.key): row for row in rows}
     statuses: list[CredentialStatus] = []
     for spec in CREDENTIAL_SPECS.values():
         if not spec.available:
@@ -183,7 +185,12 @@ def list_status(db: Session) -> list[CredentialStatus]:
                 )
             )
             continue
-        row = by_identity.get((spec.scope.value, spec.key))
+        source_id = (
+            credentials_repo.get_source_id_by_key(db, spec.source_key)
+            if spec.source_key is not None
+            else None
+        )
+        row = by_identity.get((spec.scope.value, source_id, spec.key))
         statuses.append(_status_of(spec, row))
     return statuses
 

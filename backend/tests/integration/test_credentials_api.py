@@ -104,3 +104,19 @@ def test_verify_requires_configured_credential(
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "CREDENTIAL_MISSING"
+
+
+def test_source_scoped_credentials_keep_separate_identities(
+    client: TestClient, admin: dict[str, str], seeded: None
+) -> None:
+    client.put("/api/credentials/tmdb", json={"value": "tmdb-secret-aaa111"}, headers=admin)
+    items = _credentials_by_kind(client)
+    assert items["TMDB"]["configured"] is True
+    assert items["TVDB"]["configured"] is False
+    assert items["TVDB"]["status"] == "MISSING"
+
+    client.put("/api/credentials/tvdb", json={"value": "tvdb-secret-bbb222"}, headers=admin)
+    items = _credentials_by_kind(client)
+    assert items["TMDB"]["configured"] is True
+    assert items["TVDB"]["configured"] is True
+    assert items["TMDB"]["masked_hint"] != items["TVDB"]["masked_hint"]

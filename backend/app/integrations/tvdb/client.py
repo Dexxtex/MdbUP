@@ -14,7 +14,12 @@ from typing import Any
 
 import httpx
 
-from app.integrations.tvdb.models import TVDbCompany
+from app.integrations.tvdb.models import (
+    TVDbCatalogItem,
+    TVDbCompany,
+    TVDbGenre,
+    TVDbList,
+)
 
 DEFAULT_BASE_URL = "https://api4.thetvdb.com/v4"
 _STREAMING_TYPES = ("SVOD", "TVOD / PPV", "AVOD")
@@ -156,6 +161,107 @@ class TVDbClient:
                     country=item.get("country"),
                 )
         return sorted(rows.values(), key=lambda item: item.name.casefold())
+
+    def list_lists(self, *, page: int = 0) -> list[TVDbList]:
+        """Return TVDB lists (official or user-created), with their tags.
+
+        TVDB has no category/year list taxonomy: tags and names are the only
+        grouping metadata. The endpoint is exposed as metadata, not as an
+        availability collection.
+        """
+        self._ensure_token()
+        payload = self._request("GET", "/lists", params={"page": page})
+        rows: list[TVDbList] = []
+        for item in (payload.get("data") or {}).get("items") or []:
+            if not isinstance(item, dict) or item.get("id") is None or not item.get("name"):
+                continue
+            tags: list[str] = []
+            for tag in item.get("tags") or []:
+                if isinstance(tag, dict):
+                    value = tag.get("name") or tag.get("tagName")
+                    if value:
+                        tags.append(str(value))
+                elif isinstance(tag, str):
+                    tags.append(tag)
+            rows.append(
+                TVDbList(
+                    list_id=str(item["id"]),
+                    name=str(item["name"]),
+                    overview=item.get("overview"),
+                    is_official=bool(item.get("isOfficial", False)),
+                    score=item.get("score") if isinstance(item.get("score"), int) else None,
+                    url=item.get("url"),
+                    tags=tuple(tags),
+                )
+            )
+        return rows
+
+    def list_genres(self) -> list[TVDbGenre]:
+        """TVDB genres used by the movie/series filters."""
+        self._ensure_token()
+        payload = self._request("GET", "/genres")
+        rows: list[TVDbGenre] = []
+        for item in (payload.get("data") or {}).get("items") or []:
+            if not isinstance(item, dict) or item.get("id") is None or not item.get("name"):
+                continue
+            rows.append(
+                TVDbGenre(
+                    genre_id=str(item["id"]),
+                    name=str(item["name"]),
+                    slug=item.get("slug"),
+                )
+            )
+        return sorted(rows, key=lambda item: item.name.casefold())
+
+    def filter_titles(
+        self,
+        media_type: str,
+        *,
+        country: str,
+        language: str,
+        genre_id: str | None = None,
+        year: int | None = None,
+        sort: str = "score",
+        sort_type: str = "desc",
+    ) -> list[TVDbCatalogItem]:
+        """Filter movies or series by origin country, language, genre and year.
+
+        TVDB's ``country``/``lang`` are metadata (country of origin and original
+        language), not availability in a streaming market.
+        """
+        if media_type not in ("MOVIE", "SHOW"):
+            raise ValueError("media_type TVDB non valido.")
+        segment = "movies" if media_type == "MOVIE" else "series"
+        params: dict[str, object] = {
+            "country": country,
+            "lang": language,
+            "sort": sort,
+            "sortType": sort_type,
+        }
+        if genre_id is not None:
+            params["genre"] = genre_id
+        if year is not None:
+            params["year"] = year
+        self._ensure_token()
+        payload = self._request("GET", f"/{segment}/filter", params=params)
+        rows: list[TVDbCatalogItem] = []
+        for item in (payload.get("data") or {}).get("items") or []:
+            if not isinstance(item, dict) or item.get("id") is None or not item.get("name"):
+                continue
+            score = item.get("score")
+            rows.append(
+                TVDbCatalogItem(
+                    item_id=str(item["id"]),
+                    media_type=media_type,
+                    name=str(item["name"]),
+                    year=str(item["year"]) if item.get("year") is not None else None,
+                    overview=item.get("overview"),
+                    image=item.get("image"),
+                    score=float(score) if isinstance(score, (int, float)) else None,
+                    slug=item.get("slug"),
+                )
+            )
+        return rows
 
     def healthcheck(self) -> None:
         self._ensure_token()

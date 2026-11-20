@@ -104,7 +104,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - Backend: comandi/errori spostati in `app/domain/`, servizi senza dipendenze da `app.api`, API senza SQL diretto; rimossi moduli/helper non usati e dipendenze inutilizzate.
 - Frontend: hook spostati in `src/hooks/`, export morti rimossi, payload API separati dai componenti.
 - `.gitignore` e `.dockerignore` aggiornati per escludere cache, test, build, backup e segreti.
-- Test: **444 backend**, **198 frontend**, **14 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
+- Test: **446 backend**, **198 frontend**, **14 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
 - Dettagli: [`docs/phases/phase-11.md`](docs/phases/phase-11.md).
 
 ### Fase 6 — hardening e regole avanzate
@@ -188,8 +188,12 @@ Dettagli, limiti misurati e superficie API verificata:
 TMDb (94 film + 68 serie in IT, deduplicati), JustWatch (109 package) e, se configurata,
 TheTVDB in **gruppi separati per fonte**. Le fonti non vengono unite: ogni candidato conserva
 la propria provenienza e il proprio mapping. TVDB viene usato per le **company ID e i metadati**,
-non per la disponibilità per paese. La selezione compila i mapping, che restano modificabili
-e non vengono dichiarati verificati live finché non lo sono davvero.
+non per la disponibilità per paese. Per categoria e anno si usano
+`/api/sources/tvdb/genres` e `/api/sources/tvdb/catalog?media_type=…&genre_id=…&year=…`;
+`country` e `language` TVDB indicano **paese di origine e lingua originale**, non disponibilità
+in Italia. Le liste TVDB (`/lists`) sono liste ufficiali/utente e non hanno una tassonomia
+affidabile per categoria/anno: non vengono presentate come tali. La selezione compila i mapping,
+che restano modificabili e non vengono dichiarati verificati live finché non lo sono davvero.
 
 ---
 
@@ -463,12 +467,12 @@ npm run test:e2e
 npm audit --omit=dev
 ```
 
-Stato attuale: **444 test backend**, **198 test frontend** e **14 test E2E
+Stato attuale: **446 test backend**, **198 test frontend** e **14 test E2E
 Playwright** verdi; `ruff check`, `ruff format --check`, `mypy`, build Vite,
 lint e audit senza vulnerabilità. I test unitari usano `respx`/fixture; la
 verifica live è stata eseguita separatamente su TMDb e MDBList reali.
 
-Coverage gate: backend **90.17%** statement, frontend **96.03%** linee / **90.30%** branch / **95.15%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
+Coverage gate: backend **90.06%** statement, frontend **96.03%** linee / **90.30%** branch / **95.15%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
 
 ---
 
@@ -487,6 +491,9 @@ Coverage gate: backend **90.17%** statement, frontend **96.03%** linee / **90.30
 | `GET` | `/api/providers` | Provider IT + mapping TMDb |
 | `GET` | `/api/providers/catalog` | Provider disponibili da TMDb, JustWatch e TheTVDB |
 | `GET` | `/api/sources/tvdb/companies` | Company TVDB (metadati; nessuna disponibilità per paese) |
+| `GET` | `/api/sources/tvdb/genres` | Generi TVDB |
+| `GET` | `/api/sources/tvdb/catalog` | Film/serie TVDB filtrati per genere, anno e paese di origine |
+| `GET` | `/api/sources/tvdb/lists` | Liste TVDB (metadati) |
 | `POST` | `/api/providers` | Crea un provider scelto dall’utente con mapping opzionali |
 | `GET` | `/api/collections` | Collezioni con origine/date_basis e filtri |
 | `POST` | `/api/collections` | Crea una collezione (catalogo o Appena rilevati) |

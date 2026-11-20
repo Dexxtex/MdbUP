@@ -217,6 +217,60 @@ class TVDbCompanyListOut(BaseModel):
     total: int
 
 
+class TVDbListOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    list_id: str
+    name: str
+    overview: str | None = None
+    is_official: bool = False
+    score: int | None = None
+    url: str | None = None
+    tags: list[str] = []
+
+
+class TVDbListListOut(BaseModel):
+    items: list[TVDbListOut]
+    total: int
+    page: int
+
+
+class TVDbGenreOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    genre_id: str
+    name: str
+    slug: str | None = None
+
+
+class TVDbGenreListOut(BaseModel):
+    items: list[TVDbGenreOut]
+    total: int
+
+
+class TVDbCatalogItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    item_id: str
+    media_type: str
+    name: str
+    year: str | None = None
+    overview: str | None = None
+    image: str | None = None
+    score: float | None = None
+    slug: str | None = None
+
+
+class TVDbCatalogOut(BaseModel):
+    items: list[TVDbCatalogItemOut]
+    total: int
+    media_type: str
+    country: str
+    language: str
+    genre_id: str | None = None
+    year: int | None = None
+
+
 class EpisodeEventOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -6,7 +6,12 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.integrations.tvdb.client import TVDbClient
-from app.integrations.tvdb.models import TVDbCompany
+from app.integrations.tvdb.models import (
+    TVDbCatalogItem,
+    TVDbCompany,
+    TVDbGenre,
+    TVDbList,
+)
 from app.services import credentials as credentials_service
 from app.services.credentials import CredentialKind
 
@@ -21,5 +26,63 @@ def list_streaming_companies(db: Session, settings: Settings) -> list[TVDbCompan
     )
     try:
         return client.list_streaming_companies()
+    finally:
+        client.close()
+
+
+def list_lists(db: Session, settings: Settings, *, page: int = 0) -> list[TVDbList]:
+    token = credentials_service.get_secret(db, settings, CredentialKind.TVDB)
+    client = TVDbClient(
+        token,
+        timeout=float(settings.http_timeout_seconds),
+        max_retries=settings.http_max_retries,
+    )
+    try:
+        return client.list_lists(page=page)
+    finally:
+        client.close()
+
+
+def list_genres(db: Session, settings: Settings) -> list[TVDbGenre]:
+    token = credentials_service.get_secret(db, settings, CredentialKind.TVDB)
+    client = TVDbClient(
+        token,
+        timeout=float(settings.http_timeout_seconds),
+        max_retries=settings.http_max_retries,
+    )
+    try:
+        return client.list_genres()
+    finally:
+        client.close()
+
+
+def filter_titles(
+    db: Session,
+    settings: Settings,
+    media_type: str,
+    *,
+    country: str,
+    language: str,
+    genre_id: str | None = None,
+    year: int | None = None,
+    sort: str = "score",
+    sort_type: str = "desc",
+) -> list[TVDbCatalogItem]:
+    token = credentials_service.get_secret(db, settings, CredentialKind.TVDB)
+    client = TVDbClient(
+        token,
+        timeout=float(settings.http_timeout_seconds),
+        max_retries=settings.http_max_retries,
+    )
+    try:
+        return client.filter_titles(
+            media_type,
+            country=country,
+            language=language,
+            genre_id=genre_id,
+            year=year,
+            sort=sort,
+            sort_type=sort_type,
+        )
     finally:
         client.close()

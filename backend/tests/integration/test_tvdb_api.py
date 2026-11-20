@@ -75,3 +75,54 @@ def test_tvdb_companies_and_healthcheck(client, admin, app_settings) -> None:
     assert health.status_code == 200, health.text
     assert health.json()["ok"] is True
     assert health.json()["source_key"] == "tvdb"
+
+
+@respx.mock
+def test_tvdb_genre_and_year_catalog(client, admin, app_settings) -> None:
+    _configure(client, admin, app_settings)
+    respx.post(f"{TVDB}/login").mock(
+        return_value=httpx.Response(200, json={"status": "success", "data": {"token": "t"}})
+    )
+    respx.get(f"{TVDB}/genres").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "status": "success",
+                "data": {"items": [{"id": 3, "name": "Drama", "slug": "drama"}]},
+            },
+        )
+    )
+    filter_route = respx.get(f"{TVDB}/movies/filter").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "status": "success",
+                "data": {
+                    "items": [
+                        {
+                            "id": 42,
+                            "name": "Example",
+                            "year": "2024",
+                            "score": 12.5,
+                            "slug": "example",
+                        }
+                    ]
+                },
+            },
+        )
+    )
+
+    genres = client.get("/api/sources/tvdb/genres")
+    assert genres.status_code == 200, genres.text
+    assert genres.json()["items"][0]["name"] == "Drama"
+
+    catalog = client.get(
+        "/api/sources/tvdb/catalog?media_type=MOVIE&genre_id=3&year=2024&country=ita&language=ita"
+    )
+    assert catalog.status_code == 200, catalog.text
+    body = catalog.json()
+    assert body["total"] == 1
+    assert body["media_type"] == "MOVIE"
+    assert body["items"][0]["item_id"] == "42"
+    assert body["items"][0]["score"] == 12.5
+    assert filter_route.called
