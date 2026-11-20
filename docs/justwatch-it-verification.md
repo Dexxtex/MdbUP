@@ -14,7 +14,7 @@
 | `genres(language: it)` | — | — | **OK**, 19 generi localizzati |
 | `popularTitles` (nfx, 2020–2025, FLATRATE) | 2.592 totali | 1.858 totali | **OK** |
 | `newTitles(pageType: NEW, nfx, FLATRATE)` | 600 totali, 5/5 film | 600 totali, 5/5 serie | **OK dopo fix** |
-| `newTitles(pageType: UPCOMING, nfx)` | 27 totali, 5/5 film | 86 totali, 5/5 serie dopo post-filter | **OK dopo fix** |
+| `newTitles(pageType: UPCOMING, nfx)` | 27 totali, 5/5 film | 86 totali; primo sample 4 serie + 1 film, il connector filtra il film | **OK dopo fix** |
 | `streamingCharts` (nfx) | 5.127 totali | 2.923 totali | **OK**, rank globali |
 | `node(id).seasons` | n/a | Lupin: 4 stagioni | **OK** |
 | `node(id).episodes` | n/a | Lupin S1: 5 episodi con offerte | **OK** |
@@ -58,8 +58,9 @@ sono stati confrontati su `shortName` **e** `technicalName`:
   *Lupin* (TMDb 96677), *Black Doves* (225385), *The Diplomat* (203857).
 - `newTitles NEW`: **600** risultati dopo il fix, tutti `SHOW` (prima il
   parser riceveva nodi `SHOW_SEASON` e la collezione restava vuota).
-- `newTitles UPCOMING`: **86** risultati; il server può mescolare film e serie,
-  quindi il connector applica il post-filter sul tipo media.
+- `newTitles UPCOMING`: **86** risultati; il primo sample contiene 4 serie e 1
+  film. Il server mescola i tipi, quindi il connector applica il post-filter
+  sul tipo media.
 - `streamingCharts`: **2.923** risultati; *Chiaroscuro* rank 3, *The Body*
   rank 4, *Lupin* rank 6.
 - Stagioni/episodi di *Lupin*: 4 stagioni (`Part 1`, `Stagione 2`, `Stagione 3`,
