@@ -156,7 +156,7 @@ negli script puntano ai nuovi path.
 | `ruff format --check` | **205 file** formattati |
 | `pip-audit` | **0 vulnerabilità** |
 | Vitest | **197 passed** |
-| Playwright E2E | **12 passed** |
+| Playwright E2E | **13 passed** |
 | `npm run typecheck` | verde |
 | `npm run lint` | verde |
 | `npm run build` | verde |

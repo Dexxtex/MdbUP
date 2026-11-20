@@ -295,7 +295,7 @@ export function IconSpinner(props: IconProps) {
 
 export function IconHelp(props: IconProps) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+    <svg {...baseProps(props)} viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="9" />
       <path d="M9.5 9a2.5 2.5 0 1 1 3.2 2.4c-.7.2-.7.8-.7 1.6" />
       <path d="M12 17h.01" />

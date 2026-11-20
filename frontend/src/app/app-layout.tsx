@@ -160,7 +160,10 @@ export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    mainRef.current?.focus();
+    // Focus the main region for screen readers, but do not let the browser
+    // scroll the focused element under the sticky header; reset to the top.
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    mainRef.current?.focus({ preventScroll: true });
     setMobileOpen(false);
   }, [location.pathname]);
 
