@@ -68,8 +68,9 @@ export default function HelpPage() {
             <Step number={4} title="Crea una collezione">
               <p>
                 Da <Link className="text-accent underline" to="/app/collections">Collezioni</Link> scegli
-                provider, tipo media, fonte e tipo di collezione. Per JustWatch servono un mapping
-                verificato e una policy esplicita; per TMDb servono gli ID del provider.
+                provider, tipo media, fonte e tipo di collezione. Per JustWatch serve il package
+                configurato sul provider; per TMDb servono gli ID del provider. La policy JustWatch
+                si accetta quando crei il binding, non qui.
               </p>
             </Step>
           </div>
@@ -96,9 +97,14 @@ export default function HelpPage() {
               <StatusPill label="Nessun mapping" tone="neutral" />
             </div>
             <p>
-              “Da verificare” non significa che il provider non esista: significa che l’ID non è
-              stato confermato live. Dopo la creazione controlla la card del provider e, se
-              necessario, riallinea i mapping dal pannello o tramite CLI.
+              “Da verificare” non significa che il provider non esista: significa che l’ID è stato
+              inserito manualmente e non è stato confermato live. Le collezioni si possono creare
+              comunque, ma il flag <code>provider_mapping_verified</code> resta <code>false</code>.
+            </p>
+            <p>
+              Questa versione non ha un editor di mapping: gli ID salvati restano quelli digitati
+              alla creazione e non c’è un percorso per riallineare i mapping dal pannello. Controlla
+              gli ID sulla fonte prima di salvare.
             </p>
           </div>
         </Card>
@@ -174,8 +180,9 @@ export default function HelpPage() {
             <div>
               <dt className="font-semibold text-ink">“Provider non verificato”</dt>
               <dd className="text-ink-muted">
-                Manca o non è confermato il mapping per quel tipo media. Controlla gli ID e il
-                package JustWatch nella card del provider.
+                Il provider non ha un mapping per quel tipo media o per la fonte scelta. Inserisci
+                gli ID alla creazione del provider: questa versione non permette di modificarli
+                dopo.
               </dd>
             </div>
             <div>

@@ -3,6 +3,7 @@ import type { Provider } from "../api/types";
 import {
   availabilityStatusLabel,
   availabilityStatusTone,
+  hasJustWatchMapping,
   isJustWatchSource,
   isVerifiedJustWatchProvider,
   justWatchCacheTtlLabel,
@@ -68,6 +69,26 @@ describe("capacity JustWatch", () => {
         provider({ justwatch_verified: false, justwatch_provider_id: null }),
       ),
     ).toBe(false);
+  });
+
+  it("considera capace un provider con package JustWatch configurato a mano", () => {
+    const manual = provider({
+      justwatch_provider_id: "2243",
+      justwatch_verified: false,
+      justwatch_movie_verified: false,
+      justwatch_tv_verified: false,
+    });
+    expect(hasJustWatchMapping(manual)).toBe(true);
+    // La verifica live resta una semantica separata: niente badge di verifica.
+    expect(isVerifiedJustWatchProvider(manual, "MOVIE")).toBe(false);
+
+    const withoutId = provider({
+      justwatch_provider_id: null,
+      justwatch_verified: false,
+      justwatch_movie_verified: false,
+      justwatch_tv_verified: false,
+    });
+    expect(hasJustWatchMapping(withoutId)).toBe(false);
   });
 });
 

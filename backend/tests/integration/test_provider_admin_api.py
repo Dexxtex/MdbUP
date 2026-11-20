@@ -32,13 +32,18 @@ def test_create_provider_with_manual_mappings(client, admin) -> None:
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["slug"] == "mio-provider"
-    assert body["mapping_verified_movie"] is True
-    assert body["mapping_verified_tv"] is True
+    assert body["tmdb_provider_id_movie"] == "9999"
+    assert body["tmdb_provider_id_tv"] == "9998"
+    assert body["mapping_verified"] is False
+    assert body["mapping_verified_movie"] is False
+    assert body["mapping_verified_tv"] is False
     assert body["justwatch_provider_id"] == "mio"
-    assert body["justwatch_movie_verified"] is True
-    assert body["justwatch_tv_verified"] is True
+    assert body["justwatch_verified"] is False
+    assert body["justwatch_movie_verified"] is False
+    assert body["justwatch_tv_verified"] is False
+    assert body["justwatch_monetization_types"] == ["FLATRATE"]
 
-    # The user-created mapping is usable by the collection builder.
+    # The manual mapping is usable by the collection builder but stays unverified.
     created = client.post(
         "/api/collections",
         json={
@@ -52,6 +57,23 @@ def test_create_provider_with_manual_mappings(client, admin) -> None:
     )
     assert created.status_code == 201, created.text
     assert created.json()["provider_id"] == body["id"]
+    assert created.json()["quality_flags"]["provider_mapping_verified"] is False
+
+    justwatch_created = client.post(
+        "/api/collections",
+        json={
+            "source_key": "justwatch",
+            "provider_id": body["id"],
+            "media_type": "MOVIE",
+            "name": "Mio catalogo JustWatch",
+            "slug": "mio-catalogo-justwatch",
+            "kind": "CATALOG",
+        },
+        headers=admin,
+    )
+    assert justwatch_created.status_code == 201, justwatch_created.text
+    assert justwatch_created.json()["filters"]["packages"] == ["mio"]
+    assert justwatch_created.json()["quality_flags"]["provider_mapping_verified"] is False
 
 
 def test_create_provider_validates_slug_and_duplicates(client, admin) -> None:

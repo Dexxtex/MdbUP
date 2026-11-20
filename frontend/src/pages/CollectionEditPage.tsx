@@ -10,7 +10,6 @@ import {
   useGenres,
   useProviders,
   useSettings,
-  useSources,
 } from "../hooks/queries";
 import type {
   BuilderSource,
@@ -26,12 +25,13 @@ import { collectionProviderName } from "../lib/collections";
 import {
   buildCollectionPayload,
   builderProvenanceLabel,
+  hasTmdbMapping,
   resolveDefaultSource,
 } from "../lib/collection-builder";
 import {
   JUSTWATCH_KINDS,
+  hasJustWatchMapping,
   isJustWatchSource,
-  isVerifiedJustWatchProvider,
   justWatchBindingNotice,
 } from "../lib/justwatch";
 import { formatNumber } from "../lib/format";
@@ -179,7 +179,6 @@ export default function CollectionEditPage() {
     searchParams.get("media_type") === "SHOW" ? "SHOW" : "MOVIE";
   const collection = useCollection(collectionId);
   const providers = useProviders("IT");
-  const sources = useSources();
   const settings = useSettings();
   const create = useCreateCollection();
   const update = useUpdateCollection(collectionId ?? "");
@@ -286,30 +285,24 @@ export default function CollectionEditPage() {
     setIsActive(data.is_active);
   }, [collection.data]);
 
-  const verifiedProviders = useMemo(() => {
-    return (providers.data ?? []).filter((provider) =>
-      mediaType === "SHOW" ? provider.mapping_verified_tv : provider.mapping_verified_movie,
-    );
-  }, [providers.data, mediaType]);
-
-  const verifiedJustWatchProviders = useMemo(
-    () =>
-      (providers.data ?? []).filter((provider) =>
-        isVerifiedJustWatchProvider(provider, mediaType),
-      ),
+  const tmdbProviders = useMemo(
+    () => (providers.data ?? []).filter((provider) => hasTmdbMapping(provider, mediaType)),
     [providers.data, mediaType],
+  );
+
+  const justwatchProviders = useMemo(
+    () => (providers.data ?? []).filter((provider) => hasJustWatchMapping(provider)),
+    [providers.data],
   );
 
   const providerOptions = isCombined
     ? (providers.data ?? [])
     : sourceKey === "justwatch"
-      ? verifiedJustWatchProviders
-      : verifiedProviders.length > 0
-        ? verifiedProviders
+      ? justwatchProviders
+      : tmdbProviders.length > 0
+        ? tmdbProviders
         : (providers.data ?? []);
 
-  const justwatchSource = (sources.data ?? []).find((source) => source.key === "justwatch");
-  const verifiedJustWatchMappings = justwatchSource?.justwatch?.mappings.length ?? 0;
   const isJustWatch = isJustWatchSource(sourceKey);
 
   const genreList = useMemo(() => genres.data?.items ?? [], [genres.data]);
@@ -381,7 +374,7 @@ export default function CollectionEditPage() {
       }
     }
     if (sourceKey === "justwatch" && !providerOptions.some((item) => item.id === providerId)) {
-      setFormError("Seleziona un provider con mapping JustWatch verificato.");
+      setFormError("Seleziona un provider con package JustWatch configurato.");
       return;
     }
     if (sourceKey === "justwatch" && !JUSTWATCH_KINDS.includes(kind)) {
@@ -493,7 +486,7 @@ export default function CollectionEditPage() {
               isCombined
                 ? "La combinata locale fonde o interseca gli snapshot JustWatch e TMDb già acquisiti."
                 : isJustWatch
-                  ? "JustWatch usa un mapping provider verificato; film e serie restano separati."
+                  ? "JustWatch usa il package JustWatch configurato sul provider, verificato o manuale; film e serie restano separati."
                   : "Il provider determina il catalogo TMDb; film e serie restano separati."
             }
           >
@@ -579,8 +572,8 @@ export default function CollectionEditPage() {
                     ? "Facoltativo: il provider principale può essere derivato dalle sorgenti."
                     : isJustWatch
                       ? providerOptions.length === 0
-                        ? "Nessun provider con mapping JustWatch verificato."
-                        : `${formatNumber(verifiedJustWatchMappings)} mapping JustWatch verificati in IT.`
+                        ? "Nessun provider con package JustWatch configurato."
+                        : `${formatNumber(justwatchProviders.length)} provider con package JustWatch configurato (verificato o manuale) in IT.`
                       : undefined
                 }
               >

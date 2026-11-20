@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   buildCollectionPayload,
   builderProvenanceLabel,
+  hasTmdbMapping,
   resolveDefaultSource,
   type CollectionBuilderInput,
 } from "./collection-builder";
+import type { Provider } from "../api/types";
 
 function input(overrides: Partial<CollectionBuilderInput> = {}): CollectionBuilderInput {
   return {
@@ -173,3 +175,16 @@ describe("buildCollectionPayload", () => {
     expect(payload.slug).toBe("slug");
     expect(payload.year_from).toBeUndefined();
   });
+
+describe("mapping TMDb manuale", () => {
+  const manual = {
+    tmdb_provider_id_movie: "9999",
+    tmdb_provider_id_tv: null,
+  } as Provider;
+
+  it("rende selezionabile un provider con ID TMDb anche se non verificato live", () => {
+    expect(hasTmdbMapping(manual, "MOVIE")).toBe(true);
+    expect(hasTmdbMapping(manual, "SHOW")).toBe(false);
+    expect(hasTmdbMapping({ ...manual, tmdb_provider_id_tv: "9998" } as Provider, "SHOW")).toBe(true);
+  });
+});

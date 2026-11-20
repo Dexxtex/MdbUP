@@ -155,13 +155,13 @@ negli script puntano ai nuovi path.
 | `ruff check` | pulito |
 | `ruff format --check` | **205 file** formattati |
 | `pip-audit` | **0 vulnerabilità** |
-| Vitest | **192 passed** |
+| Vitest | **197 passed** |
 | Playwright E2E | **12 passed** |
 | `npm run typecheck` | verde |
 | `npm run lint` | verde |
 | `npm run build` | verde |
 | Coverage backend (statement) | **90.23%** (gate 90%) |
-| Coverage frontend logica (line/branch/function) | **96.43% / 90.06% / 95.96%** |
+| Coverage frontend logica (line/branch/function) | **96.47% / 90.18% / 96.00%** |
 | `npm audit --omit=dev` | **0 vulnerabilità** |
 | `knip` | nessun export/file non usato (solo tipi generati OpenAPI) |
 

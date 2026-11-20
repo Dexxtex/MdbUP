@@ -132,7 +132,12 @@ def create_provider(
     *,
     actor_user_id: uuid.UUID | None = None,
 ) -> ProviderSummary:
-    """Create a provider chosen by the operator, with optional manual mappings."""
+    """Create a provider chosen by the operator, with optional manual mappings.
+
+    Operator-entered ids are stored but never claimed as live-verified: the
+    mapping keeps ``is_verified=False`` and its metadata records
+    ``verification_source="manual"`` so the read model shows "da verificare".
+    """
     if providers_repo.get_provider_by_slug(db, payload.slug) is not None:
         raise ConflictError(
             "Esiste già un provider con questo slug.",
@@ -175,12 +180,12 @@ def create_provider(
             external_provider_id=payload.tmdb_movie_id or payload.tmdb_tv_id or "",
             external_name=provider.name,
             is_primary=True,
-            is_verified=bool(payload.tmdb_movie_id or payload.tmdb_tv_id),
+            is_verified=False,
             metadata={
                 "movie_provider_id": payload.tmdb_movie_id,
                 "tv_provider_id": payload.tmdb_tv_id,
-                "movie_verified": bool(payload.tmdb_movie_id),
-                "tv_verified": bool(payload.tmdb_tv_id),
+                "movie_verified": False,
+                "tv_verified": False,
                 "verification_source": "manual",
             },
         )
@@ -207,7 +212,7 @@ def create_provider(
             external_provider_id=payload.justwatch_short_name,
             external_name=provider.name,
             is_primary=True,
-            is_verified=True,
+            is_verified=False,
             metadata={
                 "technical_name": payload.justwatch_technical_name,
                 "clear_name": provider.name,
@@ -216,8 +221,8 @@ def create_provider(
                 ],
                 "movie_external_id": payload.justwatch_short_name,
                 "tv_external_id": payload.justwatch_short_name,
-                "movie_verified": True,
-                "tv_verified": True,
+                "movie_verified": False,
+                "tv_verified": False,
                 "verification_source": "manual",
             },
         )
@@ -228,7 +233,14 @@ def create_provider(
         entity_id=provider.id,
         actor_user_id=actor_user_id,
         actor_type=AuditActorType.USER if actor_user_id else AuditActorType.SYSTEM,
-        after={"slug": provider.slug, "name": provider.name},
+        after={
+            "slug": provider.slug,
+            "name": provider.name,
+            "tmdb_movie_id": payload.tmdb_movie_id,
+            "tmdb_tv_id": payload.tmdb_tv_id,
+            "justwatch_short_name": payload.justwatch_short_name,
+            "justwatch_technical_name": payload.justwatch_technical_name,
+        },
     )
     db.commit()
     return get_provider(db, provider.id)

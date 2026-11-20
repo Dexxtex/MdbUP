@@ -13,6 +13,16 @@ export function isJustWatchSource(sourceKey?: string | null): boolean {
   return sourceKey === "justwatch";
 }
 
+/**
+ * Il package JustWatch è configurato quando il provider espone l'ID esterno, sia
+ * dopo la verifica live sia con un mapping manuale. L'ID è ciò che il backend
+ * richiede per creare collezioni JustWatch; i flag verificati restano semantica
+ * di badge (`isVerifiedJustWatchProvider`).
+ */
+export function hasJustWatchMapping(provider: Provider): boolean {
+  return Boolean(provider.justwatch_provider_id);
+}
+
 export function isVerifiedJustWatchProvider(
   provider: Provider,
   mediaType?: MediaType,

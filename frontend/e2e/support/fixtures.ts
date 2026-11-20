@@ -107,8 +107,8 @@ export const PROVIDER_APPLE_TV: Provider = {
 };
 
 /**
- * Mapping TMDb verificato ma nessun mapping JustWatch: il builder JustWatch
- * deve escluderlo (`isVerifiedJustWatchProvider`).
+ * Mapping TMDb verificato ma nessun package JustWatch: il builder JustWatch
+ * deve escluderlo (`hasJustWatchMapping`).
  */
 export const PROVIDER_PARAMOUNT_UNMAPPED: Provider = {
   id: "22222222-2222-4222-8222-222222222224",

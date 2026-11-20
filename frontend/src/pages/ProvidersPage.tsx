@@ -22,6 +22,7 @@ import {
 import { StatusPill } from "../components/ui/status-pill";
 import { Timestamp } from "../components/ui/time";
 import { formatNumber } from "../lib/format";
+import { hasJustWatchMapping } from "../lib/justwatch";
 import { IconBuilding, IconGrid, IconLayers, IconSearch } from "../components/ui/icons";
 import { JustWatchConnectorCard } from "../components/justwatch/connector-card";
 import { ProviderMatrix } from "../components/providers/provider-matrix";
@@ -89,19 +90,16 @@ function MappingCell({
 }
 
 function JustWatchMappingCell({ provider }: { provider: Provider }) {
-  if (!provider.justwatch_verified) {
-    return (
-      <div className="flex flex-col gap-1 text-xs">
-        <StatusPill label="JustWatch non verificato" tone="neutral" />
-        <span className="text-ink-muted">
-          ID: <span className="font-mono text-ink">{provider.justwatch_provider_id ?? "—"}</span>
-        </span>
-      </div>
-    );
-  }
+  const mapped = hasJustWatchMapping(provider);
+  const verified = provider.justwatch_verified === true && mapped;
+  const label = verified
+    ? "JustWatch verificato"
+    : mapped
+      ? "JustWatch da verificare"
+      : "JustWatch non verificato";
   return (
     <div className="flex flex-col gap-1 text-xs">
-      <StatusPill label="JustWatch verificato" tone="success" />
+      <StatusPill label={label} tone={verified ? "success" : "neutral"} />
       <span className="text-ink-muted">
         ID: <span className="font-mono text-ink">{provider.justwatch_provider_id ?? "—"}</span>
       </span>
@@ -253,7 +251,9 @@ function providerColumns(
 
 function CreateProviderCard({ onClose }: { onClose: () => void }) {
   const createProvider = useCreateProvider();
-  const [payload, setPayload] = useState<ProviderCreatePayload>({
+  const [payload, setPayload] = useState<
+    Omit<ProviderCreatePayload, "justwatch_monetization_types">
+  >({
     slug: "",
     name: "",
     kind: "SVOD",
@@ -261,11 +261,17 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
     tmdb_tv_id: "",
     justwatch_short_name: "",
     justwatch_technical_name: "",
-    justwatch_monetization_types: ["FLATRATE"],
   });
+  // Raw text: splitting per keystroke would eat commas before the operator
+  // finishes typing the next offer.
+  const [offersText, setOffersText] = useState("FLATRATE");
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const offers = offersText
+      .split(",")
+      .map((value) => value.trim().toUpperCase())
+      .filter(Boolean);
     await createProvider.mutateAsync({
       ...payload,
       slug: payload.slug.trim(),
@@ -274,6 +280,7 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
       tmdb_tv_id: payload.tmdb_tv_id?.trim() || undefined,
       justwatch_short_name: payload.justwatch_short_name?.trim() || undefined,
       justwatch_technical_name: payload.justwatch_technical_name?.trim() || undefined,
+      justwatch_monetization_types: offers.length > 0 ? offers : ["FLATRATE"],
     });
     onClose();
   };
@@ -285,6 +292,7 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
         <p className="text-sm text-ink-muted">
           Inserisci il servizio che vuoi monitorare. I mapping sono facoltativi, ma senza
           almeno un ID TMDb o JustWatch non potrai creare collezioni per questo provider.
+          Gli ID che digiti qui restano manuali: la card li mostrerà come “da verificare”.
         </p>
       </div>
       <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
@@ -359,16 +367,8 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
         <Field id="provider-justwatch-offers" label="Offerte JustWatch" hint="Separate da virgola.">
           <Input
             id="provider-justwatch-offers"
-            value={payload.justwatch_monetization_types.join(", ")}
-            onChange={(event) =>
-              setPayload({
-                ...payload,
-                justwatch_monetization_types: event.target.value
-                  .split(",")
-                  .map((value) => value.trim().toUpperCase())
-                  .filter(Boolean),
-              })
-            }
+            value={offersText}
+            onChange={(event) => setOffersText(event.target.value)}
           />
         </Field>
         <div className="flex items-end gap-2 sm:col-span-2">
@@ -376,7 +376,8 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
             Crea provider
           </Button>
           <p className="text-xs text-ink-muted">
-            Gli ID sono configurazione manuale: verificali prima di creare collezioni.
+            Gli ID sono configurazione manuale e restano “da verificare”: controllali sulla
+            fonte prima di creare collezioni.
           </p>
         </div>
       </form>

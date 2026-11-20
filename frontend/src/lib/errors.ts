@@ -71,6 +71,26 @@ export function describeApiError(error: unknown): ErrorPresentation {
     };
   }
 
+  if (error.code === "PROVIDER_ALREADY_EXISTS") {
+    return {
+      ...base,
+      title: "Provider già esistente",
+      message:
+        "Esiste già un provider con questo slug. Apri la card del provider esistente o scegli uno slug diverso.",
+      retryable: false,
+    };
+  }
+
+  if (error.code === "MAPPING_ALREADY_EXISTS") {
+    return {
+      ...base,
+      title: "ID già associato",
+      message:
+        "Questo ID esterno (TMDb o JustWatch) è già associato a un altro provider. Controlla l'ID digitato.",
+      retryable: false,
+    };
+  }
+
   if (error.code === "SOURCE_NOT_AVAILABLE") {
     return {
       ...base,

@@ -79,7 +79,7 @@ test("crea una collezione JustWatch CATALOG e ne verifica la preview source-only
 
   await page.getByTestId("builder-source-justwatch").click();
 
-  // Solo il provider con mapping JustWatch verificato resta selezionabile.
+  // Solo il provider con package JustWatch configurato resta selezionabile.
   const providerSelect = page.locator("#collection-provider");
   await expect(providerSelect.locator("option")).toHaveText([
     "Seleziona…",

@@ -1,4 +1,4 @@
-import type { CollectionCreatePayload } from "../api/types";
+import type { CollectionCreatePayload, Provider } from "../api/types";
 import type {
   BuilderSource,
   CollectionKind,
@@ -11,6 +11,17 @@ import type {
 const COMBINED_SOURCE_LABEL = "Combinata locale (JustWatch + TMDb)";
 const JUSTWATCH_SOURCE_LABEL = "Fonte: JustWatch (Aggregatore)";
 const JUSTWATCH_CHART_SOURCE_LABEL = "Classifica JustWatch";
+
+/**
+ * Il provider ha un ID TMDb per il tipo media richiesto. La verifica live è
+ * separata: un mapping manuale resta selezionabile nel builder, mentre il
+ * backend registra ``provider_mapping_verified=false``.
+ */
+export function hasTmdbMapping(provider: Provider, mediaType: MediaType): boolean {
+  const externalId =
+    mediaType === "SHOW" ? provider.tmdb_provider_id_tv : provider.tmdb_provider_id_movie;
+  return Boolean(externalId);
+}
 
 /** `settings.default_source` può mancare o essere invalido: JustWatch vince. */
 export function resolveDefaultSource(value: unknown): DefaultSource {

@@ -77,20 +77,25 @@ _JUSTWATCH_DESCRIPTION = {
 
 
 def _justwatch_mapping(db: Session, provider_id: uuid.UUID) -> ProviderMapping:
-    """Verified JustWatch mapping for the provider, or an explicit error."""
+    """Live-verified or operator-entered JustWatch mapping, or an explicit error."""
     source = sources_repo.get_source_by_key(db, JUSTWATCH_SOURCE_KEY)
     if source is None:
         raise ValidationError("Fonte JustWatch non trovata.", code="SOURCE_MISSING")
     mapping = providers_repo.get_mapping(
         db, provider_id=provider_id, source_id=source.id, country_code="IT"
     )
-    if mapping is None or not mapping.is_verified:
+    if mapping is None or not (_is_manual(mapping) or mapping.is_verified):
         raise ValidationError(
             "Il provider non ha un mapping JustWatch verificato: eseguire 'justwatch-collections'.",
             code="PROVIDER_NOT_VERIFIED",
             details={"provider_id": str(provider_id), "source_key": JUSTWATCH_SOURCE_KEY},
         )
     return mapping
+
+
+def _is_manual(mapping: ProviderMapping) -> bool:
+    """True when the operator typed the external ids instead of a live check."""
+    return (mapping.metadata_json or {}).get("verification_source") == "manual"
 
 
 def _justwatch_offer_types(
@@ -136,11 +141,11 @@ def _justwatch_filters(
     return filters
 
 
-def _justwatch_quality_flags(kind: str) -> dict[str, object]:
+def _justwatch_quality_flags(kind: str, mapping_verified: bool) -> dict[str, object]:
     flags: dict[str, object] = {
         "aggregator": True,
         "added_date_missing": True,
-        "provider_mapping_verified": True,
+        "provider_mapping_verified": mapping_verified,
     }
     if kind == CollectionKind.CHART.value:
         flags["chart_label"] = "Classifica JustWatch"
@@ -258,7 +263,12 @@ def _validate_combined_sources(
     return sources
 
 
-def _provider_external_id(db: Session, provider_id: uuid.UUID, media_type: str) -> str:
+def _provider_external_id(db: Session, provider_id: uuid.UUID, media_type: str) -> tuple[str, bool]:
+    """TMDb provider id for the media type plus whether the mapping is live-verified.
+
+    Operator-entered mappings (``verification_source="manual"``) are usable, but
+    they stay unverified: the caller records that truth in ``quality_flags``.
+    """
     source = sources_repo.get_source_by_key(db, "tmdb")
     if source is None:
         raise ValidationError("Fonte TMDb non trovata.", code="SOURCE_MISSING")
@@ -276,7 +286,7 @@ def _provider_external_id(db: Session, provider_id: uuid.UUID, media_type: str) 
         if media_type == MediaType.SHOW.value
         else metadata.get("movie_verified")
     )
-    if not verified:
+    if not verified and not _is_manual(mapping):
         raise ValidationError(
             "Il provider non è verificato live per questo tipo media: eseguire verify-providers.",
             code="PROVIDER_NOT_VERIFIED",
@@ -292,7 +302,7 @@ def _provider_external_id(db: Session, provider_id: uuid.UUID, media_type: str) 
             "ID TMDb mancante per questo tipo media.",
             code="PROVIDER_NOT_VERIFIED",
         )
-    return str(external_id)
+    return str(external_id), verified
 
 
 def _validate_source_collection(
@@ -523,7 +533,9 @@ def create_collection(
             "Provider non trovato.", details={"provider_id": str(payload.provider_id)}
         )
     genre_ids = _validate_genres(payload.media_type, payload.genre_ids)
-    provider_external_id = _provider_external_id(db, provider.id, payload.media_type)
+    provider_external_id, mapping_verified = _provider_external_id(
+        db, provider.id, payload.media_type
+    )
     if payload.kind == CollectionKind.RECENTLY_ADDED.value:
         if payload.monetization_type != OfferType.FLATRATE.value:
             raise ValidationError(
@@ -585,7 +597,7 @@ def create_collection(
         offer_types=[payload.monetization_type],
         filters=filters,
         quality_flags={
-            "provider_mapping_verified": True,
+            "provider_mapping_verified": mapping_verified,
             "added_date_missing": payload.monetization_type == OfferType.FLATRATE.value,
             "derivation": filters.get("derivation"),
         },
@@ -802,7 +814,9 @@ def update_collection(
             provider_id=collection.provider_id,
             media_type=media_type,
         )
-    provider_external_id = _provider_external_id(db, collection.provider_id, media_type)
+    provider_external_id, mapping_verified = _provider_external_id(
+        db, collection.provider_id, media_type
+    )
     collection.name = payload.name or collection.name
     collection.description = (
         payload.description if payload.description is not None else collection.description
@@ -830,7 +844,7 @@ def update_collection(
         shared_snapshot_collection_id=shared_snapshot_collection_id,
     )
     collection.quality_flags = {
-        "provider_mapping_verified": True,
+        "provider_mapping_verified": mapping_verified,
         "added_date_missing": monetization_type == OfferType.FLATRATE.value,
         "derivation": collection.filters.get("derivation"),
     }
@@ -1084,7 +1098,7 @@ def _create_justwatch_collection(
     *,
     actor_user_id: uuid.UUID | None = None,
 ) -> CollectionSummary:
-    """Create a JustWatch collection: aggregator, no add dates, verified mapping."""
+    """Create a JustWatch collection: aggregator, no add dates, verified-or-manual mapping."""
     if payload.kind not in _JUSTWATCH_KINDS:
         raise ValidationError(
             "JustWatch supporta CATALOG, RECENTLY_ADDED, UPCOMING e CHART.",
@@ -1133,7 +1147,7 @@ def _create_justwatch_collection(
             year_from=payload.year_from,
             year_to=payload.year_to,
         ),
-        quality_flags=_justwatch_quality_flags(payload.kind),
+        quality_flags=_justwatch_quality_flags(payload.kind, bool(mapping.is_verified)),
         sort_mode="SOURCE_ORDER",
         is_active=payload.is_active,
     )
@@ -1207,7 +1221,7 @@ def _update_justwatch_collection(
         year_from=year_from,
         year_to=year_to,
     )
-    collection.quality_flags = _justwatch_quality_flags(kind)
+    collection.quality_flags = _justwatch_quality_flags(kind, bool(mapping.is_verified))
     collection.sort_mode = "SOURCE_ORDER"
     if payload.is_active is not None:
         collection.is_active = payload.is_active

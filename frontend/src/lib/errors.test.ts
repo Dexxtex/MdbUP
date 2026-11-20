@@ -103,6 +103,33 @@ describe("describeApiError", () => {
     expect(presentation.title).toBe("Ordine non applicato");
     expect(presentation.retryable).toBe(false);
   });
+
+  it("distingue PROVIDER_ALREADY_EXISTS dal generico conflitto", () => {
+    const presentation = describeApiError(
+      apiError({ status: 409, code: "PROVIDER_ALREADY_EXISTS", category: "CONFLICT" }),
+    );
+    expect(presentation.title).toBe("Provider già esistente");
+    expect(presentation.message).toContain("slug");
+    expect(presentation.message).not.toContain("operazione è in corso");
+    expect(presentation.retryable).toBe(false);
+  });
+
+  it("distingue MAPPING_ALREADY_EXISTS dal generico conflitto", () => {
+    const presentation = describeApiError(
+      apiError({ status: 409, code: "MAPPING_ALREADY_EXISTS", category: "CONFLICT" }),
+    );
+    expect(presentation.title).toBe("ID già associato");
+    expect(presentation.message).toContain("provider");
+    expect(presentation.message).not.toContain("operazione è in corso");
+    expect(presentation.retryable).toBe(false);
+  });
+
+  it("mantiene il testo generico per gli altri conflitti", () => {
+    const presentation = describeApiError(
+      apiError({ status: 409, code: "COLLECTION_EXISTS", category: "CONFLICT" }),
+    );
+    expect(presentation.title).toBe("Operazione già in corso");
+  });
 });
 
 describe("fieldErrors", () => {

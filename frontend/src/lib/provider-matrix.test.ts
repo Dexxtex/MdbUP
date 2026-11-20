@@ -143,7 +143,7 @@ describe("freschezza snapshot", () => {
 });
 
 describe("buildProviderMatrix", () => {
-  it("calcola mapping, freschezza e binding attivi per gli 8 servizi", () => {
+  it("calcola mapping, freschezza e binding attivi mantenendo l'ordine curato dei servizi noti", () => {
     const netflix = provider();
     const prime = provider({
       id: "provider-2",
@@ -196,7 +196,7 @@ describe("buildProviderMatrix", () => {
     expect(primeRow.needsAttention).toBe(true);
   });
 
-  it("ignora i provider fuori dagli 8 servizi italiani", () => {
+  it("include i provider personalizzati fuori dal catalogo curato", () => {
     const rows = buildProviderMatrix(
       [provider(), provider({ id: "p-3", slug: "mubi", name: "MUBI" })],
       [],
