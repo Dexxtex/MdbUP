@@ -249,7 +249,7 @@ export function ProviderMatrix({
         <div>
           <h2 className="text-lg font-semibold text-ink">Matrice comparativa</h2>
           <p className="text-sm text-ink-muted">
-            Otto servizi italiani: mapping JustWatch e TMDb, freschezza dell&apos;ultimo
+            Provider configurati: mapping JustWatch e TMDb, freschezza dell&apos;ultimo
             snapshot e binding attivi.
           </p>
         </div>
@@ -288,7 +288,7 @@ export function ProviderMatrix({
         <div className="mt-4">
           <EmptyState
             title="Nessun provider nella matrice"
-            description="I servizi italiani non sono presenti nei provider canonici o nessun provider corrisponde al filtro."
+            description="Nessun provider configurato o nessun provider corrisponde al filtro."
           />
         </div>
       ) : (

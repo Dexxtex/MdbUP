@@ -116,8 +116,14 @@ export function buildProviderMatrix(
 ): ProviderMatrixRow[] {
   const selected = providers
     .map((provider) => ({ provider, order: matchesMatrixService(provider) }))
-    .filter((entry) => entry.order >= 0)
-    .sort((a, b) => a.order - b.order);
+    // The matrix is not limited to the historical eight services: a provider
+    // created by the operator must appear here too. Known services keep their
+    // curated order; custom ones follow alphabetically.
+    .sort((a, b) => {
+      const left = a.order < 0 ? Number.MAX_SAFE_INTEGER : a.order;
+      const right = b.order < 0 ? Number.MAX_SAFE_INTEGER : b.order;
+      return left - right || a.provider.name.localeCompare(b.provider.name, "it");
+    });
 
   return selected.map(({ provider }) => {
     const providerCollections = collections.filter(

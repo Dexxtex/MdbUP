@@ -228,6 +228,14 @@ SOURCE_SEED: tuple[SourceSeed, ...] = (
 )
 
 
+def seed_sources() -> int:
+    """Create/update only the source registry, without demo providers/collections."""
+    with session_scope() as db:
+        sources, created = _upsert_sources(db)
+    print(f"fonti create: {created}/{len(SOURCE_SEED)}")
+    return 0
+
+
 def seed_reference_data() -> int:
     """Upsert providers, sources, TMDb mappings and the TMDb collections."""
     with session_scope() as db:

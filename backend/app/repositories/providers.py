@@ -80,6 +80,22 @@ def get_mapping(
     return db.scalars(stmt).first()
 
 
+def get_mapping_by_external_id(
+    db: Session,
+    *,
+    source_id: uuid.UUID,
+    country_code: str,
+    external_provider_id: str,
+) -> ProviderMapping | None:
+    return db.scalar(
+        select(ProviderMapping).where(
+            ProviderMapping.source_id == source_id,
+            ProviderMapping.country_code == country_code,
+            ProviderMapping.external_provider_id == external_provider_id,
+        )
+    )
+
+
 def upsert_mapping(
     db: Session,
     *,

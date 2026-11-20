@@ -18,6 +18,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconGrid,
+  IconHelp,
   IconLayers,
   IconLink,
   IconLogout,
@@ -70,6 +71,13 @@ const navigation: NavItem[] = [
     end: false,
     icon: IconSettings,
     testId: "nav-settings",
+  },
+  {
+    to: "/app/help",
+    label: "Guida",
+    end: false,
+    icon: IconHelp,
+    testId: "nav-help",
   },
 ];
 

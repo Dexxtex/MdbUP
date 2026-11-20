@@ -98,9 +98,8 @@ Altri interventi:
 - accodamento acquisizione in `collection_admin`, non nel router;
 - readiness DB/Redis riusa `system_status`, niente SQL nel router health;
 - i router non importano repository, job o connector.
-- `seed-providers` installa anche i **12 mapping JustWatch IT** verificati live,
-  così il selettore provider JustWatch funziona subito su un database nuovo;
-  `justwatch-collections` resta la riverifica live e crea le collezioni.
+- `seed-sources` installa solo le fonti; provider, mapping e collezioni sono
+  creati dall’operatore dalla UI. La pagina **Guida** spiega il flusso.
 - I binding JustWatch nascono disabilitati; l'abilitazione richiede un dry-run
   riuscito e lo scheduler non accoda mai una sync MDBList automatica per
   JustWatch. Una sync reale resta manuale.
@@ -151,7 +150,7 @@ negli script puntano ai nuovi path.
 
 | Controllo | Esito |
 |---|---|
-| `pytest` backend | **425 passed** |
+| `pytest` backend | **428 passed** |
 | `mypy app` | **0 errori**, 134 file |
 | `ruff check` | pulito |
 | `ruff format --check` | **205 file** formattati |
@@ -161,8 +160,8 @@ negli script puntano ai nuovi path.
 | `npm run typecheck` | verde |
 | `npm run lint` | verde |
 | `npm run build` | verde |
-| Coverage backend (statement) | **90.20%** (gate 90%) |
-| Coverage frontend logica (line/branch/function) | **96.94% / 90.33% / 96.39%** |
+| Coverage backend (statement) | **90.23%** (gate 90%) |
+| Coverage frontend logica (line/branch/function) | **96.43% / 90.06% / 95.96%** |
 | `npm audit --omit=dev` | **0 vulnerabilità** |
 | `knip` | nessun export/file non usato (solo tipi generati OpenAPI) |
 

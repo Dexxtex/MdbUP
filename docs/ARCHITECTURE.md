@@ -89,8 +89,9 @@ Regole applicate e verificate in Fase 11:
 Per JustWatch (aggregatore, `date_basis=UNKNOWN`) il binding nasce **disabilitato**:
 snapshot e preview sono sempre possibili, mentre una sync MDBList reale richiede
 un dry-run completato con successo e non viene mai accodata automaticamente
-dallo scheduler. `seed-providers` installa i mapping provider IT verificati;
-`justwatch-collections` li riverifica live.
+dallo scheduler. Provider, mapping e collezioni sono creati dall’operatore;
+`seed-sources` precarica solo le fonti e `justwatch-collections` può riverificare
+i mapping JustWatch live.
 
 ### Scheduling
 

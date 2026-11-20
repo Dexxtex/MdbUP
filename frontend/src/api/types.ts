@@ -597,3 +597,16 @@ export interface CollectionCreatePayload {
   is_active?: boolean;
 }
 
+
+export interface ProviderCreatePayload {
+  slug: string;
+  name: string;
+  kind: "SVOD" | "TVOD" | "AVOD" | "TVE" | "STORE" | "CINEMA" | "CHANNEL";
+  logo_url?: string;
+  website_url?: string;
+  tmdb_movie_id?: string;
+  tmdb_tv_id?: string;
+  justwatch_short_name?: string;
+  justwatch_technical_name?: string;
+  justwatch_monetization_types: string[];
+}

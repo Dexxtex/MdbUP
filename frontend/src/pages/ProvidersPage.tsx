@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useBindings, useCollections, useProviders, useSources } from "../hooks/queries";
-import type { Collection, Provider } from "../api/types";
+import { useCreateProvider } from "../hooks/mutations";
+import type { Collection, Provider, ProviderCreatePayload } from "../api/types";
 import { DataTable, type Column } from "../components/ui/data-table";
 import {
   EmptyState,
@@ -15,6 +16,7 @@ import {
   Field,
   Input,
   PageHeader,
+  Select,
   ToggleChip,
 } from "../components/ui/primitives";
 import { StatusPill } from "../components/ui/status-pill";
@@ -249,16 +251,154 @@ function providerColumns(
   ];
 }
 
+function CreateProviderCard({ onClose }: { onClose: () => void }) {
+  const createProvider = useCreateProvider();
+  const [payload, setPayload] = useState<ProviderCreatePayload>({
+    slug: "",
+    name: "",
+    kind: "SVOD",
+    tmdb_movie_id: "",
+    tmdb_tv_id: "",
+    justwatch_short_name: "",
+    justwatch_technical_name: "",
+    justwatch_monetization_types: ["FLATRATE"],
+  });
+
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await createProvider.mutateAsync({
+      ...payload,
+      slug: payload.slug.trim(),
+      name: payload.name.trim(),
+      tmdb_movie_id: payload.tmdb_movie_id?.trim() || undefined,
+      tmdb_tv_id: payload.tmdb_tv_id?.trim() || undefined,
+      justwatch_short_name: payload.justwatch_short_name?.trim() || undefined,
+      justwatch_technical_name: payload.justwatch_technical_name?.trim() || undefined,
+    });
+    onClose();
+  };
+
+  return (
+    <Card className="mb-6" testId="provider-create-card">
+      <div className="mb-3">
+        <h2 className="text-lg font-semibold text-ink">Nuovo provider</h2>
+        <p className="text-sm text-ink-muted">
+          Inserisci il servizio che vuoi monitorare. I mapping sono facoltativi, ma senza
+          almeno un ID TMDb o JustWatch non potrai creare collezioni per questo provider.
+        </p>
+      </div>
+      <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
+        <Field id="provider-slug" label="Slug" hint="Solo minuscole, numeri e trattini.">
+          <Input
+            id="provider-slug"
+            value={payload.slug}
+            onChange={(event) => setPayload({ ...payload, slug: event.target.value })}
+            placeholder="mio-provider"
+            required
+          />
+        </Field>
+        <Field id="provider-name" label="Nome">
+          <Input
+            id="provider-name"
+            value={payload.name}
+            onChange={(event) => setPayload({ ...payload, name: event.target.value })}
+            placeholder="Mio Provider"
+            required
+          />
+        </Field>
+        <Field id="provider-kind" label="Tipo">
+          <Select
+            id="provider-kind"
+            value={payload.kind}
+            onChange={(event) =>
+              setPayload({
+                ...payload,
+                kind: event.target.value as ProviderCreatePayload["kind"],
+              })
+            }
+          >
+            {["SVOD", "TVOD", "AVOD", "TVE", "STORE", "CINEMA", "CHANNEL"].map((kind) => (
+              <option key={kind} value={kind}>
+                {kind}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field id="provider-tmdb-movie" label="ID TMDb film" hint="Facoltativo.">
+          <Input
+            id="provider-tmdb-movie"
+            value={payload.tmdb_movie_id ?? ""}
+            onChange={(event) => setPayload({ ...payload, tmdb_movie_id: event.target.value })}
+          />
+        </Field>
+        <Field id="provider-tmdb-tv" label="ID TMDb serie" hint="Facoltativo.">
+          <Input
+            id="provider-tmdb-tv"
+            value={payload.tmdb_tv_id ?? ""}
+            onChange={(event) => setPayload({ ...payload, tmdb_tv_id: event.target.value })}
+          />
+        </Field>
+        <Field id="provider-justwatch-short" label="Codice JustWatch" hint="Es. nfx, prv.">
+          <Input
+            id="provider-justwatch-short"
+            value={payload.justwatch_short_name ?? ""}
+            onChange={(event) =>
+              setPayload({ ...payload, justwatch_short_name: event.target.value })
+            }
+          />
+        </Field>
+        <Field id="provider-justwatch-technical" label="Technical name JustWatch" hint="Es. netflix.">
+          <Input
+            id="provider-justwatch-technical"
+            value={payload.justwatch_technical_name ?? ""}
+            onChange={(event) =>
+              setPayload({ ...payload, justwatch_technical_name: event.target.value })
+            }
+          />
+        </Field>
+        <Field id="provider-justwatch-offers" label="Offerte JustWatch" hint="Separate da virgola.">
+          <Input
+            id="provider-justwatch-offers"
+            value={payload.justwatch_monetization_types.join(", ")}
+            onChange={(event) =>
+              setPayload({
+                ...payload,
+                justwatch_monetization_types: event.target.value
+                  .split(",")
+                  .map((value) => value.trim().toUpperCase())
+                  .filter(Boolean),
+              })
+            }
+          />
+        </Field>
+        <div className="flex items-end gap-2 sm:col-span-2">
+          <Button type="submit" busy={createProvider.isPending}>
+            Crea provider
+          </Button>
+          <p className="text-xs text-ink-muted">
+            Gli ID sono configurazione manuale: verificali prima di creare collezioni.
+          </p>
+        </div>
+      </form>
+      {createProvider.isError ? (
+        <div className="mt-3">
+          <ErrorState error={createProvider.error} />
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
 export default function ProvidersPage() {
   const [country, setCountry] = useState("IT");
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"cards" | "table">("cards");
+  const [showCreate, setShowCreate] = useState(false);
   const providers = useProviders(country);
   const sources = useSources();
   const collections = useCollections({});
   const bindings = useBindings();
   const justwatchSource = (sources.data ?? []).find((source) => source.key === "justwatch");
-
   const freshness = useMemo(
     () => freshnessByProvider(collections.data ?? []),
     [collections.data],
@@ -287,7 +427,15 @@ export default function ProvidersPage() {
         title="Provider"
         description="Provider canonici con mapping TMDb, copertura film/serie e freschezza degli snapshot."
         actions={
-          <div className="flex gap-1 rounded-md border border-line bg-surface p-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setShowCreate((current) => !current)}
+              data-testid="provider-create-toggle"
+            >
+              {showCreate ? "Chiudi" : "Aggiungi provider"}
+            </Button>
+            <div className="flex gap-1 rounded-md border border-line bg-surface p-1">
             <ToggleChip
               pressed={view === "cards"}
               onClick={() => setView("cards")}
@@ -304,9 +452,12 @@ export default function ProvidersPage() {
               <IconLayers />
               Tabella
             </ToggleChip>
+            </div>
           </div>
         }
       />
+
+      {showCreate ? <CreateProviderCard onClose={() => setShowCreate(false)} /> : null}
 
       <Card className="mb-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">

@@ -241,3 +241,29 @@ class CollectionUpdateIn(BaseModel):
         ):
             raise ValueError("year_from non può superare year_to.")
         return self
+
+
+class ProviderCreateIn(BaseModel):
+    """User-supplied provider and optional external mappings.
+
+    IDs are deliberately entered by the operator: MdbUP does not pre-create a
+    provider catalogue. The mapping is marked as manually configured; the
+    operator remains responsible for checking the external ids.
+    """
+
+    slug: str = Field(
+        min_length=2,
+        max_length=64,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+    )
+    name: str = Field(min_length=2, max_length=200)
+    kind: Literal["SVOD", "TVOD", "AVOD", "TVE", "STORE", "CINEMA", "CHANNEL"] = "SVOD"
+    logo_url: str | None = Field(default=None, max_length=500)
+    website_url: str | None = Field(default=None, max_length=500)
+    tmdb_movie_id: str | None = Field(default=None, max_length=64)
+    tmdb_tv_id: str | None = Field(default=None, max_length=64)
+    justwatch_short_name: str | None = Field(default=None, max_length=64)
+    justwatch_technical_name: str | None = Field(default=None, max_length=64)
+    justwatch_monetization_types: list[str] = Field(
+        default_factory=lambda: ["FLATRATE"], max_length=8
+    )

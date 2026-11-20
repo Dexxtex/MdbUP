@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api import schemas_catalog
-from app.api.deps import get_current_user, get_db_dep
+from app.api.deps import get_current_user, get_db_dep, require_admin, require_csrf
 from app.db.models import AppUser
 from app.services import providers as providers_service
 
@@ -30,6 +30,22 @@ def list_providers(
         items=[schemas_catalog.ProviderOut.model_validate(item) for item in items],
         total=len(items),
     )
+
+
+@router.post(
+    "/providers",
+    status_code=201,
+    response_model=schemas_catalog.ProviderOut,
+    dependencies=[Depends(require_csrf)],
+    summary="Crea un provider scelto dall'operatore",
+)
+def create_provider(
+    payload: schemas_catalog.ProviderCreateIn,
+    db: Session = Depends(get_db_dep),
+    admin: AppUser = Depends(require_admin),
+) -> schemas_catalog.ProviderOut:
+    summary = providers_service.create_provider(db, payload, actor_user_id=admin.id)
+    return schemas_catalog.ProviderOut.model_validate(summary)
 
 
 @router.get(

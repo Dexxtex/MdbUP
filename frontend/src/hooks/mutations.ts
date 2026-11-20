@@ -16,7 +16,9 @@ import type {
   NotificationChannel,
   NotificationTestOut,
   OfferType,
+  ProviderCreatePayload,
   PreviewAccepted,
+  Provider,
   RunAccepted,
   SessionResponse,
   SettingsOut,
@@ -158,6 +160,19 @@ export function useCreateTarget() {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["targets"] });
+    },
+  });
+}
+
+export function useCreateProvider() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: ProviderCreatePayload) =>
+      apiFetch<Provider>("/providers", { method: "POST", body: payload }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["providers"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sources });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
     },
   });
 }

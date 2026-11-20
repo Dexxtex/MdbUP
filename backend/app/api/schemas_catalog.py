@@ -8,9 +8,9 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from app.domain.commands import CollectionCreateIn, CollectionUpdateIn
+from app.domain.commands import CollectionCreateIn, CollectionUpdateIn, ProviderCreateIn
 
-__all__ = ["CollectionCreateIn", "CollectionUpdateIn"]
+__all__ = ["CollectionCreateIn", "CollectionUpdateIn", "ProviderCreateIn"]
 
 
 class SnapshotOut(BaseModel):

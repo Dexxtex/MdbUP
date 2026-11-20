@@ -2,7 +2,7 @@
 
 Applicazione **self-hosted** per acquisire cataloghi e raccolte dei provider streaming in **Italia** e mantenere aggiornate liste statiche **MDBList** tramite API.
 
-> **Stato: Fase 11 completata lato repository.** Struttura riordinata in monolite modulare, file residui del vecchio stack rimossi, dipendenze e codice morto ripuliti, documentazione consolidata in `docs/phases/`. Lo stack resta a **4 servizi** (`api`, `worker`, `postgres`, `redis`) con API/SPA su **28080**, volumi `mdbup_v2_*` e seed automatico. Restano invariati i vincoli: nessuna cancellazione/ricreazione delle **6 liste MDBList** e nessuna modifica ai volumi persistenti. La verifica live di scheduler e dry-run delle 6 liste richiede accesso allo stack di produzione ed è rimandata all'operatore.
+> **Stato: Fase 11 completata lato repository.** Struttura riordinata in monolite modulare, file residui del vecchio stack rimossi, dipendenze e codice morto ripuliti, documentazione consolidata in `docs/phases/`. Lo stack resta a **4 servizi** (`api`, `worker`, `postgres`, `redis`) con API/SPA su **28080**, volumi `mdbup_v2_*` e seed automatico delle sole fonti. Restano invariati i vincoli: nessuna cancellazione/ricreazione delle **6 liste MDBList** e nessuna modifica ai volumi persistenti. La verifica live di scheduler e dry-run delle 6 liste richiede accesso allo stack di produzione ed è rimandata all'operatore.
 
 ---
 
@@ -69,7 +69,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 
 - Fonte `justwatch` con catalogo, novità, in arrivo e classifiche separate; filtro `FLATRATE` di default, post-filter media/package/offerta e mapping provider verificati con `shortName` + `technicalName`.
 - Cache GraphQL (300 s, 512 voci) con hit/miss Redis; schema drift, 429 e timeout producono snapshot `INCOMPLETE`/`ANOMALY`, mai validi per MIRROR.
-- 12 mapping IT verificati; `justwatch-collections` crea 88 collezioni e salta Rakuten TV (senza flatrate). L'upsert non tocca snapshot esistenti.
+- 12 mapping IT di riferimento; `justwatch-collections` crea 88 collezioni e salta Rakuten TV (senza flatrate). L'upsert non tocca snapshot esistenti.
 - Live: Apple TV+ Film catalogo **116**, classifica **105**, in arrivo **3**; `UPCOMING` distinto da `CURRENT`; preview source-only **READY**.
 - UI: card connettore in Provider/Impostazioni→Connettori, builder con fonte e tipologia, badge `Fonte: JustWatch (Aggregatore)`/`Classifica JustWatch`, anteprima e eventi stagioni/episodi.
 - Binding JustWatch disabilitato di default, accettazione policy esplicita e dry-run obbligatorio (`DRY_RUN_REQUIRED`).
@@ -93,7 +93,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - **Snapshot invariati deduplicati**: checksum deterministico, `items_from_snapshot_id`, `last_verified_at`; lo storico delle verifiche resta completo e Cambi Catalogo IT continua a funzionare.
 - **Retention** protegge lo snapshot che possiede gli item condivisi e l'ultima baseline valida.
 - **Storage**: `GET /api/system/status.storage` con byte e righe di snapshot/run; indicatore in Impostazioni.
-- **Compose autonomo**: 4 servizi, environment variables, default di primo avvio e `seed-providers` automatico all'avvio dell'API.
+- **Compose autonomo**: 4 servizi, environment variables, default di primo avvio e `seed-sources` automatico all'avvio dell'API.
 - Test: **361 backend**, **115 frontend**, **12 E2E**.
 - Dettagli: [`docs/phases/phase-10.md`](docs/phases/phase-10.md).
 
@@ -104,7 +104,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - Backend: comandi/errori spostati in `app/domain/`, servizi senza dipendenze da `app.api`, API senza SQL diretto; rimossi moduli/helper non usati e dipendenze inutilizzate.
 - Frontend: hook spostati in `src/hooks/`, export morti rimossi, payload API separati dai componenti.
 - `.gitignore` e `.dockerignore` aggiornati per escludere cache, test, build, backup e segreti.
-- Test: **425 backend**, **192 frontend**, **12 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
+- Test: **428 backend**, **192 frontend**, **12 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
 - Dettagli: [`docs/phases/phase-11.md`](docs/phases/phase-11.md).
 
 ### Fase 6 — hardening e regole avanzate
@@ -179,7 +179,7 @@ uv run python -m app.cli justwatch-collections --provider netflix
 
 Live: collezione `netflix-movie-justwatch` acquisita con **5.525 titoli**, snapshot `COMPLETE`/`CLEAN`/valido, 0 unresolved, 60 pagine; preview source-only `READY` con `to_add=5525`. Nessuna sync MDBList è stata eseguita per questa fonte.
 
-**Policy JustWatch:** è un aggregatore senza date dichiarate. Il binding nasce sempre disabilitato; sono consentiti snapshot e preview, mentre una **sync MDBList reale** richiede un dry-run completato con successo e resta manuale. Lo scheduler non accoda mai automaticamente una sync MDBList per una collezione JustWatch. I 12 mapping provider IT vengono installati idempotentemente da `seed-providers`; `justwatch-collections` esegue la riverifica live e crea le collezioni.
+**Policy JustWatch:** è un aggregatore senza date dichiarate. Il binding nasce sempre disabilitato; sono consentiti snapshot e preview, mentre una **sync MDBList reale** richiede un dry-run completato con successo e resta manuale. Lo scheduler non accoda mai automaticamente una sync MDBList per una collezione JustWatch. Provider e mapping vengono creati dall’utente dalla pagina **Provider**; MdbUP non precarica provider, collezioni o liste. `justwatch-collections` resta disponibile per la riverifica live e la creazione massiva delle collezioni JustWatch.
 
 Dettagli, limiti misurati e superficie API verificata:
 [`docs/phases/phase-08.md`](docs/phases/phase-08.md).
@@ -253,10 +253,8 @@ export BOOTSTRAP_TOKEN="dev-bootstrap-token"
 export REDIS_URL=""
 
 uv run alembic upgrade head
-uv run python -m app.cli seed-providers
+uv run python -m app.cli seed-sources
 uv run python -m app.cli bootstrap-admin --email admin@example.com
-# Collezioni TMDb per genere (ID TMDb: 28 azione, 12 avventura, 27 horror)
-uv run python -m app.cli create-collection --provider netflix --media-type movie   --slug netflix-movie-azione --name "Netflix — Film Azione" --genre-ids 28
 uv run uvicorn app.main:app --reload --port 8000
 ```
 
@@ -277,7 +275,7 @@ Aprire `http://localhost:5173`. Il dev server Vite inoltra `/api` a `http://loca
 1. Aprire `/bootstrap` e usare il token `BOOTSTRAP_TOKEN`.
 2. Creare l'admin con una password di almeno 12 caratteri.
 3. In **Impostazioni → Credenziali** inserire TMDb API key e MDBList API key.
-4. Eseguire `seed-providers` se non già fatto.
+4. Aprire **Provider → Aggiungi provider** e creare il primo servizio con i mapping TMDb/JustWatch.
 5. Acquisire una collezione e creare un binding.
 6. Dalla pagina **Binding** usare `Dry-run` per il piano o `Esegui` per una sync reale; il piano reale richiede approvazione.
 
@@ -325,12 +323,13 @@ All'avvio l'API esegue:
 
 ```text
 alembic upgrade head
-python -m app.cli seed-providers
+python -m app.cli seed-sources
 uvicorn app.main:app ...
 ```
 
-Il seed è idempotente e garantisce fonti, provider e mapping anche su un
-database vuoto. Il worker esegue Celery Beat embedded (`-B`).
+Il seed è idempotente e garantisce le **fonti** anche su un database vuoto;
+provider, mapping e collezioni vengono creati dall’utente. La pagina **Guida**
+(`/app/help`) descrive il flusso completo. Il worker esegue Celery Beat embedded (`-B`).
 
 ### Immagine precompilata (GHCR)
 
@@ -438,12 +437,12 @@ npm run test:e2e
 npm audit --omit=dev
 ```
 
-Stato attuale: **425 test backend**, **192 test frontend** e **12 test E2E
+Stato attuale: **428 test backend**, **192 test frontend** e **12 test E2E
 Playwright** verdi; `ruff check`, `ruff format --check`, `mypy`, build Vite,
 lint e audit senza vulnerabilità. I test unitari usano `respx`/fixture; la
 verifica live è stata eseguita separatamente su TMDb e MDBList reali.
 
-Coverage gate: backend **90.20%** statement, frontend **96.94%** linee / **90.33%** branch / **96.39%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
+Coverage gate: backend **90.23%** statement, frontend **96.94%** linee / **90.33%** branch / **96.39%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
 
 ---
 
@@ -460,6 +459,7 @@ Coverage gate: backend **90.20%** statement, frontend **96.94%** linee / **90.33
 | `POST` | `/api/auth/change-password` | Verifica password attuale, revoca tutte le sessioni |
 | `GET` | `/api/dashboard` | Contatori, alert, run recenti |
 | `GET` | `/api/providers` | Provider IT + mapping TMDb |
+| `POST` | `/api/providers` | Crea un provider scelto dall’utente con mapping opzionali |
 | `GET` | `/api/collections` | Collezioni con origine/date_basis e filtri |
 | `POST` | `/api/collections` | Crea una collezione (catalogo o Appena rilevati) |
 | `PATCH` | `/api/collections/{id}` | Modifica una collezione |
@@ -561,6 +561,7 @@ Dettagli: [`docs/phases/phase-01.md`](docs/phases/phase-01.md).
 - [`docs/phases/phase-11.md`](docs/phases/phase-11.md) — pulizia, riorganizzazione e verifica finale.
 - [`docs/justwatch-it-verification.md`](docs/justwatch-it-verification.md) — verifica live degli endpoint JustWatch per film e serie in Italia.
 - [`docs/justwatch-genres-catalog-verification.md`](docs/justwatch-genres-catalog-verification.md) — verifica generi e catalogo JustWatch per film e serie in Italia.
+- Guida in-app: `/app/help` — configurazione iniziale, provider, collezioni, preview, binding e policy JustWatch.
 
 ---
 

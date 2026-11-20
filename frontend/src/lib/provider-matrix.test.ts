@@ -203,7 +203,7 @@ describe("buildProviderMatrix", () => {
       [],
       NOW,
     );
-    expect(rows.map((row) => row.provider.name)).toEqual(["Netflix"]);
+    expect(rows.map((row) => row.provider.name)).toEqual(["Netflix", "MUBI"]);
   });
 });
 

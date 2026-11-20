@@ -75,7 +75,7 @@ services:
   # 1. API + SPA + migrazioni Alembic.
   api:
     <<: *app
-    command: ["sh", "-c", "alembic upgrade head && python -m app.cli seed-providers && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers"]
+    command: ["sh", "-c", "alembic upgrade head && python -m app.cli seed-sources && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers"]
     ports:
       - "${WEB_PORT:-28080}:8000"
     cpus: 1.0

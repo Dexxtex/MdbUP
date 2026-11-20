@@ -7,7 +7,10 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from app.domain.errors import NotFoundError
+from app.domain.commands import ProviderCreateIn
+from app.domain.enums import AuditActorType
+from app.domain.errors import ConflictError, NotFoundError, ValidationError
+from app.repositories import audit
 from app.repositories import collections as collections_repo
 from app.repositories import providers as providers_repo
 from app.repositories import sources as sources_repo
@@ -121,3 +124,111 @@ def get_provider(
         if summary.id == provider_id:
             return summary
     raise NotFoundError("Provider non trovato.", details={"provider_id": str(provider_id)})
+
+
+def create_provider(
+    db: Session,
+    payload: ProviderCreateIn,
+    *,
+    actor_user_id: uuid.UUID | None = None,
+) -> ProviderSummary:
+    """Create a provider chosen by the operator, with optional manual mappings."""
+    if providers_repo.get_provider_by_slug(db, payload.slug) is not None:
+        raise ConflictError(
+            "Esiste già un provider con questo slug.",
+            code="PROVIDER_ALREADY_EXISTS",
+            details={"slug": payload.slug},
+        )
+    tmdb_source = sources_repo.get_source_by_key(db, "tmdb")
+    justwatch_source = sources_repo.get_source_by_key(db, "justwatch")
+    provider = providers_repo.upsert_provider(
+        db,
+        slug=payload.slug,
+        name=payload.name,
+        kind=payload.kind,
+        logo_url=payload.logo_url,
+        website_url=payload.website_url,
+    )
+    if payload.tmdb_movie_id or payload.tmdb_tv_id:
+        if tmdb_source is None:
+            raise ValidationError("Fonte TMDb non trovata.", code="SOURCE_MISSING")
+        for external_id in (payload.tmdb_movie_id, payload.tmdb_tv_id):
+            if not external_id:
+                continue
+            existing = providers_repo.get_mapping_by_external_id(
+                db,
+                source_id=tmdb_source.id,
+                country_code="IT",
+                external_provider_id=external_id,
+            )
+            if existing is not None and existing.provider_id != provider.id:
+                raise ConflictError(
+                    "ID TMDb già associato a un altro provider.",
+                    code="MAPPING_ALREADY_EXISTS",
+                    details={"external_id": external_id},
+                )
+        providers_repo.upsert_mapping(
+            db,
+            provider_id=provider.id,
+            source_id=tmdb_source.id,
+            country_code="IT",
+            external_provider_id=payload.tmdb_movie_id or payload.tmdb_tv_id or "",
+            external_name=provider.name,
+            is_primary=True,
+            is_verified=bool(payload.tmdb_movie_id or payload.tmdb_tv_id),
+            metadata={
+                "movie_provider_id": payload.tmdb_movie_id,
+                "tv_provider_id": payload.tmdb_tv_id,
+                "movie_verified": bool(payload.tmdb_movie_id),
+                "tv_verified": bool(payload.tmdb_tv_id),
+                "verification_source": "manual",
+            },
+        )
+    if payload.justwatch_short_name:
+        if justwatch_source is None:
+            raise ValidationError("Fonte JustWatch non trovata.", code="SOURCE_MISSING")
+        existing = providers_repo.get_mapping_by_external_id(
+            db,
+            source_id=justwatch_source.id,
+            country_code="IT",
+            external_provider_id=payload.justwatch_short_name,
+        )
+        if existing is not None and existing.provider_id != provider.id:
+            raise ConflictError(
+                "Package JustWatch già associato a un altro provider.",
+                code="MAPPING_ALREADY_EXISTS",
+                details={"short_name": payload.justwatch_short_name},
+            )
+        providers_repo.upsert_mapping(
+            db,
+            provider_id=provider.id,
+            source_id=justwatch_source.id,
+            country_code="IT",
+            external_provider_id=payload.justwatch_short_name,
+            external_name=provider.name,
+            is_primary=True,
+            is_verified=True,
+            metadata={
+                "technical_name": payload.justwatch_technical_name,
+                "clear_name": provider.name,
+                "monetization_types": [
+                    value.upper() for value in payload.justwatch_monetization_types
+                ],
+                "movie_external_id": payload.justwatch_short_name,
+                "tv_external_id": payload.justwatch_short_name,
+                "movie_verified": True,
+                "tv_verified": True,
+                "verification_source": "manual",
+            },
+        )
+    audit.record(
+        db,
+        action="provider_created",
+        entity_type="provider",
+        entity_id=provider.id,
+        actor_user_id=actor_user_id,
+        actor_type=AuditActorType.USER if actor_user_id else AuditActorType.SYSTEM,
+        after={"slug": provider.slug, "name": provider.name},
+    )
+    db.commit()
+    return get_provider(db, provider.id)

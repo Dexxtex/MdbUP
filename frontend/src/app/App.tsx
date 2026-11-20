@@ -10,6 +10,7 @@ import CollectionDetailPage from "../pages/CollectionDetailPage";
 import CollectionEditPage from "../pages/CollectionEditPage";
 import CollectionsPage from "../pages/CollectionsPage";
 import DashboardPage from "../pages/DashboardPage";
+import HelpPage from "../pages/HelpPage";
 import LoginPage from "../pages/LoginPage";
 import NotFoundPage from "../pages/NotFoundPage";
 import ProvidersPage from "../pages/ProvidersPage";
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="runs" element={<RunsPage />} />
           <Route path="runs/:runId" element={<RunDetailPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="help" element={<HelpPage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

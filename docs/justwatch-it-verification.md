@@ -24,7 +24,7 @@
 
 ### Package e mapping provider
 
-`packages` ha restituito **109 package** per l’Italia. I 12 mapping configurati
+`packages` ha restituito **109 package** per l’Italia. I 12 mapping di riferimento
 sono stati confrontati su `shortName` **e** `technicalName`:
 
 | Provider | shortName | technicalName | FLATRATE |
@@ -93,9 +93,9 @@ Test aggiunto: `test_new_titles_maps_show_season_to_parent_show`.
 
 ## Nota di prodotto
 
-`seed-providers` installa i 12 mapping IT qui verificati, così i provider sono
-visibili subito nel builder JustWatch anche su un database nuovo.
-`justwatch-collections` esegue la riverifica live e crea le collezioni. I binding
+I mapping IT qui verificati sono disponibili come riferimento per la creazione
+dei provider dalla UI; MdbUP non li installa automaticamente. `justwatch-collections`
+può eseguire la riverifica live e creare le collezioni su richiesta. I binding
 JustWatch restano disabilitati fino a un dry-run riuscito e lo scheduler non
 accoda mai una sync MDBList automatica per questa fonte.
 

@@ -40,7 +40,7 @@ from app.integrations.tmdb.client import TMDbClient
 from app.repositories import audit, users
 from app.repositories import collections as collections_repo
 from app.repositories import providers as providers_repo
-from app.seed import seed_reference_data
+from app.seed import seed_reference_data, seed_sources
 from app.services import backup as backup_service
 from app.services import credentials as credentials_service
 from app.services import justwatch_collections
@@ -378,8 +378,12 @@ def build_parser() -> argparse.ArgumentParser:
     bootstrap.add_argument("--token", help="Token di bootstrap (default: BOOTSTRAP_TOKEN)")
 
     subparsers.add_parser(
+        "seed-sources",
+        help="Inserisce solo le fonti (nessun provider o collezione)",
+    )
+    subparsers.add_parser(
         "seed-providers",
-        help="Inserisce provider, fonti, mapping TMDb e collezioni TMDb",
+        help="Inserisce dati dimostrativi: provider, fonti, mapping e collezioni TMDb",
     )
     verify = subparsers.add_parser(
         "verify-providers",
@@ -463,6 +467,8 @@ def main(argv: list[str] | None = None) -> int:
             password=_read_password(args),
             token=args.token,
         )
+    if args.command == "seed-sources":
+        return seed_sources()
     if args.command == "seed-providers":
         return seed_reference_data()
     if args.command == "detect-tv-changes":
