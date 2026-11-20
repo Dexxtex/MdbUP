@@ -160,7 +160,7 @@ negli script puntano ai nuovi path.
 | `npm run typecheck` | verde |
 | `npm run lint` | verde |
 | `npm run build` | verde |
-| Coverage backend (statement) | **90.06%** (gate 90%) |
+| Coverage backend (statement) | **90.23%** (gate 90%) |
 | Coverage frontend logica (line/branch/function) | **96.03% / 90.30% / 95.15%** |
 | `npm audit --omit=dev` | **0 vulnerabilità** |
 | `knip` | nessun export/file non usato (solo tipi generati OpenAPI) |

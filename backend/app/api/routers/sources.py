@@ -57,25 +57,6 @@ def list_tvdb_companies(
 
 
 @router.get(
-    "/sources/tvdb/lists",
-    response_model=schemas_catalog.TVDbListListOut,
-    summary="Liste TVDB (ufficiali o utente; metadati)",
-)
-def list_tvdb_lists(
-    page: int = 0,
-    db: Session = Depends(get_db_dep),
-    settings: Settings = Depends(get_settings_dep),
-    _user: AppUser = Depends(get_current_user),
-) -> schemas_catalog.TVDbListListOut:
-    items = tvdb_service.list_lists(db, settings, page=max(0, page))
-    return schemas_catalog.TVDbListListOut(
-        items=[schemas_catalog.TVDbListOut.model_validate(item) for item in items],
-        total=len(items),
-        page=page,
-    )
-
-
-@router.get(
     "/sources/tvdb/genres",
     response_model=schemas_catalog.TVDbGenreListOut,
     summary="Generi TVDB (metadati)",
@@ -93,12 +74,11 @@ def list_tvdb_genres(
 
 
 @router.get(
-    "/sources/tvdb/catalog",
+    "/sources/tvdb/series",
     response_model=schemas_catalog.TVDbCatalogOut,
-    summary="Film o serie TVDB filtrati per genere, anno e paese di origine",
+    summary="Serie TVDB filtrate per genere, anno e paese di origine",
 )
-def filter_tvdb_catalog(
-    media_type: str = Query("MOVIE", pattern="^(MOVIE|SHOW)$"),
+def filter_tvdb_series(
     country: str = Query("ita", min_length=3, max_length=3),
     language: str = Query("ita", min_length=3, max_length=3),
     genre_id: str | None = Query(None, max_length=32),
@@ -109,10 +89,9 @@ def filter_tvdb_catalog(
     settings: Settings = Depends(get_settings_dep),
     _user: AppUser = Depends(get_current_user),
 ) -> schemas_catalog.TVDbCatalogOut:
-    items = tvdb_service.filter_titles(
+    items = tvdb_service.filter_series(
         db,
         settings,
-        media_type,
         country=country.lower(),
         language=language.lower(),
         genre_id=genre_id,
@@ -123,7 +102,6 @@ def filter_tvdb_catalog(
     return schemas_catalog.TVDbCatalogOut(
         items=[schemas_catalog.TVDbCatalogItemOut.model_validate(item) for item in items],
         total=len(items),
-        media_type=media_type,
         country=country.lower(),
         language=language.lower(),
         genre_id=genre_id,

@@ -92,7 +92,7 @@ un dry-run completato con successo e non viene mai accodata automaticamente
 dallo scheduler. Provider, mapping e collezioni sono creati dall’operatore;
 `seed-sources` precarica solo le fonti e `justwatch-collections` può riverificare
 i mapping JustWatch live. La pagina **Provider** può leggere il catalogo unificato
-TMDb/JustWatch/TVDB; TheTVDB è una fonte di metadati/company ID e filtri per genere/anno, non di disponibilità
+TMDb/JustWatch/TVDB; TheTVDB è una fonte di metadati/company ID e filtri per serie (genere/anno), non di disponibilità
 territoriale.
 
 ### Scheduling

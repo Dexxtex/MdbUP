@@ -217,24 +217,6 @@ class TVDbCompanyListOut(BaseModel):
     total: int
 
 
-class TVDbListOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    list_id: str
-    name: str
-    overview: str | None = None
-    is_official: bool = False
-    score: int | None = None
-    url: str | None = None
-    tags: list[str] = []
-
-
-class TVDbListListOut(BaseModel):
-    items: list[TVDbListOut]
-    total: int
-    page: int
-
-
 class TVDbGenreOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -252,7 +234,6 @@ class TVDbCatalogItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     item_id: str
-    media_type: str
     name: str
     year: str | None = None
     overview: str | None = None
@@ -264,7 +245,6 @@ class TVDbCatalogItemOut(BaseModel):
 class TVDbCatalogOut(BaseModel):
     items: list[TVDbCatalogItemOut]
     total: int
-    media_type: str
     country: str
     language: str
     genre_id: str | None = None

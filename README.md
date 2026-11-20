@@ -189,10 +189,10 @@ TMDb (94 film + 68 serie in IT, deduplicati), JustWatch (109 package) e, se conf
 TheTVDB in **gruppi separati per fonte**. Le fonti non vengono unite: ogni candidato conserva
 la propria provenienza e il proprio mapping. TVDB viene usato per le **company ID e i metadati**,
 non per la disponibilità per paese. Per categoria e anno si usano
-`/api/sources/tvdb/genres` e `/api/sources/tvdb/catalog?media_type=…&genre_id=…&year=…`;
+`/api/sources/tvdb/genres` e `/api/sources/tvdb/series?genre_id=…&year=…`;
 `country` e `language` TVDB indicano **paese di origine e lingua originale**, non disponibilità
-in Italia. Le liste TVDB (`/lists`) sono liste ufficiali/utente e non hanno una tassonomia
-affidabile per categoria/anno: non vengono presentate come tali. La selezione compila i mapping,
+in Italia. TVDB è trattato come fonte **solo per serie TV**: nessun endpoint film o lista mista.
+La selezione compila i mapping,
 che restano modificabili e non vengono dichiarati verificati live finché non lo sono davvero.
 
 ---
@@ -472,7 +472,7 @@ Playwright** verdi; `ruff check`, `ruff format --check`, `mypy`, build Vite,
 lint e audit senza vulnerabilità. I test unitari usano `respx`/fixture; la
 verifica live è stata eseguita separatamente su TMDb e MDBList reali.
 
-Coverage gate: backend **90.06%** statement, frontend **96.03%** linee / **90.30%** branch / **95.15%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
+Coverage gate: backend **90.23%** statement, frontend **96.03%** linee / **90.30%** branch / **95.15%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
 
 ---
 
@@ -492,8 +492,7 @@ Coverage gate: backend **90.06%** statement, frontend **96.03%** linee / **90.30
 | `GET` | `/api/providers/catalog` | Provider disponibili da TMDb, JustWatch e TheTVDB |
 | `GET` | `/api/sources/tvdb/companies` | Company TVDB (metadati; nessuna disponibilità per paese) |
 | `GET` | `/api/sources/tvdb/genres` | Generi TVDB |
-| `GET` | `/api/sources/tvdb/catalog` | Film/serie TVDB filtrati per genere, anno e paese di origine |
-| `GET` | `/api/sources/tvdb/lists` | Liste TVDB (metadati) |
+| `GET` | `/api/sources/tvdb/series` | Serie TVDB filtrate per genere, anno e paese di origine |
 | `POST` | `/api/providers` | Crea un provider scelto dall’utente con mapping opzionali |
 | `GET` | `/api/collections` | Collezioni con origine/date_basis e filtri |
 | `POST` | `/api/collections` | Crea una collezione (catalogo o Appena rilevati) |
@@ -558,7 +557,7 @@ Dettagli: [`docs/phases/phase-01.md`](docs/phases/phase-01.md).
 3. **Top 10 ufficiale** non è implementabile senza una fonte ufficiale verificata.
 4. **MDBList**: reorder max 1.000 elementi per chiamata, non atomico; niente idempotency key lato API.
 5. **TMDb discover** è limitato a 500 pagine; cataloghi grandi richiedono partizionamento. Per Apple TV+ Serie TV è stato usato `sort_by=vote_count.desc` per evitare duplicati da paginazione.
-6. **TheTVDB non è una fonte di disponibilità per l'Italia**: viene usato per company ID/metadati; non crea collezioni TMDb/JustWatch e non dichiara offerte territoriali.
+6. **TheTVDB è una fonte solo per serie TV**: viene usato per company ID/metadati e filtri serie (genere/anno); non espone film, disponibilità per paese o collezioni TMDb/JustWatch.
 6. **Preview** è calcolata in modo sincrono nell'API (può essere lenta su liste grandi).
 7. **Rate limit di scrittura MDBList** è process-local (240 item/5 min); con più worker serve un token bucket Redis.
 8. **Binding manuali per default**: le 5 liste sono in `MIRROR` con schedule `MANUAL`; la pagina **Modifica** permette `INTERVAL`/`CRON`/`DAILY`/`WEEKLY`.

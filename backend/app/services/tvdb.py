@@ -6,12 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.integrations.tvdb.client import TVDbClient
-from app.integrations.tvdb.models import (
-    TVDbCatalogItem,
-    TVDbCompany,
-    TVDbGenre,
-    TVDbList,
-)
+from app.integrations.tvdb.models import TVDbCatalogItem, TVDbCompany, TVDbGenre
 from app.services import credentials as credentials_service
 from app.services.credentials import CredentialKind
 
@@ -30,19 +25,6 @@ def list_streaming_companies(db: Session, settings: Settings) -> list[TVDbCompan
         client.close()
 
 
-def list_lists(db: Session, settings: Settings, *, page: int = 0) -> list[TVDbList]:
-    token = credentials_service.get_secret(db, settings, CredentialKind.TVDB)
-    client = TVDbClient(
-        token,
-        timeout=float(settings.http_timeout_seconds),
-        max_retries=settings.http_max_retries,
-    )
-    try:
-        return client.list_lists(page=page)
-    finally:
-        client.close()
-
-
 def list_genres(db: Session, settings: Settings) -> list[TVDbGenre]:
     token = credentials_service.get_secret(db, settings, CredentialKind.TVDB)
     client = TVDbClient(
@@ -56,10 +38,9 @@ def list_genres(db: Session, settings: Settings) -> list[TVDbGenre]:
         client.close()
 
 
-def filter_titles(
+def filter_series(
     db: Session,
     settings: Settings,
-    media_type: str,
     *,
     country: str,
     language: str,
@@ -75,8 +56,7 @@ def filter_titles(
         max_retries=settings.http_max_retries,
     )
     try:
-        return client.filter_titles(
-            media_type,
+        return client.filter_series(
             country=country,
             language=language,
             genre_id=genre_id,
