@@ -38,6 +38,7 @@ from app.repositories import collections as collections_repo
 from app.repositories import runs as runs_repo
 from app.repositories import snapshots as snapshots_repo
 from app.services.bindings import compute_next_run_at
+from app.services.collections import is_justwatch_collection
 
 logger = get_logger(__name__)
 
@@ -108,6 +109,18 @@ def enqueue_due_bindings(
                 db.commit()
                 continue
             collection = collections_repo.get_collection(db, binding.collection_id)
+            # JustWatch is an aggregator: it may feed snapshots/previews, but it
+            # never triggers an automatic MDBList sync. A real run remains a
+            # manual action after the required dry-run.
+            if collection is not None and is_justwatch_collection(db, collection):
+                logger.info(
+                    "scheduler_skips_justwatch_automatic_sync",
+                    binding_id=str(binding.id),
+                    collection_id=str(collection.id),
+                )
+                skipped += 1
+                db.commit()
+                continue
             snapshot = _scheduled_snapshot(db, binding.collection_id, binding.mode)
             if collection is None or snapshot is None:
                 skipped += 1

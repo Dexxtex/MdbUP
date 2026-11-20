@@ -86,6 +86,12 @@ Regole applicate e verificate in Fase 11:
 5. gli esiti incerti restano `UNCERTAIN` e vengono riconciliati, senza mai
    ricreare o svuotare le liste.
 
+Per JustWatch (aggregatore, `date_basis=UNKNOWN`) il binding nasce **disabilitato**:
+snapshot e preview sono sempre possibili, mentre una sync MDBList reale richiede
+un dry-run completato con successo e non viene mai accodata automaticamente
+dallo scheduler. `seed-providers` installa i mapping provider IT verificati;
+`justwatch-collections` li riverifica live.
+
 ### Scheduling
 
 - 96 slot deterministici da 15 minuti (`sha256(slug) % 96`, Europe/Rome);

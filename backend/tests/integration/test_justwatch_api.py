@@ -216,10 +216,9 @@ def test_sources_expose_the_justwatch_runtime_block(client, admin, seeded, app_s
     assert "cache_hits" in block and "cache_misses" in block
     assert "CHART" in block["supported_kinds"]
     assert "UPCOMING" in block["supported_kinds"]
-    assert block["supported_offer_types"] == ["FLATRATE"]
-    assert len(block["mappings"]) == 1
-    mapping = block["mappings"][0]
-    assert mapping["provider_slug"] == "netflix"
+    assert {"FLATRATE", "ADS", "BUY", "FREE", "RENT"} <= set(block["supported_offer_types"])
+    assert len(block["mappings"]) == 12
+    mapping = next(item for item in block["mappings"] if item["provider_slug"] == "netflix")
     assert mapping["external_id"] == "nfx"
     assert mapping["technical_name"] == "netflix"
     assert mapping["clear_name"] == "Netflix"
@@ -245,10 +244,10 @@ def test_providers_expose_the_justwatch_mapping(client, admin, seeded, app_setti
     assert netflix["justwatch_monetization_types"] == ["FLATRATE"]
 
     mubi = next(item for item in body["items"] if item["slug"] == "mubi")
-    assert mubi["justwatch_provider_id"] is None
-    assert mubi["justwatch_verified"] is False
-    assert mubi["justwatch_movie_verified"] is False
-    assert mubi["justwatch_tv_verified"] is False
+    assert mubi["justwatch_provider_id"] == "mbi"
+    assert mubi["justwatch_verified"] is True
+    assert mubi["justwatch_movie_verified"] is True
+    assert mubi["justwatch_tv_verified"] is True
 
 
 @respx.mock
@@ -288,16 +287,21 @@ def test_create_justwatch_collection_requires_a_verified_mapping(
 ) -> None:
     _mock_packages()
     _sync_justwatch(app_settings)
-    mubi_id = _provider_id(client, "mubi")
+    from app.db.models import Provider
+    from app.db.session import session_scope
+
+    with session_scope() as session:
+        session.add(Provider(slug="unmapped-justwatch", name="Unmapped JustWatch"))
+    unmapped_id = _provider_id(client, "unmapped-justwatch")
 
     response = client.post(
         "/api/collections",
         json={
             "source_key": "justwatch",
-            "provider_id": mubi_id,
+            "provider_id": unmapped_id,
             "media_type": "MOVIE",
-            "name": "MUBI — Catalogo test",
-            "slug": "mubi-catalog-test",
+            "name": "Unmapped — Catalogo test",
+            "slug": "unmapped-catalog-test",
             "kind": "CATALOG",
         },
         headers=admin,
@@ -389,6 +393,20 @@ def test_justwatch_real_run_requires_a_successful_dry_run(
     )
     assert created.status_code == 201, created.text
     binding_id = created.json()["id"]
+    blocked = client.patch(
+        f"/api/bindings/{binding_id}",
+        json={"enabled": True, "policy_version": "v1"},
+        headers=admin,
+    )
+    assert blocked.status_code == 409
+    assert blocked.json()["error"]["code"] == "DRY_RUN_REQUIRED"
+
+    _mock_mdblist([])
+    dry = client.post(f"/api/bindings/{binding_id}/runs", json={"dry_run": True}, headers=admin)
+    assert dry.status_code == 202, dry.text
+    dry_run = client.get(f"/api/runs/{dry.json()['run_id']}").json()
+    assert dry_run["status"] == "SUCCEEDED", dry_run
+
     enabled = client.patch(
         f"/api/bindings/{binding_id}",
         json={"enabled": True, "policy_version": "v1"},
@@ -396,18 +414,6 @@ def test_justwatch_real_run_requires_a_successful_dry_run(
     )
     assert enabled.status_code == 200, enabled.text
     assert enabled.json()["enabled"] is True
-    _mock_mdblist([])
-
-    blocked = client.post(
-        f"/api/bindings/{binding_id}/runs", json={"dry_run": False}, headers=admin
-    )
-    assert blocked.status_code == 409
-    assert blocked.json()["error"]["code"] == "DRY_RUN_REQUIRED"
-
-    dry = client.post(f"/api/bindings/{binding_id}/runs", json={"dry_run": True}, headers=admin)
-    assert dry.status_code == 202, dry.text
-    dry_run = client.get(f"/api/runs/{dry.json()['run_id']}").json()
-    assert dry_run["status"] == "SUCCEEDED", dry_run
 
     real = client.post(f"/api/bindings/{binding_id}/runs", json={"dry_run": False}, headers=admin)
     assert real.status_code == 202, real.text

@@ -104,7 +104,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - Backend: comandi/errori spostati in `app/domain/`, servizi senza dipendenze da `app.api`, API senza SQL diretto; rimossi moduli/helper non usati e dipendenze inutilizzate.
 - Frontend: hook spostati in `src/hooks/`, export morti rimossi, payload API separati dai componenti.
 - `.gitignore` e `.dockerignore` aggiornati per escludere cache, test, build, backup e segreti.
-- Test: **423 backend**, **192 frontend**, **12 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
+- Test: **425 backend**, **192 frontend**, **12 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
 - Dettagli: [`docs/phases/phase-11.md`](docs/phases/phase-11.md).
 
 ### Fase 6 — hardening e regole avanzate
@@ -178,6 +178,8 @@ uv run python -m app.cli justwatch-collections --provider netflix
 ```
 
 Live: collezione `netflix-movie-justwatch` acquisita con **5.525 titoli**, snapshot `COMPLETE`/`CLEAN`/valido, 0 unresolved, 60 pagine; preview source-only `READY` con `to_add=5525`. Nessuna sync MDBList è stata eseguita per questa fonte.
+
+**Policy JustWatch:** è un aggregatore senza date dichiarate. Il binding nasce sempre disabilitato; sono consentiti snapshot e preview, mentre una **sync MDBList reale** richiede un dry-run completato con successo e resta manuale. Lo scheduler non accoda mai automaticamente una sync MDBList per una collezione JustWatch. I 12 mapping provider IT vengono installati idempotentemente da `seed-providers`; `justwatch-collections` esegue la riverifica live e crea le collezioni.
 
 Dettagli, limiti misurati e superficie API verificata:
 [`docs/phases/phase-08.md`](docs/phases/phase-08.md).
@@ -436,12 +438,12 @@ npm run test:e2e
 npm audit --omit=dev
 ```
 
-Stato attuale: **423 test backend**, **192 test frontend** e **12 test E2E
+Stato attuale: **425 test backend**, **192 test frontend** e **12 test E2E
 Playwright** verdi; `ruff check`, `ruff format --check`, `mypy`, build Vite,
 lint e audit senza vulnerabilità. I test unitari usano `respx`/fixture; la
 verifica live è stata eseguita separatamente su TMDb e MDBList reali.
 
-Coverage gate: backend **90.25%** statement, frontend **96.94%** linee / **90.33%** branch / **96.39%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
+Coverage gate: backend **90.20%** statement, frontend **96.94%** linee / **90.33%** branch / **96.39%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
 
 ---
 

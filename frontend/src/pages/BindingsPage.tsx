@@ -310,7 +310,12 @@ function BindingCard({
         >
           Dry-run
         </Button>
-        <Button size="sm" busy={runBusy} onClick={() => setConfirmRun(true)}>
+        <Button
+          size="sm"
+          busy={runBusy}
+          disabled={isJustWatch && !binding.enabled}
+          onClick={() => setConfirmRun(true)}
+        >
           Esegui
         </Button>
       </div>

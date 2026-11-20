@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 
 from app.db.models import Collection, ProviderMapping
 from app.db.session import session_scope
+from app.repositories import sources as sources_repo
 from app.services import justwatch_collections
 
 BASE = "https://apis.justwatch.com/graphql"
@@ -155,6 +156,11 @@ def test_sync_skips_packages_whose_technical_name_does_not_match(db, seeded, app
             },
         )
     )
+    with session_scope() as session:
+        source = sources_repo.get_source_by_key(session, "justwatch")
+        assert source is not None
+        session.query(ProviderMapping).filter(ProviderMapping.source_id == source.id).delete()
+        session.commit()
     with session_scope() as session:
         outcome = justwatch_collections.sync_collections(
             session, app_settings, provider_slugs=["netflix"]

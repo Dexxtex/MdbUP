@@ -25,6 +25,7 @@ from app.domain.enums import (
     SourceStatus,
     SourceType,
 )
+from app.domain.justwatch import MAPPING_VERIFIED_AT, PROVIDER_MAPPINGS
 from app.repositories import collections as collections_repo
 from app.repositories import providers as providers_repo
 
@@ -233,11 +234,15 @@ def seed_reference_data() -> int:
         providers, providers_created = _upsert_providers(db)
         sources, sources_created = _upsert_sources(db)
         mappings_created = _upsert_tmdb_mappings(db, providers, sources[TMDB_SOURCE_KEY])
+        justwatch_mappings_created = _upsert_justwatch_mappings(
+            db, providers, sources[JUSTWATCH_PUBLIC_SOURCE_KEY]
+        )
         collections_created = _upsert_tmdb_collections(db, providers, sources[TMDB_SOURCE_KEY])
     print(
         f"provider creati: {providers_created}/{len(PROVIDER_SEED)}, "
         f"fonti create: {sources_created}/{len(SOURCE_SEED)}, "
         f"mapping TMDb creati: {mappings_created}/{len(TMDB_PROVIDER_SEED)}, "
+        f"mapping JustWatch creati: {justwatch_mappings_created}/{len(PROVIDER_MAPPINGS)}, "
         f"collezioni create: {collections_created}/"
         f"{sum(2 if seed.tv_external_id is not None else 1 for seed in TMDB_PROVIDER_SEED)}"
     )
@@ -348,6 +353,56 @@ def _upsert_tmdb_mappings(
         existing.is_primary = True
         existing.is_verified = False
         existing.metadata_json = metadata
+    return created
+
+
+def _upsert_justwatch_mappings(
+    db: Session,
+    providers: dict[str, Provider],
+    justwatch_source: Source,
+) -> int:
+    """Install the live-verified IT package mappings on a fresh database.
+
+    ``justwatch-collections`` remains the source of truth: this seed only
+    creates missing rows and never overwrites a live verification result. It
+    makes the JustWatch provider picker usable immediately after bootstrap,
+    instead of requiring a separate CLI run.
+    """
+    created = 0
+    for seed in PROVIDER_MAPPINGS:
+        provider = providers[seed.slug]
+        existing = providers_repo.get_mapping(
+            db,
+            provider_id=provider.id,
+            source_id=justwatch_source.id,
+            country_code=DEFAULT_COUNTRY_CODE,
+        )
+        if existing is not None:
+            continue
+        created += 1
+        providers_repo.upsert_mapping(
+            db,
+            provider_id=provider.id,
+            source_id=justwatch_source.id,
+            country_code=DEFAULT_COUNTRY_CODE,
+            external_provider_id=seed.short_name,
+            external_name=provider.name,
+            is_primary=True,
+            is_verified=True,
+            metadata={
+                "seed": "app/domain/justwatch.py",
+                "provider_slug": seed.slug,
+                "technical_name": seed.technical_name,
+                "clear_name": provider.name,
+                "monetization_types": list(seed.monetization_types),
+                "verified_at": MAPPING_VERIFIED_AT,
+                "verified_on": MAPPING_VERIFIED_AT,
+                "movie_external_id": seed.short_name,
+                "tv_external_id": seed.short_name,
+                "movie_verified": True,
+                "tv_verified": True,
+            },
+        )
     return created
 
 

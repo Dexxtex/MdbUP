@@ -17,7 +17,9 @@ from app.jobs import scheduler
 from app.repositories import bindings as bindings_repo
 from app.repositories import collections as collections_repo
 from app.repositories import media as media_repo
+from app.repositories import providers as providers_repo
 from app.repositories import runs as runs_repo
+from app.repositories import sources as sources_repo
 from app.repositories import targets as targets_repo
 
 
@@ -508,3 +510,37 @@ def test_sweep_stale_runs_fails_pending(session: Session, seeded, app_settings) 
     outcome = scheduler.sweep_stale_runs(session, app_settings, now=utcnow())
     assert outcome == {"reconciled": 0, "failed": 1}
     assert runs_repo.get_run(session, run.id).status == SyncRunStatus.FAILED.value
+
+
+def test_scheduler_never_enqueues_automatic_justwatch_sync(
+    session: Session, seeded, app_settings
+) -> None:
+    source = sources_repo.get_source_by_key(session, "justwatch")
+    provider = providers_repo.get_provider_by_slug(session, "netflix")
+    assert source is not None and provider is not None
+    collection = collections_repo.upsert_collection(
+        session,
+        slug="jw-scheduler-guard",
+        source_id=source.id,
+        provider_id=provider.id,
+        country_code="IT",
+        media_type="MOVIE",
+        kind="CATALOG",
+        origin="AGGREGATOR",
+        date_basis="UNKNOWN",
+        name="JustWatch scheduler guard",
+        filters={"packages": ["nfx"], "offer_types": ["FLATRATE"]},
+        offer_types=["FLATRATE"],
+        sort_mode="SOURCE_ORDER",
+        is_active=True,
+    )
+    _snapshot(session, collection, [1])
+    binding = _binding(session, collection)
+    binding.next_run_at = utcnow() - timedelta(minutes=1)
+    session.commit()
+
+    outcome = scheduler.enqueue_due_bindings(session, app_settings, now=utcnow(), dispatch=False)
+
+    assert outcome.enqueued == 0
+    assert outcome.skipped == 1
+    assert outcome.run_ids == []

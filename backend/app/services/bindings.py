@@ -19,6 +19,7 @@ from app.domain.errors import ConflictError, NotFoundError, ValidationError
 from app.repositories import audit
 from app.repositories import bindings as bindings_repo
 from app.repositories import collections as collections_repo
+from app.repositories import runs as runs_repo
 from app.repositories import targets as targets_repo
 from app.services import collections as collections_service
 from app.services import targets as targets_service
@@ -373,6 +374,18 @@ def update_binding(
     enabled = binding.is_enabled if payload.enabled is None else payload.enabled
     policy_version = payload.policy_version or binding.policy_version
     if enabled:
+        collection = collections_repo.get_collection(db, binding.collection_id)
+        if (
+            collection is not None
+            and not binding.is_enabled
+            and is_justwatch_collection(db, collection)
+            and not runs_repo.has_succeeded_dry_run(db, binding.id)
+        ):
+            raise ConflictError(
+                "Per un binding JustWatch serve prima un dry-run completato con successo.",
+                code="DRY_RUN_REQUIRED",
+                details={"binding_id": str(binding.id)},
+            )
         if not policy_version:
             raise ValidationError(
                 "La policy deve essere accettata prima di abilitare il binding.",

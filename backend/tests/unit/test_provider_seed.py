@@ -55,3 +55,24 @@ def test_every_provider_has_movie_and_tv_mapping_metadata() -> None:
         else:
             assert mapping.tv_external_id is not None, f"{slug}: id serie TMDb mancante"
             assert mapping.tv_external_id.isdigit(), f"{slug}: id serie TMDb non numerico"
+
+
+def test_seed_installs_the_verified_justwatch_mappings(db, seeded) -> None:
+    from sqlalchemy import select
+
+    from app.db.models import ProviderMapping
+    from app.db.session import get_session_factory
+    from app.repositories import sources as sources_repo
+
+    session = get_session_factory()()
+    try:
+        source = sources_repo.get_source_by_key(session, "justwatch")
+        assert source is not None
+        mappings = session.scalars(
+            select(ProviderMapping).where(ProviderMapping.source_id == source.id)
+        ).all()
+        assert len(mappings) == 12
+        assert all(mapping.is_verified for mapping in mappings)
+        assert {mapping.external_provider_id for mapping in mappings} >= {"nfx", "prv", "dnp"}
+    finally:
+        session.close()

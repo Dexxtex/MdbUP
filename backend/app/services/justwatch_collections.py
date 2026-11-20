@@ -40,40 +40,18 @@ from app.core.config import Settings
 from app.db.models import Provider
 from app.domain.enums import CollectionKind, CollectionOrigin, DateBasis, OfferType
 from app.domain.errors import ValidationError
+from app.domain.justwatch import (
+    MAPPING_BY_SLUG,
+    MAPPING_VERIFIED_AT,
+    PROVIDER_MAPPINGS,
+    JustWatchProviderMapping,
+)
 from app.integrations.justwatch.models import JustWatchPackage
 from app.repositories import collections as collections_repo
 from app.repositories import providers as providers_repo
 from app.repositories import sources as sources_repo
 
 JUSTWATCH_SOURCE_KEY = "justwatch"
-
-# Verified live on 2026-11-18 with one packages(country: IT, platform: WEB) call.
-MAPPING_VERIFIED_AT = "2026-11-18"
-
-
-@dataclass(frozen=True)
-class JustWatchProviderMapping:
-    slug: str
-    short_name: str
-    technical_name: str
-
-
-PROVIDER_MAPPINGS: tuple[JustWatchProviderMapping, ...] = (
-    JustWatchProviderMapping("netflix", "nfx", "netflix"),
-    JustWatchProviderMapping("prime-video", "prv", "amazonprimevideo"),
-    JustWatchProviderMapping("disney-plus", "dnp", "disneyplus"),
-    JustWatchProviderMapping("apple-tv-plus", "atp", "appletvplus"),
-    JustWatchProviderMapping("now", "ntv", "nowtv"),
-    JustWatchProviderMapping("paramount-plus", "pmp", "paramountplus"),
-    JustWatchProviderMapping("raiplay", "rai", "raiplay"),
-    JustWatchProviderMapping("mediaset-infinity", "msp", "mediasetplay"),
-    JustWatchProviderMapping("infinity-plus", "inf", "infinity"),
-    JustWatchProviderMapping("timvision", "tvi", "timvision"),
-    JustWatchProviderMapping("rakuten-tv", "wki", "wuaki"),
-    JustWatchProviderMapping("mubi", "mbi", "mubi"),
-)
-
-MAPPING_BY_SLUG = {mapping.slug: mapping for mapping in PROVIDER_MAPPINGS}
 
 DEFAULT_OFFER_TYPES = (OfferType.FLATRATE.value,)
 

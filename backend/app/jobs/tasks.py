@@ -29,11 +29,13 @@ from app.domain.errors import (
     ServiceUnavailableError,
     SourceUnavailableError,
 )
+from app.repositories import bindings as bindings_repo
 from app.repositories import collections as collections_repo
 from app.repositories import runs as runs_repo
 from app.repositories import sources as sources_repo
 from app.services import acquisition
 from app.services import sync as sync_service
+from app.services.collections import is_justwatch_collection
 
 logger = get_logger(__name__)
 
@@ -328,6 +330,39 @@ def run_sync_task(
                 "status": SyncRunStatus.FAILED.value,
                 "error_code": "RUN_NOT_FOUND",
             }
+        # Defence in depth: a queued SCHEDULED run for JustWatch must never
+        # perform an automatic MDBList write, even if it predates the scheduler
+        # guard. Manual runs remain possible after a successful dry-run.
+        if not reconcile and run.trigger_type == "SCHEDULED":
+            scheduled_binding = bindings_repo.get_binding(db, run.binding_id)
+            scheduled_collection = (
+                collections_repo.get_collection(db, scheduled_binding.collection_id)
+                if scheduled_binding is not None
+                else None
+            )
+            if scheduled_collection is not None and is_justwatch_collection(
+                db, scheduled_collection
+            ):
+                runs_repo.finish_run(
+                    db,
+                    run,
+                    SyncRunStatus.BLOCKED,
+                    abort_reason="JUSTWATCH_AUTO_SYNC_DISABLED",
+                    error_message="JustWatch non può avviare una sync MDBList automatica.",
+                )
+                db.commit()
+                _finish_failed(
+                    db,
+                    job_uuid,
+                    "JUSTWATCH_AUTO_SYNC_DISABLED",
+                    "JustWatch non può avviare una sync MDBList automatica.",
+                )
+                db.commit()
+                return {
+                    "run_id": str(run_uuid),
+                    "status": SyncRunStatus.BLOCKED.value,
+                    "error_code": "JUSTWATCH_AUTO_SYNC_DISABLED",
+                }
         client = None
         try:
             client = sync_service.build_client(db, settings)

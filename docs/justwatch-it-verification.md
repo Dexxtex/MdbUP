@@ -91,6 +91,14 @@ Il client usa il `Show` annidato come titolo della serie. Il post-filter
 
 Test aggiunto: `test_new_titles_maps_show_season_to_parent_show`.
 
+## Nota di prodotto
+
+`seed-providers` installa i 12 mapping IT qui verificati, così i provider sono
+visibili subito nel builder JustWatch anche su un database nuovo.
+`justwatch-collections` esegue la riverifica live e crea le collezioni. I binding
+JustWatch restano disabilitati fino a un dry-run riuscito e lo scheduler non
+accoda mai una sync MDBList automatica per questa fonte.
+
 ## Limiti
 
 - JustWatch pubblico non fornisce date di aggiunta: `date_basis=UNKNOWN`.
