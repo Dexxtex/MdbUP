@@ -88,7 +88,12 @@ query NewTitles(
   ) {
     totalCount
     pageInfo { hasNextPage endCursor }
-    edges { node { ...TitleDetails } }
+    edges {
+      node {
+        ... on Movie { ...TitleDetails }
+        ... on Season { show { ...TitleDetails } }
+      }
+    }
   }
 }
 """

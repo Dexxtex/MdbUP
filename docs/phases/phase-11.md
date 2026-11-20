@@ -145,7 +145,7 @@ negli script puntano ai nuovi path.
 
 | Controllo | Esito |
 |---|---|
-| `pytest` backend | **422 passed** |
+| `pytest` backend | **423 passed** |
 | `mypy app` | **0 errori**, 134 file |
 | `ruff check` | pulito |
 | `ruff format --check` | **205 file** formattati |
@@ -155,7 +155,7 @@ negli script puntano ai nuovi path.
 | `npm run typecheck` | verde |
 | `npm run lint` | verde |
 | `npm run build` | verde |
-| Coverage backend (statement) | **90.22%** (gate 90%) |
+| Coverage backend (statement) | **90.25%** (gate 90%) |
 | Coverage frontend logica (line/branch/function) | **96.94% / 90.33% / 96.39%** |
 | `npm audit --omit=dev` | **0 vulnerabilità** |
 | `knip` | nessun export/file non usato (solo tipi generati OpenAPI) |

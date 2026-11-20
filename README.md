@@ -104,7 +104,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - Backend: comandi/errori spostati in `app/domain/`, servizi senza dipendenze da `app.api`, API senza SQL diretto; rimossi moduli/helper non usati e dipendenze inutilizzate.
 - Frontend: hook spostati in `src/hooks/`, export morti rimossi, payload API separati dai componenti.
 - `.gitignore` e `.dockerignore` aggiornati per escludere cache, test, build, backup e segreti.
-- Test: **422 backend**, **192 frontend**, **12 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
+- Test: **423 backend**, **192 frontend**, **12 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
 - Dettagli: [`docs/phases/phase-11.md`](docs/phases/phase-11.md).
 
 ### Fase 6 — hardening e regole avanzate
@@ -436,12 +436,12 @@ npm run test:e2e
 npm audit --omit=dev
 ```
 
-Stato attuale: **422 test backend**, **192 test frontend** e **12 test E2E
+Stato attuale: **423 test backend**, **192 test frontend** e **12 test E2E
 Playwright** verdi; `ruff check`, `ruff format --check`, `mypy`, build Vite,
 lint e audit senza vulnerabilità. I test unitari usano `respx`/fixture; la
 verifica live è stata eseguita separatamente su TMDb e MDBList reali.
 
-Coverage gate: backend **90.22%** statement, frontend **96.94%** linee / **90.33%** branch / **96.39%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
+Coverage gate: backend **90.25%** statement, frontend **96.94%** linee / **90.33%** branch / **96.39%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
 
 ---
 
@@ -557,6 +557,7 @@ Dettagli: [`docs/phases/phase-01.md`](docs/phases/phase-01.md).
 - [`docs/phases/phase-09.md`](docs/phases/phase-09.md) — multi-fonte, Cambi Catalogo IT e scheduling.
 - [`docs/phases/phase-10.md`](docs/phases/phase-10.md) — CI, snapshot dedup e storage.
 - [`docs/phases/phase-11.md`](docs/phases/phase-11.md) — pulizia, riorganizzazione e verifica finale.
+- [`docs/justwatch-it-verification.md`](docs/justwatch-it-verification.md) — verifica live degli endpoint JustWatch per film e serie in Italia.
 
 ---
 

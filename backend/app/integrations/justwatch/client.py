@@ -699,7 +699,17 @@ class JustWatchClient:
         variables.update(extra_variables or {})
         data = self._execute(query, variables, operation=operation, connection=field)
         connection = data[field]
-        parsed = (_parse_title(edge.get("node") or {}) for edge in connection["edges"])
+
+        def _node_title(edge: dict[str, Any]) -> JustWatchTitle | None:
+            node = edge.get("node") or {}
+            # ``newTitles`` returns Season nodes for shows: the show itself is
+            # nested, because the page is about new seasons/episodes. Select
+            # the parent show so catalog/novelty logic still sees a Show.
+            if isinstance(node, dict) and isinstance(node.get("show"), dict):
+                node = node["show"]
+            return _parse_title(node)
+
+        parsed = (_node_title(edge) for edge in connection["edges"])
         titles = tuple(title for title in parsed if title is not None)
         page_info = connection["pageInfo"]
         has_next = bool(page_info.get("hasNextPage")) and offset + len(titles) < MAX_REACHABLE_ITEMS

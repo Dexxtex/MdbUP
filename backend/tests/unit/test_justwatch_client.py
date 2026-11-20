@@ -269,3 +269,23 @@ def test_list_packages_skips_rows_without_short_name() -> None:
     packages = _client().list_packages("IT")
     assert [package.short_name for package in packages] == ["nfx"]
     assert packages[0].monetization_types == ("FLATRATE",)
+
+
+@respx.mock
+def test_new_titles_maps_show_season_to_parent_show() -> None:
+    """``newTitles`` returns Season nodes for shows; the parent Show is nested."""
+    show = _node("ts1", object_type="SHOW", title="Serie", tmdb="123")
+    route = respx.post(BASE).mock(
+        return_value=httpx.Response(
+            200,
+            json={"data": {"newTitles": _connection([{"show": show}], total=1)}},
+        )
+    )
+
+    page = _client().new_titles("IT", "it", "NEW", limit=10, object_type=MediaType.SHOW)
+
+    assert len(page.titles) == 1
+    assert page.titles[0].media_type is MediaType.SHOW
+    assert page.titles[0].title == "Serie"
+    assert page.titles[0].tmdb_id == 123
+    assert b"on Season" in route.calls.last.request.content
