@@ -73,7 +73,7 @@ def seeded(db) -> None:
     """Seed the canonical providers and the base sources."""
     from app.cli import seed_reference_data
 
-    assert seed_reference_data() == 0
+    assert seed_reference_data(include_collections=True) == 0
 
 
 @pytest.fixture()

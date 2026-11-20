@@ -255,3 +255,16 @@ def test_read_password_and_parser(monkeypatch) -> None:
         ["create-collection", "--provider", "netflix", "--slug", "s", "--name", "N"]
     )
     assert args.media_type == "movie"
+
+
+def test_remove_demo_collections_dry_run_then_apply(db, seeded, capsys) -> None:
+    from app.seed import remove_demo_collections
+
+    assert remove_demo_collections() == 0
+    assert "senza binding: 23" in capsys.readouterr().out
+    with _session() as session:
+        assert len(collections_repo.list_collections(session)) == 23
+
+    assert remove_demo_collections(apply=True) == 0
+    with _session() as session:
+        assert collections_repo.list_collections(session) == []

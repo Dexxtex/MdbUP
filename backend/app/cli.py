@@ -2,7 +2,7 @@
 
 Commands:
   bootstrap-admin    create the first admin (requires BOOTSTRAP_TOKEN or --token)
-  seed-providers     upsert providers, sources, TMDb mappings and TMDb collections
+  seed-providers     upsert demo providers, sources and TMDb mappings (no collections)
   create-collection  create/update a TMDb collection, optionally filtered by genre
   backup-verify      verify the latest encrypted backup and refresh BACKUP_STATUS_FILE
 """
@@ -383,7 +383,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers.add_parser(
         "seed-providers",
-        help="Inserisce dati dimostrativi: provider, fonti, mapping e collezioni TMDb",
+        help="Inserisce dati dimostrativi: provider, fonti e mapping; non crea collezioni",
+    )
+    remove_demo = subparsers.add_parser(
+        "remove-demo-collections",
+        help="Rimuove le collezioni TMDb demo (default: dry-run)",
+    )
+    remove_demo.add_argument(
+        "--apply", action="store_true", help="Applica la rimozione (default: dry-run)"
+    )
+    remove_demo.add_argument(
+        "--force",
+        action="store_true",
+        help="Rimuove anche le collezioni demo con binding attivi (operazione distruttiva)",
     )
     verify = subparsers.add_parser(
         "verify-providers",
@@ -471,6 +483,10 @@ def main(argv: list[str] | None = None) -> int:
         return seed_sources()
     if args.command == "seed-providers":
         return seed_reference_data()
+    if args.command == "remove-demo-collections":
+        from app.seed import remove_demo_collections
+
+        return remove_demo_collections(apply=args.apply, force=args.force)
     if args.command == "detect-tv-changes":
         with session_scope() as db:
             token = credentials_service.get_secret(db, settings, CredentialKind.TMDB)

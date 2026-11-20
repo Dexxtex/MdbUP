@@ -114,7 +114,7 @@ def test_dashboard_reports_alerts(client, admin, seeded) -> None:
 def test_seed_is_idempotent(client, admin, seeded) -> None:
     from app.seed import seed_reference_data
 
-    assert seed_reference_data() == 0
+    assert seed_reference_data(include_collections=True) == 0
     assert client.get("/api/providers").json()["total"] == 12
     assert client.get("/api/collections").json()["total"] == 23
     netflix = next(

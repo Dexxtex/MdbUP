@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import Provider, Source
+from app.db.models import Collection, Provider, Source, SyncBinding
 from app.db.session import session_scope
 from app.domain.enums import (
     COMBINED_SOURCE_KEY,
@@ -236,8 +236,59 @@ def seed_sources() -> int:
     return 0
 
 
-def seed_reference_data() -> int:
-    """Upsert providers, sources, TMDb mappings and the TMDb collections."""
+def _demo_collections(db: Session) -> list[Collection]:
+    """Collections carrying the seed marker added by ``_upsert_tmdb_collections``."""
+    return [
+        collection
+        for collection in db.scalars(select(Collection)).all()
+        if (collection.quality_flags or {}).get("unverified_provider_mapping")
+        and collection.source_collection_key
+        and not str(collection.source_collection_key).startswith("custom:")
+    ]
+
+
+def remove_demo_collections(*, apply: bool = False, force: bool = False) -> int:
+    """Remove demo TMDb collections, guarding bound collections unless forced.
+
+    Without ``apply`` this is a dry-run. ``force`` also removes collections
+    referenced by a binding (and therefore its bindings/snapshots); use it only
+    after checking that the operator does not need those lists anymore.
+    """
+    with session_scope() as db:
+        collections = _demo_collections(db)
+        bound_ids = {
+            row.collection_id
+            for row in db.scalars(select(SyncBinding)).all()
+            if row.collection_id is not None
+        }
+        removable = [item for item in collections if item.id not in bound_ids]
+        blocked = [item for item in collections if item.id in bound_ids]
+        print(
+            f"collezioni demo trovate: {len(collections)}, "
+            f"senza binding: {len(removable)}, con binding: {len(blocked)}"
+        )
+        if not apply:
+            print(
+                "dry-run: usa --apply per rimuovere quelle senza binding"
+                + (" e --force per tutte" if blocked else "")
+            )
+            return 0
+        targets = removable + (blocked if force else [])
+        for collection in targets:
+            db.delete(collection)
+        print(
+            f"collezioni demo rimosse: {len(targets)}"
+            + (f", protette perché con binding: {len(blocked)}" if blocked and not force else "")
+        )
+    return 0
+
+
+def seed_reference_data(*, include_collections: bool = False) -> int:
+    """Upsert demo providers, sources and mappings; collections are opt-in.
+
+    The normal ``seed-providers`` CLI path must not recreate the demo TMDb
+    collections. Tests may request them explicitly to exercise the catalogue.
+    """
     with session_scope() as db:
         providers, providers_created = _upsert_providers(db)
         sources, sources_created = _upsert_sources(db)
@@ -245,14 +296,19 @@ def seed_reference_data() -> int:
         justwatch_mappings_created = _upsert_justwatch_mappings(
             db, providers, sources[JUSTWATCH_PUBLIC_SOURCE_KEY]
         )
-        collections_created = _upsert_tmdb_collections(db, providers, sources[TMDB_SOURCE_KEY])
+        collections_created = 0
+        if include_collections:
+            collections_created = _upsert_tmdb_collections(db, providers, sources[TMDB_SOURCE_KEY])
+    collection_total = sum(
+        2 if seed.tv_external_id is not None else 1 for seed in TMDB_PROVIDER_SEED
+    )
     print(
         f"provider creati: {providers_created}/{len(PROVIDER_SEED)}, "
         f"fonti create: {sources_created}/{len(SOURCE_SEED)}, "
         f"mapping TMDb creati: {mappings_created}/{len(TMDB_PROVIDER_SEED)}, "
         f"mapping JustWatch creati: {justwatch_mappings_created}/{len(PROVIDER_MAPPINGS)}, "
-        f"collezioni create: {collections_created}/"
-        f"{sum(2 if seed.tv_external_id is not None else 1 for seed in TMDB_PROVIDER_SEED)}"
+        "collezioni demo create: "
+        f"{collections_created}/{collection_total if include_collections else 0}"
     )
     return 0
 

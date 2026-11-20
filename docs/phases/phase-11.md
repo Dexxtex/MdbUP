@@ -150,7 +150,7 @@ negli script puntano ai nuovi path.
 
 | Controllo | Esito |
 |---|---|
-| `pytest` backend | **428 passed** |
+| `pytest` backend | **432 passed** |
 | `mypy app` | **0 errori**, 134 file |
 | `ruff check` | pulito |
 | `ruff format --check` | **205 file** formattati |
@@ -221,5 +221,5 @@ docker compose up -d
 ```
 
 Per il deploy: aggiornare il compose in Dockhand, redeploy senza rimuovere i
-volumi `mdbup_v2_*`, quindi verificare `/api/health`, migrazione `0006`, scheduler
+volumi `mdbup_v2_*`, quindi verificare `/api/health`, migrazione `0007`, scheduler
 e dry-run delle 6 liste dal pannello dell'app.
