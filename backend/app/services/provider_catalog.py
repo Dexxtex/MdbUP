@@ -8,8 +8,7 @@ identifier source, never as proof of Italian availability.
 from __future__ import annotations
 
 import re
-import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -50,6 +49,7 @@ class ProviderCandidate:
     name: str
     suggested_slug: str
     sources: tuple[str, ...]
+    source_key: str
     tmdb_movie_id: str | None = None
     tmdb_tv_id: str | None = None
     justwatch_short_name: str | None = None
@@ -66,6 +66,7 @@ class ProviderCandidate:
             "name": self.name,
             "suggested_slug": self.suggested_slug,
             "sources": list(self.sources),
+            "source_key": self.source_key,
             "tmdb_movie_id": self.tmdb_movie_id,
             "tmdb_tv_id": self.tmdb_tv_id,
             "justwatch_short_name": self.justwatch_short_name,
@@ -84,41 +85,9 @@ class ProviderCatalog:
     sources: tuple[SourceDiscovery, ...]
 
 
-@dataclass
-class _CandidateBuilder:
-    name: str
-    sources: set[str] = field(default_factory=set)
-    tmdb_movie_id: str | None = None
-    tmdb_tv_id: str | None = None
-    justwatch_short_name: str | None = None
-    justwatch_technical_name: str | None = None
-    justwatch_monetization_types: tuple[str, ...] = ()
-    tvdb_company_id: str | None = None
-    logo_url: str | None = None
-    available: bool | None = None
-
-
-def _normalized_name(value: str) -> str:
-    text = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
-    text = text.casefold().replace("&", " and ").replace("+", " plus ")
-    words = re.sub(r"[^a-z0-9]+", " ", text).split()
-    # "Now TV" and "NOW" are the same service in the Italian catalog.
-    if len(words) > 1 and words[-1] == "tv":
-        words.pop()
-    return " ".join(words)
-
-
 def _slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.casefold()).strip("-")
     return slug[:80] or "provider"
-
-
-def _candidate_key(builder: _CandidateBuilder) -> str:
-    if builder.tmdb_movie_id or builder.tmdb_tv_id:
-        return f"tmdb:{builder.tmdb_movie_id or builder.tmdb_tv_id}"
-    if builder.justwatch_short_name:
-        return f"justwatch:{builder.justwatch_short_name}"
-    return f"tvdb:{builder.tvdb_company_id or _slugify(builder.name)}"
 
 
 def _tmdb_candidates(
@@ -248,10 +217,48 @@ def _tvdb_candidates(
     )
 
 
+def _candidate_from_row(
+    name: str,
+    row: dict[str, Any],
+    *,
+    country: str,
+    slug: str,
+) -> ProviderCandidate:
+    source = str(row.get("source") or "")
+    if source == "tmdb":
+        key = f"tmdb:{row.get('tmdb_movie_id') or row.get('tmdb_tv_id')}"
+    elif source == "justwatch":
+        key = f"justwatch:{row.get('justwatch_short_name') or _slugify(name)}"
+    else:
+        key = f"tvdb:{row.get('tvdb_company_id') or _slugify(name)}"
+    return ProviderCandidate(
+        key=key,
+        name=name,
+        suggested_slug=slug,
+        sources=(source,),
+        source_key=source,
+        tmdb_movie_id=row.get("tmdb_movie_id"),
+        tmdb_tv_id=row.get("tmdb_tv_id"),
+        justwatch_short_name=row.get("justwatch_short_name"),
+        justwatch_technical_name=row.get("justwatch_technical_name"),
+        justwatch_monetization_types=tuple(row.get("justwatch_monetization_types") or ()),
+        tvdb_company_id=row.get("tvdb_company_id"),
+        logo_url=row.get("logo_url"),
+        country_code=country if row.get("available") is True else None,
+        available_in_country=row.get("available"),
+    )
+
+
 def discover_providers(
     db: Session, settings: Settings, *, country: str = SUPPORTED_COUNTRY
 ) -> ProviderCatalog:
-    """Merge TMDb/JustWatch/TVDB candidates by normalized display name."""
+    """Return candidates grouped by source, never merged across sources.
+
+    A TMDb row and a JustWatch row for the same service are two distinct
+    choices: the operator decides which mapping to configure. This keeps the
+    provenance visible and prevents a discovered name from silently becoming a
+    cross-source claim.
+    """
     source_rows: list[tuple[str, dict[str, Any]]] = []
     statuses: list[SourceDiscovery] = []
     for rows, status in (
@@ -262,69 +269,26 @@ def discover_providers(
         source_rows.extend(rows)
         statuses.append(status)
 
-    by_name: dict[str, _CandidateBuilder] = {}
-    for name, row in source_rows:
-        key = _normalized_name(name)
-        if not key:
-            continue
-        builder = by_name.get(key)
-        if builder is None:
-            builder = _CandidateBuilder(name=name)
-            by_name[key] = builder
-        source = str(row.get("source") or "")
-        builder.sources.add(source)
-        if source == "tmdb":
-            movie_id = row.get("tmdb_movie_id")
-            tv_id = row.get("tmdb_tv_id")
-            if isinstance(movie_id, str):
-                builder.tmdb_movie_id = movie_id
-            if isinstance(tv_id, str):
-                builder.tmdb_tv_id = tv_id
-            logo = row.get("logo_url")
-            if isinstance(logo, str) and not builder.logo_url:
-                builder.logo_url = logo
-            builder.available = True
-        elif source == "justwatch":
-            short_name = row.get("justwatch_short_name")
-            technical_name = row.get("justwatch_technical_name")
-            monetization = row.get("justwatch_monetization_types")
-            if isinstance(short_name, str):
-                builder.justwatch_short_name = short_name
-            if isinstance(technical_name, str):
-                builder.justwatch_technical_name = technical_name
-            if isinstance(monetization, tuple):
-                builder.justwatch_monetization_types = monetization
-            builder.available = True
-        elif source == "tvdb":
-            company_id = row.get("tvdb_company_id")
-            if isinstance(company_id, str):
-                builder.tvdb_company_id = company_id
-
     used_slugs: set[str] = set()
+    used_names: set[str] = set()
     items: list[ProviderCandidate] = []
-    for builder in sorted(by_name.values(), key=lambda item: item.name.casefold()):
-        base = _slugify(builder.name)
+    for name, row in sorted(
+        source_rows,
+        key=lambda item: (
+            _SOURCE_ORDER.index(str(item[1].get("source") or "tvdb")),
+            item[0].casefold(),
+        ),
+    ):
+        base = _slugify(name)
         slug = base
+        if base in used_names:
+            source = str(row.get("source") or "provider")
+            slug = f"{base}-{source}"
         suffix = 2
         while slug in used_slugs:
             slug = f"{base}-{suffix}"
             suffix += 1
         used_slugs.add(slug)
-        items.append(
-            ProviderCandidate(
-                key=_candidate_key(builder),
-                name=builder.name,
-                suggested_slug=slug,
-                sources=tuple(source for source in _SOURCE_ORDER if source in builder.sources),
-                tmdb_movie_id=builder.tmdb_movie_id,
-                tmdb_tv_id=builder.tmdb_tv_id,
-                justwatch_short_name=builder.justwatch_short_name,
-                justwatch_technical_name=builder.justwatch_technical_name,
-                justwatch_monetization_types=builder.justwatch_monetization_types,
-                tvdb_company_id=builder.tvdb_company_id,
-                logo_url=builder.logo_url,
-                country_code=country if builder.available else None,
-                available_in_country=builder.available,
-            )
-        )
+        used_names.add(base)
+        items.append(_candidate_from_row(name, row, country=country, slug=slug))
     return ProviderCatalog(items=tuple(items), sources=tuple(statuses))

@@ -71,6 +71,7 @@ def test_system_status_shape(client: TestClient, admin, seeded, app_settings, tm
         "worker": False,
         "tmdb": "MISSING_CREDENTIAL",
         "mdblist": "MISSING_CREDENTIAL",
+        "tvdb": "MISSING_CREDENTIAL",
     }
     assert body["queues"] == {"celery": 0, "maintenance": 0, "sync": 0, "acquisitions": 0}
     for status in ("SUCCEEDED", "FAILED", "AWAITING_APPROVAL", "PARTIAL"):

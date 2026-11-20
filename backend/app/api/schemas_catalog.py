@@ -152,6 +152,7 @@ class ProviderCandidateOut(BaseModel):
     name: str
     suggested_slug: str
     sources: list[str]
+    source_key: str
     tmdb_movie_id: str | None = None
     tmdb_tv_id: str | None = None
     justwatch_short_name: str | None = None

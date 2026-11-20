@@ -94,6 +94,8 @@ const OFFER_OPTIONS: { value: OfferType; label: string; description: string }[] 
   { value: "FREE", label: "FREE", description: "Gratuito senza acquisto." },
 ];
 
+const PROVIDER_SOURCE_ORDER = ["tmdb", "justwatch", "tvdb"] as const;
+
 const STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface SnapshotFreshness {
@@ -340,6 +342,15 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
     );
   }, [catalog.data, catalogQuery]);
 
+  const groupedCandidates = useMemo(
+    () =>
+      PROVIDER_SOURCE_ORDER.map((source) => ({
+        source,
+        items: candidates.filter((candidate) => candidate.source_key === source),
+      })).filter((group) => group.items.length > 0),
+    [candidates],
+  );
+
   const chooseCandidate = (key: string) => {
     setSelectedCandidate(key);
     const candidate = (catalog.data?.items ?? []).find((item) => item.key === key);
@@ -396,7 +407,7 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
         <Field
           id="provider-catalog-search"
           label="Cerca nei provider disponibili"
-          hint="TMDb, JustWatch e TheTVDB. La selezione compila gli ID; puoi sempre modificarli."
+          hint="Le fonti sono separate: TMDb, JustWatch e TheTVDB. La selezione compila solo i mapping della fonte scelta."
         >
           <Input
             id="provider-catalog-search"
@@ -419,10 +430,14 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
                   ? "Nessun provider trovato"
                   : `${candidates.length} provider disponibili`}
             </option>
-            {candidates.map((candidate) => (
-              <option key={candidate.key} value={candidate.key}>
-                {candidate.name} — {candidate.sources.map(sourceLabel).join(" / ")}
-              </option>
+            {groupedCandidates.map((group) => (
+              <optgroup key={group.source} label={sourceLabel(group.source)}>
+                {group.items.map((candidate) => (
+                  <option key={candidate.key} value={candidate.key}>
+                    {candidate.name}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </Select>
         </Field>

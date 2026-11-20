@@ -34,13 +34,18 @@ describe("deriveHealth", () => {
     const items = deriveHealth({
       apiState: "ok",
       status: null,
-      sources: [source("tmdb", "OK"), source("mdblist", "ERROR")],
+      sources: [
+        source("tmdb", "OK"),
+        source("mdblist", "ERROR"),
+        source("tvdb", "OK"),
+      ],
     });
     const byKey = Object.fromEntries(items.map((item) => [item.key, item.state]));
     expect(byKey.api).toBe("ok");
     expect(byKey.worker).toBe("unknown");
     expect(byKey.tmdb).toBe("ok");
     expect(byKey.mdblist).toBe("error");
+    expect(byKey.tvdb).toBe("ok");
   });
 
   it("preferisce i servizi di system/status", () => {
@@ -69,6 +74,7 @@ describe("deriveHealth", () => {
         worker: true,
         tmdb: "OK",
         mdblist: "MISSING_CREDENTIAL",
+        tvdb: "OK",
       },
     };
     const items = deriveHealth({ apiState: "ok", status, sources: [] });
@@ -76,6 +82,39 @@ describe("deriveHealth", () => {
     expect(byKey.worker).toBe("ok");
     expect(byKey.tmdb).toBe("ok");
     expect(byKey.mdblist).toBe("error");
+    expect(byKey.tvdb).toBe("ok");
+  });
+
+  it("legge lo stato TVDB sia da health sia da integrations", () => {
+    const healthStatus: SystemStatus = {
+      health: {
+        api: true,
+        database: true,
+        redis: true,
+        worker: true,
+        tmdb: "OK",
+        mdblist: "OK",
+        tvdb: "DEGRADED",
+      },
+    };
+    const fromHealth = Object.fromEntries(
+      deriveHealth({ apiState: "ok", status: healthStatus, sources: [] }).map((item) => [
+        item.key,
+        item.state,
+      ]),
+    );
+    expect(fromHealth.tvdb).toBe("degraded");
+
+    const integrationStatus: SystemStatus = {
+      integrations: { tvdb: { status: "error", message: "TVDB non raggiungibile" } },
+    };
+    const fromIntegration = deriveHealth({
+      apiState: "ok",
+      status: integrationStatus,
+      sources: [],
+    }).find((item) => item.key === "tvdb");
+    expect(fromIntegration?.state).toBe("error");
+    expect(fromIntegration?.detail).toBe("TVDB non raggiungibile");
   });
 
   it("marca l'API in errore quando la sessione fallisce", () => {

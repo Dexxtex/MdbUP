@@ -6,7 +6,7 @@ import type {
 } from "../api/types";
 
 export interface HealthItem {
-  key: "api" | "worker" | "tmdb" | "mdblist";
+  key: "api" | "worker" | "tmdb" | "mdblist" | "tvdb";
   label: string;
   state: HealthState;
   detail: string;
@@ -97,6 +97,7 @@ export function deriveHealth({
   const worker = pickService(status, ["worker", "celery"]);
   const tmdb = status?.integrations?.tmdb ?? pickService(status, ["tmdb"]);
   const mdblist = status?.integrations?.mdblist ?? pickService(status, ["mdblist"]);
+  const tvdb = status?.integrations?.tvdb ?? pickService(status, ["tvdb"]);
   const workerState: HealthState =
     health?.worker === true
       ? "ok"
@@ -113,6 +114,11 @@ export function deriveHealth({
     : mdblist
       ? fromService(mdblist)
       : fromSource(sources, "mdblist");
+  const tvdbState: HealthState = health?.tvdb
+    ? healthStateFromValue(health.tvdb)
+    : tvdb
+      ? fromService(tvdb)
+      : fromSource(sources, "tvdb");
 
   return [
     {
@@ -138,6 +144,12 @@ export function deriveHealth({
       label: "MDBList",
       state: mdblistState,
       detail: serviceDetail(mdblist, "Stato MDBList non disponibile"),
+    },
+    {
+      key: "tvdb",
+      label: "TheTVDB",
+      state: tvdbState,
+      detail: serviceDetail(tvdb, "Stato TheTVDB non disponibile"),
     },
   ];
 }

@@ -52,7 +52,7 @@ def _configure_tmdb(client, admin, app_settings) -> None:
 
 
 @respx.mock
-def test_catalog_merges_tmdb_and_justwatch(client, admin, app_settings) -> None:
+def test_catalog_keeps_tmdb_and_justwatch_separate(client, admin, app_settings) -> None:
     assert seed_sources() == 0
     _configure_tmdb(client, admin, app_settings)
     respx.get(f"{TMDB}/watch/providers/movie").mock(
@@ -67,15 +67,34 @@ def test_catalog_merges_tmdb_and_justwatch(client, admin, app_settings) -> None:
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["total"] == 2
-    netflix = next(item for item in body["items"] if item["name"] == "Netflix")
-    assert netflix["tmdb_movie_id"] == "8"
-    assert netflix["tmdb_tv_id"] == "8"
-    assert netflix["justwatch_short_name"] == "nfx"
-    assert netflix["available_in_country"] is True
-    disney = next(item for item in body["items"] if item["name"] == "Disney Plus")
-    assert disney["justwatch_short_name"] == "dnp"
-    assert disney["sources"] == ["tmdb", "justwatch"]
+    assert body["total"] == 4
+    netflix_tmdb = next(
+        item for item in body["items"] if item["name"] == "Netflix" and item["source_key"] == "tmdb"
+    )
+    assert netflix_tmdb["tmdb_movie_id"] == "8"
+    assert netflix_tmdb["tmdb_tv_id"] == "8"
+    assert netflix_tmdb["justwatch_short_name"] is None
+    assert netflix_tmdb["sources"] == ["tmdb"]
+    netflix_jw = next(
+        item
+        for item in body["items"]
+        if item["name"] == "Netflix" and item["source_key"] == "justwatch"
+    )
+    assert netflix_jw["tmdb_movie_id"] is None
+    assert netflix_jw["justwatch_short_name"] == "nfx"
+    assert netflix_jw["sources"] == ["justwatch"]
+    disney_tmdb = next(
+        item
+        for item in body["items"]
+        if item["name"] == "Disney Plus" and item["source_key"] == "tmdb"
+    )
+    disney_jw = next(
+        item
+        for item in body["items"]
+        if item["name"] == "Disney+" and item["source_key"] == "justwatch"
+    )
+    assert disney_tmdb["tmdb_movie_id"] == "337"
+    assert disney_jw["justwatch_short_name"] == "dnp"
     statuses = {item["source_key"]: item for item in body["sources"]}
     assert statuses["tmdb"]["status"] == "OK"
     assert statuses["justwatch"]["status"] == "OK"

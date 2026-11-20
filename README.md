@@ -55,7 +55,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 
 ### Fase 7 — UI/UX, retry e metriche
 
-- UI dark-first con tema chiaro persistente, design system a token, sidebar collassabile/drawer mobile, topbar con health API/worker/TMDb/MDBList, badge semantici, skeleton, empty state, toast e conferme per azioni distruttive.
+- UI dark-first con tema chiaro persistente, design system a token, sidebar collassabile/drawer mobile, topbar con health API/worker/TMDb/MDBList/TheTVDB, badge semantici, skeleton, empty state, toast e conferme per azioni distruttive.
 - Dashboard operativa con KPI, coda “Richiede attenzione” (Approva/Scarta/Riprova), timeline prossime sync, consumo API e ultimo backup.
 - Builder collezioni guidato con anteprima criteri, generi inclusi/esclusi, voto/voti/anni/lingua, flatrate, Appena rilevati e unione multi-provider.
 - Binding/Run detail con pipeline Snapshot → Diff → MDBList, barra soglia rimozioni, tabella campioni ricercabile e controlli inline.
@@ -104,7 +104,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - Backend: comandi/errori spostati in `app/domain/`, servizi senza dipendenze da `app.api`, API senza SQL diretto; rimossi moduli/helper non usati e dipendenze inutilizzate.
 - Frontend: hook spostati in `src/hooks/`, export morti rimossi, payload API separati dai componenti.
 - `.gitignore` e `.dockerignore` aggiornati per escludere cache, test, build, backup e segreti.
-- Test: **441 backend**, **197 frontend**, **14 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
+- Test: **441 backend**, **198 frontend**, **14 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
 - Dettagli: [`docs/phases/phase-11.md`](docs/phases/phase-11.md).
 
 ### Fase 6 — hardening e regole avanzate
@@ -184,11 +184,12 @@ Live: collezione `netflix-movie-justwatch` acquisita con **5.525 titoli**, snaps
 Dettagli, limiti misurati e superficie API verificata:
 [`docs/phases/phase-08.md`](docs/phases/phase-08.md).
 
-**Scoperta provider:** la pagina **Provider** usa `GET /api/providers/catalog` per unire i provider
-TMDb (94 film + 68 serie in IT, deduplicati), i package JustWatch (109) e, se configurata,
-TheTVDB. TVDB viene usato per le **company ID e i metadati**, non per la disponibilità
-per paese: non espone offerte territoriali. La selezione compila i mapping, che restano
-modificabili e non vengono dichiarati verificati live finché non lo sono davvero.
+**Scoperta provider:** la pagina **Provider** usa `GET /api/providers/catalog` per mostrare
+TMDb (94 film + 68 serie in IT, deduplicati), JustWatch (109 package) e, se configurata,
+TheTVDB in **gruppi separati per fonte**. Le fonti non vengono unite: ogni candidato conserva
+la propria provenienza e il proprio mapping. TVDB viene usato per le **company ID e i metadati**,
+non per la disponibilità per paese. La selezione compila i mapping, che restano modificabili
+e non vengono dichiarati verificati live finché non lo sono davvero.
 
 ---
 
@@ -462,12 +463,12 @@ npm run test:e2e
 npm audit --omit=dev
 ```
 
-Stato attuale: **441 test backend**, **197 test frontend** e **14 test E2E
+Stato attuale: **441 test backend**, **198 test frontend** e **14 test E2E
 Playwright** verdi; `ruff check`, `ruff format --check`, `mypy`, build Vite,
 lint e audit senza vulnerabilità. I test unitari usano `respx`/fixture; la
 verifica live è stata eseguita separatamente su TMDb e MDBList reali.
 
-Coverage gate: backend **90.13%** statement, frontend **96.01%** linee / **90.18%** branch / **95.15%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
+Coverage gate: backend **90.12%** statement, frontend **96.03%** linee / **90.30%** branch / **95.15%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
 
 ---
 

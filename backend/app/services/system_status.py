@@ -173,10 +173,11 @@ def _source_state(db: Session, settings: Settings, kind: CredentialKind, source_
 
 
 def service_health(db: Session, settings: Settings) -> dict[str, str]:
-    """TMDb/MDBList state from the source row and the stored credential."""
+    """TMDb/MDBList/TVDB state from the source row and stored credential."""
     return {
         "tmdb": _source_state(db, settings, CredentialKind.TMDB, "tmdb"),
         "mdblist": _credential_state(db, settings, CredentialKind.MDBLIST),
+        "tvdb": _source_state(db, settings, CredentialKind.TVDB, "tvdb"),
     }
 
 
@@ -338,6 +339,7 @@ def get_system_status(
             "worker": worker_ready(settings),
             "tmdb": services["tmdb"],
             "mdblist": services["mdblist"],
+            "tvdb": services["tvdb"],
         },
         "queues": queue_depths(settings),
         "runs": run_counts(db),

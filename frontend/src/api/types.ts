@@ -500,6 +500,7 @@ interface SystemStatusHealth {
   worker?: boolean;
   tmdb?: string;
   mdblist?: string;
+  tvdb?: string;
 }
 
 interface SystemStatusBackup {
@@ -561,6 +562,7 @@ export interface SystemStatus {
   integrations?: {
     tmdb?: SystemStatusService | null;
     mdblist?: SystemStatusService | null;
+    tvdb?: SystemStatusService | null;
   } | null;
   checks?: Record<string, SystemStatusService> | null;
   [key: string]: unknown;
@@ -620,6 +622,7 @@ export interface ProviderCandidate {
   name: string;
   suggested_slug: string;
   sources: ProviderSourceKey[];
+  source_key: ProviderSourceKey;
   tmdb_movie_id: string | null;
   tmdb_tv_id: string | null;
   justwatch_short_name: string | null;

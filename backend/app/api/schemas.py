@@ -78,6 +78,7 @@ class SystemHealthOut(BaseModel):
     worker: bool
     tmdb: ServiceState
     mdblist: ServiceState
+    tvdb: ServiceState
 
 
 class BackupStatusOut(BaseModel):
