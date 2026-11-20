@@ -134,6 +134,7 @@ class ProviderOut(BaseModel):
     justwatch_movie_verified: bool = False
     justwatch_tv_verified: bool = False
     justwatch_monetization_types: list[str] = []
+    tvdb_company_id: str | None = None
     collections_count: int
     movie_collections: int
     show_collections: int
@@ -141,6 +142,37 @@ class ProviderOut(BaseModel):
 
 class ProviderListOut(BaseModel):
     items: list[ProviderOut]
+    total: int
+
+
+class ProviderCandidateOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    key: str
+    name: str
+    suggested_slug: str
+    sources: list[str]
+    tmdb_movie_id: str | None = None
+    tmdb_tv_id: str | None = None
+    justwatch_short_name: str | None = None
+    justwatch_technical_name: str | None = None
+    justwatch_monetization_types: list[str] = []
+    tvdb_company_id: str | None = None
+    logo_url: str | None = None
+    country_code: str | None = None
+    available_in_country: bool | None = None
+
+
+class ProviderCatalogSourceOut(BaseModel):
+    source_key: str
+    status: str
+    message: str
+    count: int = 0
+
+
+class ProviderCatalogOut(BaseModel):
+    items: list[ProviderCandidateOut]
+    sources: list[ProviderCatalogSourceOut]
     total: int
 
 

@@ -36,6 +36,7 @@ class ProviderSummary:
     justwatch_movie_verified: bool
     justwatch_tv_verified: bool
     justwatch_monetization_types: list[str]
+    tvdb_company_id: str | None
     collections_count: int
     movie_collections: int
     show_collections: int
@@ -52,6 +53,15 @@ def list_providers(db: Session, *, country_code: str = "IT") -> list[ProviderSum
     )
     mapping_by_provider = {mapping.provider_id: mapping for mapping in mappings}
     justwatch_source = sources_repo.get_source_by_key(db, "justwatch")
+    tvdb_source = sources_repo.get_source_by_key(db, "tvdb")
+    tvdb_mapping_by_provider = {
+        mapping.provider_id: mapping
+        for mapping in (
+            providers_repo.list_mappings(db, source_id=tvdb_source.id, country_code=country_code)
+            if tvdb_source is not None
+            else []
+        )
+    }
     justwatch_mapping_by_provider = {
         mapping.provider_id: mapping
         for mapping in (
@@ -70,6 +80,7 @@ def list_providers(db: Session, *, country_code: str = "IT") -> list[ProviderSum
         justwatch_metadata = (
             (justwatch_mapping.metadata_json or {}) if justwatch_mapping is not None else {}
         )
+        tvdb_mapping = tvdb_mapping_by_provider.get(provider.id)
         per_type = counts.get(provider.id, {})
         movie_count = per_type.get("MOVIE", 0)
         show_count = per_type.get("SHOW", 0)
@@ -109,6 +120,9 @@ def list_providers(db: Session, *, country_code: str = "IT") -> list[ProviderSum
                 justwatch_monetization_types=[
                     str(value) for value in justwatch_metadata.get("monetization_types") or []
                 ],
+                tvdb_company_id=(
+                    tvdb_mapping.external_provider_id if tvdb_mapping is not None else None
+                ),
                 collections_count=movie_count + show_count,
                 movie_collections=movie_count,
                 show_collections=show_count,
@@ -146,6 +160,7 @@ def create_provider(
         )
     tmdb_source = sources_repo.get_source_by_key(db, "tmdb")
     justwatch_source = sources_repo.get_source_by_key(db, "justwatch")
+    tvdb_source = sources_repo.get_source_by_key(db, "tvdb")
     provider = providers_repo.upsert_provider(
         db,
         slug=payload.slug,
@@ -226,6 +241,35 @@ def create_provider(
                 "verification_source": "manual",
             },
         )
+    if payload.tvdb_company_id:
+        if tvdb_source is None:
+            raise ValidationError("Fonte TheTVDB non trovata.", code="SOURCE_MISSING")
+        existing = providers_repo.get_mapping_by_external_id(
+            db,
+            source_id=tvdb_source.id,
+            country_code="IT",
+            external_provider_id=payload.tvdb_company_id,
+        )
+        if existing is not None and existing.provider_id != provider.id:
+            raise ConflictError(
+                "Company TVDB già associata a un altro provider.",
+                code="MAPPING_ALREADY_EXISTS",
+                details={"company_id": payload.tvdb_company_id},
+            )
+        providers_repo.upsert_mapping(
+            db,
+            provider_id=provider.id,
+            source_id=tvdb_source.id,
+            country_code="IT",
+            external_provider_id=payload.tvdb_company_id,
+            external_name=provider.name,
+            is_primary=True,
+            is_verified=False,
+            metadata={
+                "verification_source": "tvdb_catalog",
+                "country_availability": False,
+            },
+        )
     audit.record(
         db,
         action="provider_created",
@@ -240,6 +284,7 @@ def create_provider(
             "tmdb_tv_id": payload.tmdb_tv_id,
             "justwatch_short_name": payload.justwatch_short_name,
             "justwatch_technical_name": payload.justwatch_technical_name,
+            "tvdb_company_id": payload.tvdb_company_id,
         },
     )
     db.commit()

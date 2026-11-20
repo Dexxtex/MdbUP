@@ -29,6 +29,7 @@ ConnectorFactory = Callable[[Session, Settings], SourceConnector]
 # Credentials required before a connector can be built for a source key.
 _REQUIRED_CREDENTIALS: dict[str, CredentialKind] = {
     TMDB_SOURCE_KEY: CredentialKind.TMDB,
+    "tvdb": CredentialKind.TVDB,
 }
 
 

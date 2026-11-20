@@ -177,6 +177,33 @@ SOURCE_SEED: tuple[SourceSeed, ...] = (
         },
     ),
     SourceSeed(
+        key="tvdb",
+        name="TheTVDB",
+        type=SourceType.API,
+        base_url="https://api4.thetvdb.com/v4",
+        origin_default=CollectionOrigin.AGGREGATOR,
+        status=SourceStatus.UNCONFIGURED,
+        capabilities={
+            "catalog": False,
+            "recently_added": False,
+            "upcoming": False,
+            "charts": False,
+            "ordering": False,
+            "added_dates": False,
+            "seasons_episodes": True,
+            "full_pagination": False,
+            "data_export": False,
+            "requires_credentials": True,
+            "requires_contract": False,
+            "provider_catalog": True,
+            "country_availability": False,
+            "notes": (
+                "Metadati e company ID. TheTVDB non dichiara la disponibilità "
+                "per paese: non è una fonte di offerte per l'Italia."
+            ),
+        },
+    ),
+    SourceSeed(
         key="manual_csv",
         name="CSV manuale",
         type=SourceType.MANUAL_CSV,

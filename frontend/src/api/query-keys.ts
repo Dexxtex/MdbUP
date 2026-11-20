@@ -29,6 +29,7 @@ export const queryKeys = {
   session: ["session"] as const,
   dashboard: ["dashboard"] as const,
   providers: (country: string) => ["providers", country] as const,
+  providerCatalog: (country: string) => ["providers", "catalog", country] as const,
   sources: ["sources"] as const,
   collections: (filters: CollectionFilters) => ["collections", filters] as const,
   collection: (id: string) => ["collection", id] as const,

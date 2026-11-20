@@ -1,8 +1,13 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useBindings, useCollections, useProviders, useSources } from "../hooks/queries";
+import { useBindings, useCollections, useProviderCatalog, useProviders, useSources } from "../hooks/queries";
 import { useCreateProvider } from "../hooks/mutations";
-import type { Collection, Provider, ProviderCreatePayload } from "../api/types";
+import type {
+  Collection,
+  Provider,
+  ProviderCandidate,
+  ProviderCreatePayload,
+} from "../api/types";
 import { DataTable, type Column } from "../components/ui/data-table";
 import {
   EmptyState,
@@ -157,6 +162,15 @@ function ProviderCard({
           <p className="mb-1 text-xs font-medium text-ink-muted">Mapping JustWatch</p>
           <JustWatchMappingCell provider={provider} />
         </div>
+        {provider.tvdb_company_id ? (
+          <div>
+            <p className="mb-1 text-xs font-medium text-ink-muted">Company TheTVDB</p>
+            <StatusPill
+              label={`${provider.tvdb_company_id} · metadati, non disponibilità IT`}
+              tone="neutral"
+            />
+          </div>
+        ) : null}
       </div>
 
       <dl className="grid grid-cols-2 gap-2 text-sm">
@@ -261,10 +275,48 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
     tmdb_tv_id: "",
     justwatch_short_name: "",
     justwatch_technical_name: "",
+    tvdb_company_id: "",
   });
   // Raw text: splitting per keystroke would eat commas before the operator
   // finishes typing the next offer.
   const [offersText, setOffersText] = useState("FLATRATE");
+  const catalog = useProviderCatalog("IT");
+  const [catalogQuery, setCatalogQuery] = useState("");
+  const [selectedCandidate, setSelectedCandidate] = useState("");
+
+  const candidates = useMemo(() => {
+    const needle = catalogQuery.trim().toLocaleLowerCase("it");
+    return (catalog.data?.items ?? []).filter((candidate) =>
+      candidate.name.toLocaleLowerCase("it").includes(needle),
+    );
+  }, [catalog.data, catalogQuery]);
+
+  const chooseCandidate = (key: string) => {
+    setSelectedCandidate(key);
+    const candidate = (catalog.data?.items ?? []).find((item) => item.key === key);
+    if (candidate) applyCandidate(candidate);
+  };
+
+  const applyCandidate = (candidate: ProviderCandidate) => {
+    setPayload({
+      slug: candidate.suggested_slug,
+      name: candidate.name,
+      kind: payload.kind,
+      tmdb_movie_id: candidate.tmdb_movie_id ?? "",
+      tmdb_tv_id: candidate.tmdb_tv_id ?? "",
+      justwatch_short_name: candidate.justwatch_short_name ?? "",
+      justwatch_technical_name: candidate.justwatch_technical_name ?? "",
+      tvdb_company_id: candidate.tvdb_company_id ?? "",
+    });
+    setOffersText(
+      candidate.justwatch_monetization_types.length > 0
+        ? candidate.justwatch_monetization_types.join(", ")
+        : "FLATRATE",
+    );
+  };
+
+  const sourceLabel = (source: string) =>
+    source === "tmdb" ? "TMDb" : source === "justwatch" ? "JustWatch" : "TVDB";
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -281,6 +333,7 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
       justwatch_short_name: payload.justwatch_short_name?.trim() || undefined,
       justwatch_technical_name: payload.justwatch_technical_name?.trim() || undefined,
       justwatch_monetization_types: offers.length > 0 ? offers : ["FLATRATE"],
+      tvdb_company_id: payload.tvdb_company_id?.trim() || undefined,
     });
     onClose();
   };
@@ -294,6 +347,58 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
           almeno un ID TMDb o JustWatch non potrai creare collezioni per questo provider.
           Gli ID che digiti qui restano manuali: la card li mostrerà come “da verificare”.
         </p>
+      </div>
+      <div className="mb-4 rounded-lg border border-line bg-surface-muted p-3">
+        <Field
+          id="provider-catalog-search"
+          label="Cerca nei provider disponibili"
+          hint="TMDb, JustWatch e TheTVDB. La selezione compila gli ID; puoi sempre modificarli."
+        >
+          <Input
+            id="provider-catalog-search"
+            value={catalogQuery}
+            onChange={(event) => setCatalogQuery(event.target.value)}
+            placeholder="Es. Netflix, Disney, Rai…"
+          />
+        </Field>
+        <Field id="provider-catalog-select" label="Provider disponibili">
+          <Select
+            id="provider-catalog-select"
+            value={selectedCandidate}
+            onChange={(event) => chooseCandidate(event.target.value)}
+            disabled={catalog.isLoading || candidates.length === 0}
+          >
+            <option value="">
+              {catalog.isLoading
+                ? "Caricamento provider…"
+                : candidates.length === 0
+                  ? "Nessun provider trovato"
+                  : `${candidates.length} provider disponibili`}
+            </option>
+            {candidates.map((candidate) => (
+              <option key={candidate.key} value={candidate.key}>
+                {candidate.name} — {candidate.sources.map(sourceLabel).join(" / ")}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        {catalog.data ? (
+          <p className="mt-2 text-xs text-ink-muted">
+            {catalog.data.sources
+              .map(
+                (source) =>
+                  `${sourceLabel(source.source_key)}: ${
+                    source.status === "OK"
+                      ? "OK"
+                      : source.status === "MISSING_CREDENTIAL"
+                        ? "credenziale mancante"
+                        : "errore"
+                  }`,
+              )
+              .join(" · ")}
+          </p>
+        ) : null}
+        {catalog.isError ? <ErrorState error={catalog.error} /> : null}
       </div>
       <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
         <Field id="provider-slug" label="Slug" hint="Solo minuscole, numeri e trattini.">
@@ -362,6 +467,13 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
             onChange={(event) =>
               setPayload({ ...payload, justwatch_technical_name: event.target.value })
             }
+          />
+        </Field>
+        <Field id="provider-tvdb-company" label="Company ID TVDB" hint="Facoltativo; non implica disponibilità in Italia.">
+          <Input
+            id="provider-tvdb-company"
+            value={payload.tvdb_company_id ?? ""}
+            onChange={(event) => setPayload({ ...payload, tvdb_company_id: event.target.value })}
           />
         </Field>
         <Field id="provider-justwatch-offers" label="Offerte JustWatch" hint="Separate da virgola.">

@@ -264,6 +264,7 @@ class ProviderCreateIn(BaseModel):
     tmdb_tv_id: str | None = Field(default=None, max_length=64)
     justwatch_short_name: str | None = Field(default=None, max_length=64)
     justwatch_technical_name: str | None = Field(default=None, max_length=64)
+    tvdb_company_id: str | None = Field(default=None, max_length=64)
     justwatch_monetization_types: list[str] = Field(
         default_factory=lambda: ["FLATRATE"], max_length=8
     )

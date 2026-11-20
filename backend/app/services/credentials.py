@@ -46,12 +46,14 @@ logger = get_logger(__name__)
 _VERIFY_ENDPOINTS: dict[str, tuple[str, str]] = {
     "TMDB": ("https://api.themoviedb.org/3/configuration", "tmdb"),
     "MDBLIST": ("https://api.mdblist.com/user", "query"),
+    "TVDB": ("https://api4.thetvdb.com/v4/login", "tvdb"),
 }
 
 
 class CredentialKind(StrEnum):
     TMDB = "TMDB"
     MDBLIST = "MDBLIST"
+    TVDB = "TVDB"
     JUSTWATCH = "JUSTWATCH"
 
 
@@ -80,6 +82,13 @@ CREDENTIAL_SPECS: dict[CredentialKind, CredentialSpec] = {
         source_key=None,
         key="api_key",
         label="MDBList API key",
+    ),
+    CredentialKind.TVDB: CredentialSpec(
+        kind=CredentialKind.TVDB,
+        scope=CredentialScope.SOURCE,
+        source_key="tvdb",
+        key="api_key",
+        label="TheTVDB API key",
     ),
     CredentialKind.JUSTWATCH: CredentialSpec(
         kind=CredentialKind.JUSTWATCH,
@@ -333,6 +342,8 @@ def verify(
                     response = client.get(url, headers={"Authorization": f"Bearer {secret}"})
                 else:
                     response = client.get(url, params={"api_key": secret})
+            elif auth_style == "tvdb":
+                response = client.post(url, json={"apikey": secret})
             else:
                 response = client.get(url, params={"apikey": secret})
     except httpx.HTTPError as exc:

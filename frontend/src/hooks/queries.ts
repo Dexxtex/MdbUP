@@ -20,6 +20,7 @@ import type {
   OperationList,
   Preview,
   Provider,
+  ProviderCatalog,
   ProviderList,
   Run,
   RunStatus,
@@ -90,6 +91,18 @@ export function useProviders(country: string) {
       );
       return pageItems<Provider>(payload);
     },
+  });
+}
+
+export function useProviderCatalog(country: string) {
+  return useQuery({
+    queryKey: queryKeys.providerCatalog(country),
+    queryFn: ({ signal }) =>
+      apiFetch<ProviderCatalog>(
+        `/providers/catalog?country=${encodeURIComponent(country)}`,
+        { signal },
+      ),
+    staleTime: 5 * 60_000,
   });
 }
 

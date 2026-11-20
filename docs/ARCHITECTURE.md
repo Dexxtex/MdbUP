@@ -91,7 +91,9 @@ snapshot e preview sono sempre possibili, mentre una sync MDBList reale richiede
 un dry-run completato con successo e non viene mai accodata automaticamente
 dallo scheduler. Provider, mapping e collezioni sono creati dall’operatore;
 `seed-sources` precarica solo le fonti e `justwatch-collections` può riverificare
-i mapping JustWatch live.
+i mapping JustWatch live. La pagina **Provider** può leggere il catalogo unificato
+TMDb/JustWatch/TVDB; TheTVDB è una fonte di metadati/company ID, non di disponibilità
+territoriale.
 
 ### Scheduling
 

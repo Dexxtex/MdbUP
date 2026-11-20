@@ -107,6 +107,7 @@ export type Provider = Omit<
 > & {
   justwatch_movie_verified?: boolean;
   justwatch_tv_verified?: boolean;
+  tvdb_company_id?: string | null;
 };
 export type ProviderList = Schemas["ProviderListOut"];
 
@@ -609,4 +610,36 @@ export interface ProviderCreatePayload {
   justwatch_short_name?: string;
   justwatch_technical_name?: string;
   justwatch_monetization_types: string[];
+  tvdb_company_id?: string;
+}
+
+export type ProviderSourceKey = "tmdb" | "justwatch" | "tvdb";
+
+export interface ProviderCandidate {
+  key: string;
+  name: string;
+  suggested_slug: string;
+  sources: ProviderSourceKey[];
+  tmdb_movie_id: string | null;
+  tmdb_tv_id: string | null;
+  justwatch_short_name: string | null;
+  justwatch_technical_name: string | null;
+  justwatch_monetization_types: string[];
+  tvdb_company_id: string | null;
+  logo_url: string | null;
+  country_code: string | null;
+  available_in_country: boolean | null;
+}
+
+export interface ProviderCatalogSource {
+  source_key: ProviderSourceKey;
+  status: string;
+  message: string;
+  count: number;
+}
+
+export interface ProviderCatalog {
+  items: ProviderCandidate[];
+  sources: ProviderCatalogSource[];
+  total: number;
 }

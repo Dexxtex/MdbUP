@@ -26,6 +26,7 @@ def test_create_provider_with_manual_mappings(client, admin) -> None:
             "justwatch_short_name": "mio",
             "justwatch_technical_name": "mioprovider",
             "justwatch_monetization_types": ["FLATRATE"],
+            "tvdb_company_id": "98765",
         },
         headers=admin,
     )
@@ -42,6 +43,7 @@ def test_create_provider_with_manual_mappings(client, admin) -> None:
     assert body["justwatch_movie_verified"] is False
     assert body["justwatch_tv_verified"] is False
     assert body["justwatch_monetization_types"] == ["FLATRATE"]
+    assert body["tvdb_company_id"] == "98765"
 
     # The manual mapping is usable by the collection builder but stays unverified.
     created = client.post(

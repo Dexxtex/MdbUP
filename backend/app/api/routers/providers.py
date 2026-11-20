@@ -8,8 +8,10 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api import schemas_catalog
-from app.api.deps import get_current_user, get_db_dep, require_admin, require_csrf
+from app.api.deps import get_current_user, get_db_dep, get_settings_dep, require_admin, require_csrf
+from app.core.config import Settings
 from app.db.models import AppUser
+from app.services import provider_catalog
 from app.services import providers as providers_service
 
 router = APIRouter(tags=["providers"])
@@ -46,6 +48,26 @@ def create_provider(
 ) -> schemas_catalog.ProviderOut:
     summary = providers_service.create_provider(db, payload, actor_user_id=admin.id)
     return schemas_catalog.ProviderOut.model_validate(summary)
+
+
+@router.get(
+    "/providers/catalog",
+    response_model=schemas_catalog.ProviderCatalogOut,
+    summary="Provider disponibili da TMDb, JustWatch e TheTVDB",
+)
+def provider_catalog_endpoint(
+    country: str = Query("IT", min_length=2, max_length=2),
+    db: Session = Depends(get_db_dep),
+    settings: Settings = Depends(get_settings_dep),
+    _user: AppUser = Depends(get_current_user),
+) -> schemas_catalog.ProviderCatalogOut:
+    catalog = provider_catalog.discover_providers(db, settings, country=country.upper())
+    items = [schemas_catalog.ProviderCandidateOut.model_validate(item) for item in catalog.items]
+    sources = [
+        schemas_catalog.ProviderCatalogSourceOut.model_validate(item.as_dict())
+        for item in catalog.sources
+    ]
+    return schemas_catalog.ProviderCatalogOut(items=items, sources=sources, total=len(items))
 
 
 @router.get(

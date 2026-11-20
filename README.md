@@ -104,7 +104,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - Backend: comandi/errori spostati in `app/domain/`, servizi senza dipendenze da `app.api`, API senza SQL diretto; rimossi moduli/helper non usati e dipendenze inutilizzate.
 - Frontend: hook spostati in `src/hooks/`, export morti rimossi, payload API separati dai componenti.
 - `.gitignore` e `.dockerignore` aggiornati per escludere cache, test, build, backup e segreti.
-- Test: **432 backend**, **197 frontend**, **13 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
+- Test: **434 backend**, **197 frontend**, **13 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
 - Dettagli: [`docs/phases/phase-11.md`](docs/phases/phase-11.md).
 
 ### Fase 6 — hardening e regole avanzate
@@ -184,6 +184,12 @@ Live: collezione `netflix-movie-justwatch` acquisita con **5.525 titoli**, snaps
 Dettagli, limiti misurati e superficie API verificata:
 [`docs/phases/phase-08.md`](docs/phases/phase-08.md).
 
+**Scoperta provider:** la pagina **Provider** usa `GET /api/providers/catalog` per unire i provider
+TMDb (94 film + 68 serie in IT, deduplicati), i package JustWatch (109) e, se configurata,
+TheTVDB. TVDB viene usato per le **company ID e i metadati**, non per la disponibilità
+per paese: non espone offerte territoriali. La selezione compila i mapping, che restano
+modificabili e non vengono dichiarati verificati live finché non lo sono davvero.
+
 ---
 
 ## 3. Stack
@@ -210,7 +216,7 @@ Dettagli, limiti misurati e superficie API verificata:
 │   │   ├── domain/             # enum, comandi, errori e regole pure
 │   │   ├── services/           # casi d'uso: acquisizione, diff, sync, notifiche
 │   │   ├── connectors/         # adattatori TMDb, JustWatch, CSV e interfaccia
-│   │   ├── integrations/       # client HTTP MDBList/TMDb/JustWatch
+│   │   ├── integrations/       # client HTTP MDBList/TMDb/JustWatch/TVDB
 │   │   ├── repositories/       # query SQLAlchemy
 │   │   ├── db/                 # session, base e modelli ORM
 │   │   ├── jobs/               # Celery app, task, beat e scheduler
@@ -274,8 +280,8 @@ Aprire `http://localhost:5173`. Il dev server Vite inoltra `/api` a `http://loca
 
 1. Aprire `/bootstrap` e usare il token `BOOTSTRAP_TOKEN`.
 2. Creare l'admin con una password di almeno 12 caratteri.
-3. In **Impostazioni → Credenziali** inserire TMDb API key e MDBList API key.
-4. Aprire **Provider → Aggiungi provider** e creare il primo servizio con i mapping TMDb/JustWatch.
+3. In **Impostazioni → Credenziali** inserire TMDb API key, MDBList API key e, se vuoi usare TheTVDB, la sua API key.
+4. Aprire **Provider → Aggiungi provider** e scegliere il servizio dall’elenco disponibile (TMDb/JustWatch/TVDB), poi verificare i mapping proposti.
 5. Acquisire una collezione e creare un binding.
 6. Dalla pagina **Binding** usare `Dry-run` per il piano o `Esegui` per una sync reale; il piano reale richiede approvazione.
 
@@ -449,12 +455,12 @@ npm run test:e2e
 npm audit --omit=dev
 ```
 
-Stato attuale: **432 test backend**, **197 test frontend** e **13 test E2E
+Stato attuale: **434 test backend**, **197 test frontend** e **13 test E2E
 Playwright** verdi; `ruff check`, `ruff format --check`, `mypy`, build Vite,
 lint e audit senza vulnerabilità. I test unitari usano `respx`/fixture; la
 verifica live è stata eseguita separatamente su TMDb e MDBList reali.
 
-Coverage gate: backend **90.23%** statement, frontend **96.47%** linee / **90.18%** branch / **96.00%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
+Coverage gate: backend **90.10%** statement, frontend **96.01%** linee / **90.18%** branch / **95.15%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
 
 ---
 
@@ -471,6 +477,7 @@ Coverage gate: backend **90.23%** statement, frontend **96.47%** linee / **90.18
 | `POST` | `/api/auth/change-password` | Verifica password attuale, revoca tutte le sessioni |
 | `GET` | `/api/dashboard` | Contatori, alert, run recenti |
 | `GET` | `/api/providers` | Provider IT + mapping TMDb |
+| `GET` | `/api/providers/catalog` | Provider disponibili da TMDb, JustWatch e TheTVDB |
 | `POST` | `/api/providers` | Crea un provider scelto dall’utente con mapping opzionali |
 | `GET` | `/api/collections` | Collezioni con origine/date_basis e filtri |
 | `POST` | `/api/collections` | Crea una collezione (catalogo o Appena rilevati) |
@@ -535,6 +542,7 @@ Dettagli: [`docs/phases/phase-01.md`](docs/phases/phase-01.md).
 3. **Top 10 ufficiale** non è implementabile senza una fonte ufficiale verificata.
 4. **MDBList**: reorder max 1.000 elementi per chiamata, non atomico; niente idempotency key lato API.
 5. **TMDb discover** è limitato a 500 pagine; cataloghi grandi richiedono partizionamento. Per Apple TV+ Serie TV è stato usato `sort_by=vote_count.desc` per evitare duplicati da paginazione.
+6. **TheTVDB non è una fonte di disponibilità per l'Italia**: viene usato per company ID/metadati; non crea collezioni TMDb/JustWatch e non dichiara offerte territoriali.
 6. **Preview** è calcolata in modo sincrono nell'API (può essere lenta su liste grandi).
 7. **Rate limit di scrittura MDBList** è process-local (240 item/5 min); con più worker serve un token bucket Redis.
 8. **Binding manuali per default**: le 5 liste sono in `MIRROR` con schedule `MANUAL`; la pagina **Modifica** permette `INTERVAL`/`CRON`/`DAILY`/`WEEKLY`.
