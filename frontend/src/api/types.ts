@@ -61,7 +61,7 @@ export type OperationStatus = Schemas["SyncOperationStatus"];
 export type ScheduleFrequency = "MANUAL" | "DAILY" | "WEEKLY" | "INTERVAL" | "CRON";
 
 /** `CredentialOut.kind` è una stringa: i valori sono quelli di `CredentialKind`. */
-export type CredentialKind = "TMDB" | "MDBLIST" | "JUSTWATCH";
+export type CredentialKind = "TMDB" | "MDBLIST" | "TVDB" | "JUSTWATCH";
 
 export type CredentialStatus = Schemas["CredentialOut"]["status"];
 

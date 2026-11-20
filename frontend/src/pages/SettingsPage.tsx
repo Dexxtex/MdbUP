@@ -108,6 +108,13 @@ const CREDENTIAL_KINDS: CredentialKindConfig[] = [
     available: true,
   },
   {
+    kind: "TVDB",
+    label: "TheTVDB",
+    description:
+      "API key per company ID e metadati TVDB; TheTVDB non dichiara la disponibilità per paese.",
+    available: true,
+  },
+  {
     kind: "JUSTWATCH",
     label: "JustWatch",
     description: "Non disponibile: manca un contratto di accesso ai dati.",
