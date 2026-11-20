@@ -281,7 +281,11 @@ def test_catalog_passes_genre_and_quality_filters() -> None:
     connector = JustWatchConnector(client, language="it")
     collection = _collection(
         CollectionKind.CATALOG,
-        filters={"genres": ["act"], "subgenres": ["adva"], "presentation_types": ["4K"]},
+        filters={
+            "genres": ["azione-e-avventura"],
+            "subgenres": ["adva"],
+            "presentation_types": ["4K"],
+        },
     )
     connector.fetch_collection_page(collection, None, 50)
     call = client.calls[-1]

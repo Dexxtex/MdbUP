@@ -241,6 +241,24 @@ class JustWatchConnector:
                     )
         return collections
 
+    def _genre_short_names(self) -> dict[str, str]:
+        """Map localized/technical genre labels to the short code the filter accepts."""
+        mapping: dict[str, str] = {}
+        for row in self._client.list_genres(self._language):
+            short = row.get("shortName") or row.get("short_name")
+            if not short:
+                continue
+            short_text = str(short)
+            for key in (
+                short_text,
+                row.get("technicalName"),
+                row.get("technical_name"),
+                row.get("slug"),
+            ):
+                if key:
+                    mapping[str(key).casefold()] = short_text
+        return mapping
+
     def _collection(
         self,
         provider: SourceProvider,
@@ -294,6 +312,12 @@ class JustWatchConnector:
         genres = _string_list(filters.get("genres"))
         subgenres = _string_list(filters.get("subgenres"))
         presentation_types = _string_list(filters.get("presentation_types"))
+        if genres:
+            # ``genres`` query returns localized slugs, while TitleFilter.genres
+            # accepts the short code (e.g. ``ani``, not ``animazione``). Accept
+            # both so API/import filters cannot silently fail with a 422.
+            genre_map = self._genre_short_names()
+            genres = [genre_map.get(value.casefold(), value) for value in genres]
         availability = _availability(kind)
 
         if kind is CollectionKind.CHART:
