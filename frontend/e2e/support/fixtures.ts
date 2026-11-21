@@ -572,7 +572,6 @@ export const SETTINGS: SettingsOut = {
 export const CATALOG_CHANGES: CatalogChangeResponse = {
   items: [
     {
-      id: "abababab-abab-4bab-8bab-abababababab",
       media_id: "acacacac-acac-4cac-8cac-acacacacacac",
       title: "Dune: Parte due",
       year: 2024,
@@ -584,7 +583,7 @@ export const CATALOG_CHANGES: CatalogChangeResponse = {
       source_label: "Fonte: JustWatch (Aggregatore)",
       direction: "ADDED",
       detected_at: "2026-01-03T04:02:00Z",
-      detected_at_rome: "03/01/2026, 05:02",
+      detected_at_rome: "2026-01-03T05:02:00+01:00",
       collection_id: JUSTWATCH_COLLECTION_ID,
       collection_name: "Apple TV+ film",
       collection_slug: "justwatch-apple-tv-film",

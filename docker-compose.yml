@@ -13,7 +13,7 @@
 #   APP_ENCRYPTION_KEY  default Base64 di 32 byte (semplice, da cambiare)
 #   BOOTSTRAP_TOKEN     default semplice: bootstrap
 #   METRICS_TOKEN       default semplice: metrics
-#   APP_BASE_URL        default http://192.0.2.10:28080
+#   APP_BASE_URL        default http://localhost:28080 (impostare l’origine reale)
 #   WEB_PORT            default 28080
 #   REDIS/Celery        URL interne allo stack: redis://redis:6379/0..2
 #
@@ -41,11 +41,11 @@ x-app: &app
   image: ${MDBUP_IMAGE:-ghcr.io/dexxtex/mdbup:latest}
   environment:
     APP_ENV: production
-    APP_BASE_URL: ${APP_BASE_URL:-http://192.0.2.10:28080}
+    APP_BASE_URL: ${APP_BASE_URL:-http://localhost:28080}
     APP_TIMEZONE: Europe/Rome
     LOG_LEVEL: INFO
     LOG_FORMAT: json
-    COOKIE_SECURE: "false"
+    COOKIE_SECURE: ${COOKIE_SECURE:-false}
     SESSION_COOKIE_NAME: mdbsync-session
     CSRF_COOKIE_NAME: mdbsync-csrf
     METRICS_ENABLED: "true"

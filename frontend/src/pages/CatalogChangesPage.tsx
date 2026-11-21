@@ -71,7 +71,7 @@ function CounterCard({
 
 function CatalogChangeCard({ item }: { item: CatalogChangeItem }) {
   const title = item.title ?? "Titolo non disponibile";
-  const detectedLabel = item.detected_at_rome ?? formatDateTime(item.detected_at);
+  const detectedLabel = formatDateTime(item.detected_at_rome ?? item.detected_at);
   return (
     <article
       data-testid="catalog-change-card"
@@ -82,7 +82,7 @@ function CatalogChangeCard({ item }: { item: CatalogChangeItem }) {
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
           <span>{item.media_type === "MOVIE" ? "Film" : "Serie"}</span>
           {item.episode_event_type ? (
-            <EpisodeEventBadge eventType={item.episode_event_type} />
+            <EpisodeEventBadge eventType={item.episode_event_type as import("../api/types").EpisodeEventType} />
           ) : null}
         </div>
       </div>
@@ -103,7 +103,7 @@ function CatalogChangeCard({ item }: { item: CatalogChangeItem }) {
         <p className="font-medium text-ink">Rilevato da snapshot</p>
         <p className="font-mono text-ink">{shortId(item.current_snapshot_id)}</p>
         <p>
-          <time dateTime={item.detected_at}>{detectedLabel}</time> Europe/Rome
+          <time dateTime={item.detected_at}>{detectedLabel}</time>
         </p>
         <p className="text-ink">{catalogChangeSourceLabel(item)}</p>
         {item.collection_id ? (
@@ -333,7 +333,10 @@ export default function CatalogChangesPage() {
                 className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
               >
                 {data.items.map((item) => (
-                  <CatalogChangeCard key={item.id} item={item} />
+                  <CatalogChangeCard
+                    key={`${item.media_id}-${item.collection_id}-${item.direction}`}
+                    item={item}
+                  />
                 ))}
               </div>
             )}

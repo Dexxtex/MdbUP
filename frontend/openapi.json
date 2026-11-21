@@ -794,6 +794,90 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "providers"
+        ],
+        "summary": "Crea un provider scelto dall'operatore",
+        "operationId": "create_provider_api_providers_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderCreateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/providers/catalog": {
+      "get": {
+        "tags": [
+          "providers"
+        ],
+        "summary": "Provider disponibili da TMDb, JustWatch e TheTVDB",
+        "operationId": "provider_catalog_endpoint_api_providers_catalog_get",
+        "parameters": [
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 2,
+              "default": "IT",
+              "title": "Country"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCatalogOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/providers/{provider_id}": {
@@ -865,6 +949,162 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SourceListOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sources/tvdb/companies": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Company TVDB (metadati, nessuna disponibilità per paese)",
+        "operationId": "list_tvdb_companies_api_sources_tvdb_companies_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TVDbCompanyListOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sources/tvdb/genres": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Generi TVDB (metadati)",
+        "operationId": "list_tvdb_genres_api_sources_tvdb_genres_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TVDbGenreListOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sources/tvdb/series": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Serie TVDB filtrate per genere, anno e paese di origine",
+        "operationId": "filter_tvdb_series_api_sources_tvdb_series_get",
+        "parameters": [
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 3,
+              "default": "ita",
+              "title": "Country"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 3,
+              "default": "ita",
+              "title": "Language"
+            }
+          },
+          {
+            "name": "genre_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Genre Id"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2100,
+                  "minimum": 1900
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Year"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(score|firstAired|lastAired|name)$",
+              "default": "score",
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "sort_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(asc|desc)$",
+              "default": "desc",
+              "title": "Sort Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TVDbCatalogOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -5667,6 +5907,325 @@
         ],
         "title": "PreviewRequest"
       },
+      "ProviderCandidateOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "suggested_slug": {
+            "type": "string",
+            "title": "Suggested Slug"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "source_key": {
+            "type": "string",
+            "title": "Source Key"
+          },
+          "tmdb_movie_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tmdb Movie Id"
+          },
+          "tmdb_tv_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tmdb Tv Id"
+          },
+          "justwatch_short_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Justwatch Short Name"
+          },
+          "justwatch_technical_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Justwatch Technical Name"
+          },
+          "justwatch_monetization_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Justwatch Monetization Types",
+            "default": []
+          },
+          "tvdb_company_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tvdb Company Id"
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url"
+          },
+          "country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          },
+          "available_in_country": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available In Country"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "suggested_slug",
+          "sources",
+          "source_key"
+        ],
+        "title": "ProviderCandidateOut"
+      },
+      "ProviderCatalogOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderCandidateOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderCatalogSourceOut"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "sources",
+          "total"
+        ],
+        "title": "ProviderCatalogOut"
+      },
+      "ProviderCatalogSourceOut": {
+        "properties": {
+          "source_key": {
+            "type": "string",
+            "title": "Source Key"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_key",
+          "status",
+          "message"
+        ],
+        "title": "ProviderCatalogSourceOut"
+      },
+      "ProviderCreateIn": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 2,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "SVOD",
+              "TVOD",
+              "AVOD",
+              "TVE",
+              "STORE",
+              "CINEMA",
+              "CHANNEL"
+            ],
+            "title": "Kind",
+            "default": "SVOD"
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url"
+          },
+          "website_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website Url"
+          },
+          "tmdb_movie_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tmdb Movie Id"
+          },
+          "tmdb_tv_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tmdb Tv Id"
+          },
+          "justwatch_short_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Justwatch Short Name"
+          },
+          "justwatch_technical_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Justwatch Technical Name"
+          },
+          "tvdb_company_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tvdb Company Id"
+          },
+          "justwatch_monetization_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Justwatch Monetization Types"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name"
+        ],
+        "title": "ProviderCreateIn",
+        "description": "User-supplied provider and optional external mappings.\n\nIDs are deliberately entered by the operator: MdbUP does not pre-create a\nprovider catalogue. The mapping is marked as manually configured; the\noperator remains responsible for checking the external ids."
+      },
       "ProviderListOut": {
         "properties": {
           "items": {
@@ -5813,6 +6372,17 @@
             "type": "array",
             "title": "Justwatch Monetization Types",
             "default": []
+          },
+          "tvdb_company_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tvdb Company Id"
           },
           "collections_count": {
             "type": "integer",
@@ -7030,6 +7600,17 @@
               "DISABLED"
             ],
             "title": "Mdblist"
+          },
+          "tvdb": {
+            "type": "string",
+            "enum": [
+              "OK",
+              "MISSING_CREDENTIAL",
+              "DEGRADED",
+              "ERROR",
+              "DISABLED"
+            ],
+            "title": "Tvdb"
           }
         },
         "type": "object",
@@ -7039,7 +7620,8 @@
           "redis",
           "worker",
           "tmdb",
-          "mdblist"
+          "mdblist",
+          "tvdb"
         ],
         "title": "SystemHealthOut"
       },
@@ -7110,6 +7692,254 @@
           "storage"
         ],
         "title": "SystemStatusOut"
+      },
+      "TVDbCatalogItemOut": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          },
+          "overview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overview"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slug"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "name"
+        ],
+        "title": "TVDbCatalogItemOut"
+      },
+      "TVDbCatalogOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TVDbCatalogItemOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "country": {
+            "type": "string",
+            "title": "Country"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "genre_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Genre Id"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "country",
+          "language"
+        ],
+        "title": "TVDbCatalogOut"
+      },
+      "TVDbCompanyListOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TVDbCompanyOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "TVDbCompanyListOut"
+      },
+      "TVDbCompanyOut": {
+        "properties": {
+          "company_id": {
+            "type": "string",
+            "title": "Company Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "company_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Type"
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slug"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          }
+        },
+        "type": "object",
+        "required": [
+          "company_id",
+          "name"
+        ],
+        "title": "TVDbCompanyOut"
+      },
+      "TVDbGenreListOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TVDbGenreOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "TVDbGenreListOut"
+      },
+      "TVDbGenreOut": {
+        "properties": {
+          "genre_id": {
+            "type": "string",
+            "title": "Genre Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slug"
+          }
+        },
+        "type": "object",
+        "required": [
+          "genre_id",
+          "name"
+        ],
+        "title": "TVDbGenreOut"
       },
       "TargetCreateIn": {
         "properties": {

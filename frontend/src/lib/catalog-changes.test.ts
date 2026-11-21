@@ -13,7 +13,6 @@ import {
 
 function change(overrides: Partial<CatalogChangeItem> = {}): CatalogChangeItem {
   return {
-    id: "change-1",
     media_id: "media-1",
     title: "Dune: Parte due",
     year: 2024,
@@ -25,7 +24,7 @@ function change(overrides: Partial<CatalogChangeItem> = {}): CatalogChangeItem {
     source_label: "Fonte: JustWatch (Aggregatore)",
     direction: "ADDED",
     detected_at: "2026-01-03T04:02:00Z",
-    detected_at_rome: "03/01/2026, 05:02",
+    detected_at_rome: "2026-01-03T05:02:00+01:00",
     collection_id: "collection-1",
     collection_name: "Netflix film",
     collection_slug: "netflix-film",

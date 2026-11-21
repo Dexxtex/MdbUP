@@ -247,50 +247,9 @@ export type SourceHealthcheck = Schemas["SourceHealthcheckOut"];
 
 /* Cambi catalogo (`GET /api/catalog-changes`, Fase 9). */
 export type CatalogChangeWindow = "24h" | "7d" | "14d" | "30d";
-
-/** Enumerazione backend serializzata come stringa (stile enums.py). */
 export type CatalogChangeDirection = "ADDED" | "REMOVED";
-
-export interface CatalogChangeItem {
-  id: string;
-  media_id: string;
-  title: string | null;
-  year: number | null;
-  media_type: MediaType;
-  provider_id: string;
-  provider_slug: string | null;
-  provider_name: string;
-  source_key: string;
-  source_label: string;
-  direction: CatalogChangeDirection;
-  detected_at: string;
-  detected_at_rome: string | null;
-  collection_id: string | null;
-  collection_name: string | null;
-  collection_slug: string | null;
-  previous_snapshot_id: string | null;
-  current_snapshot_id: string | null;
-  season_number: number | null;
-  episode_number: number | null;
-  episode_event_type: EpisodeEventType | null;
-}
-
-interface CatalogChangeCounters {
-  added_today: number;
-  removed_today: number;
-  added_window: number;
-  removed_window: number;
-}
-
-export interface CatalogChangeResponse {
-  items: CatalogChangeItem[];
-  total: number;
-  page: number;
-  page_size: number;
-  window: CatalogChangeWindow;
-  generated_at: string;
-  counters: CatalogChangeCounters;
-}
+export type CatalogChangeItem = Schemas["CatalogChangeOut"];
+export type CatalogChangeResponse = Schemas["CatalogChangesOut"];
 
 /* Dashboard (`app/api/schemas_catalog.py` + `app/services/dashboard.py`). */
 type DashboardCounters = Schemas["DashboardOut"]["counters"];

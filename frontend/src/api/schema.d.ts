@@ -344,6 +344,24 @@ export interface paths {
         /** Provider canonici con mapping e numero collezioni */
         get: operations["list_providers_api_providers_get"];
         put?: never;
+        /** Crea un provider scelto dall'operatore */
+        post: operations["create_provider_api_providers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/providers/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Provider disponibili da TMDb, JustWatch e TheTVDB */
+        get: operations["provider_catalog_endpoint_api_providers_catalog_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -377,6 +395,57 @@ export interface paths {
         };
         /** Fonti con capability e stato */
         get: operations["list_sources_api_sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sources/tvdb/companies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Company TVDB (metadati, nessuna disponibilità per paese) */
+        get: operations["list_tvdb_companies_api_sources_tvdb_companies_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sources/tvdb/genres": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Generi TVDB (metadati) */
+        get: operations["list_tvdb_genres_api_sources_tvdb_genres_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sources/tvdb/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Serie TVDB filtrate per genere, anno e paese di origine */
+        get: operations["filter_tvdb_series_api_sources_tvdb_series_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1819,6 +1888,99 @@ export interface components {
             /** Policy Version */
             policy_version?: string | null;
         };
+        /** ProviderCandidateOut */
+        ProviderCandidateOut: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /** Suggested Slug */
+            suggested_slug: string;
+            /** Sources */
+            sources: string[];
+            /** Source Key */
+            source_key: string;
+            /** Tmdb Movie Id */
+            tmdb_movie_id?: string | null;
+            /** Tmdb Tv Id */
+            tmdb_tv_id?: string | null;
+            /** Justwatch Short Name */
+            justwatch_short_name?: string | null;
+            /** Justwatch Technical Name */
+            justwatch_technical_name?: string | null;
+            /**
+             * Justwatch Monetization Types
+             * @default []
+             */
+            justwatch_monetization_types: string[];
+            /** Tvdb Company Id */
+            tvdb_company_id?: string | null;
+            /** Logo Url */
+            logo_url?: string | null;
+            /** Country Code */
+            country_code?: string | null;
+            /** Available In Country */
+            available_in_country?: boolean | null;
+        };
+        /** ProviderCatalogOut */
+        ProviderCatalogOut: {
+            /** Items */
+            items: components["schemas"]["ProviderCandidateOut"][];
+            /** Sources */
+            sources: components["schemas"]["ProviderCatalogSourceOut"][];
+            /** Total */
+            total: number;
+        };
+        /** ProviderCatalogSourceOut */
+        ProviderCatalogSourceOut: {
+            /** Source Key */
+            source_key: string;
+            /** Status */
+            status: string;
+            /** Message */
+            message: string;
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+        };
+        /**
+         * ProviderCreateIn
+         * @description User-supplied provider and optional external mappings.
+         *
+         *     IDs are deliberately entered by the operator: MdbUP does not pre-create a
+         *     provider catalogue. The mapping is marked as manually configured; the
+         *     operator remains responsible for checking the external ids.
+         */
+        ProviderCreateIn: {
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @default SVOD
+             * @enum {string}
+             */
+            kind: "SVOD" | "TVOD" | "AVOD" | "TVE" | "STORE" | "CINEMA" | "CHANNEL";
+            /** Logo Url */
+            logo_url?: string | null;
+            /** Website Url */
+            website_url?: string | null;
+            /** Tmdb Movie Id */
+            tmdb_movie_id?: string | null;
+            /** Tmdb Tv Id */
+            tmdb_tv_id?: string | null;
+            /** Justwatch Short Name */
+            justwatch_short_name?: string | null;
+            /** Justwatch Technical Name */
+            justwatch_technical_name?: string | null;
+            /** Tvdb Company Id */
+            tvdb_company_id?: string | null;
+            /** Justwatch Monetization Types */
+            justwatch_monetization_types?: string[];
+        };
         /** ProviderListOut */
         ProviderListOut: {
             /** Items */
@@ -1885,6 +2047,8 @@ export interface components {
              * @default []
              */
             justwatch_monetization_types: string[];
+            /** Tvdb Company Id */
+            tvdb_company_id?: string | null;
             /** Collections Count */
             collections_count: number;
             /** Movie Collections */
@@ -2396,6 +2560,11 @@ export interface components {
              * @enum {string}
              */
             mdblist: "OK" | "MISSING_CREDENTIAL" | "DEGRADED" | "ERROR" | "DISABLED";
+            /**
+             * Tvdb
+             * @enum {string}
+             */
+            tvdb: "OK" | "MISSING_CREDENTIAL" | "DEGRADED" | "ERROR" | "DISABLED";
         };
         /** SystemStatusOut */
         SystemStatusOut: {
@@ -2422,6 +2591,74 @@ export interface components {
             /** Catalog Acquisitions */
             catalog_acquisitions: components["schemas"]["CatalogAcquisitionOut"][];
             storage: components["schemas"]["StorageStatusOut"];
+        };
+        /** TVDbCatalogItemOut */
+        TVDbCatalogItemOut: {
+            /** Item Id */
+            item_id: string;
+            /** Name */
+            name: string;
+            /** Year */
+            year?: string | null;
+            /** Overview */
+            overview?: string | null;
+            /** Image */
+            image?: string | null;
+            /** Score */
+            score?: number | null;
+            /** Slug */
+            slug?: string | null;
+        };
+        /** TVDbCatalogOut */
+        TVDbCatalogOut: {
+            /** Items */
+            items: components["schemas"]["TVDbCatalogItemOut"][];
+            /** Total */
+            total: number;
+            /** Country */
+            country: string;
+            /** Language */
+            language: string;
+            /** Genre Id */
+            genre_id?: string | null;
+            /** Year */
+            year?: number | null;
+        };
+        /** TVDbCompanyListOut */
+        TVDbCompanyListOut: {
+            /** Items */
+            items: components["schemas"]["TVDbCompanyOut"][];
+            /** Total */
+            total: number;
+        };
+        /** TVDbCompanyOut */
+        TVDbCompanyOut: {
+            /** Company Id */
+            company_id: string;
+            /** Name */
+            name: string;
+            /** Company Type */
+            company_type?: string | null;
+            /** Slug */
+            slug?: string | null;
+            /** Country */
+            country?: string | null;
+        };
+        /** TVDbGenreListOut */
+        TVDbGenreListOut: {
+            /** Items */
+            items: components["schemas"]["TVDbGenreOut"][];
+            /** Total */
+            total: number;
+        };
+        /** TVDbGenreOut */
+        TVDbGenreOut: {
+            /** Genre Id */
+            genre_id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug?: string | null;
         };
         /**
          * TargetCreateIn
@@ -3239,6 +3476,70 @@ export interface operations {
             };
         };
     };
+    create_provider_api_providers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    provider_catalog_endpoint_api_providers_catalog_get: {
+        parameters: {
+            query?: {
+                country?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderCatalogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_provider_api_providers__provider_id__get: {
         parameters: {
             query?: {
@@ -3288,6 +3589,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourceListOut"];
+                };
+            };
+        };
+    };
+    list_tvdb_companies_api_sources_tvdb_companies_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TVDbCompanyListOut"];
+                };
+            };
+        };
+    };
+    list_tvdb_genres_api_sources_tvdb_genres_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TVDbGenreListOut"];
+                };
+            };
+        };
+    };
+    filter_tvdb_series_api_sources_tvdb_series_get: {
+        parameters: {
+            query?: {
+                country?: string;
+                language?: string;
+                genre_id?: string | null;
+                year?: number | null;
+                sort?: string;
+                sort_type?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TVDbCatalogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

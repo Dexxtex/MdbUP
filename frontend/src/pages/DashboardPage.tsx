@@ -398,7 +398,7 @@ export default function DashboardPage() {
               <ul className="space-y-2">
                 {recentChanges.map((change) => (
                   <li
-                    key={change.id}
+                    key={`${change.media_id}-${change.collection_id}-${change.direction}`}
                     className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-surface-elevated px-3 py-2"
                   >
                     <div className="min-w-0">
