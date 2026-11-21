@@ -11,8 +11,8 @@ from app.services import credentials as credentials_service
 from app.services.credentials import CredentialKind
 
 
-def list_streaming_companies(db: Session, settings: Settings) -> list[TVDbCompany]:
-    """Read TVDB SVOD/TVOD/AVOD companies; no country availability is implied."""
+def search_companies(db: Session, settings: Settings, query: str) -> list[TVDbCompany]:
+    """Search TVDB companies by name; no country availability is implied."""
     token = credentials_service.get_secret(db, settings, CredentialKind.TVDB)
     client = TVDbClient(
         token,
@@ -20,7 +20,7 @@ def list_streaming_companies(db: Session, settings: Settings) -> list[TVDbCompan
         max_retries=settings.http_max_retries,
     )
     try:
-        return client.list_streaming_companies()
+        return client.search_companies(query)
     finally:
         client.close()
 

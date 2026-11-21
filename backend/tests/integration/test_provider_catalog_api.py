@@ -102,7 +102,7 @@ def test_catalog_keeps_tmdb_and_justwatch_separate(client, admin, app_settings) 
 
 
 @respx.mock
-def test_catalog_adds_tvdb_company_without_country_claim(client, admin, app_settings) -> None:
+def test_catalog_marks_tvdb_as_manual_only(client, admin, app_settings) -> None:
     assert seed_sources() == 0
     _configure_tmdb(client, admin, app_settings)
     from app.db.session import get_session_factory
@@ -118,39 +118,14 @@ def test_catalog_adds_tvdb_company_without_country_claim(client, admin, app_sett
         return_value=httpx.Response(200, json={"results": []})
     )
     respx.post(JUSTWATCH).mock(return_value=httpx.Response(200, json={"data": {"packages": []}}))
-    respx.post("https://api4.thetvdb.com/v4/login").mock(
-        return_value=httpx.Response(200, json={"status": "success", "data": {"token": "t"}})
-    )
-    respx.get("https://api4.thetvdb.com/v4/search").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "status": "success",
-                "data": {
-                    "items": [
-                        {
-                            "id": "123",
-                            "name": "TVDB Only",
-                            "company_type": "SVOD",
-                            "slug": "tvdb-only",
-                            "country": "ita",
-                        }
-                    ]
-                },
-            },
-        )
-    )
-
     response = client.get("/api/providers/catalog")
 
     assert response.status_code == 200, response.text
     body = response.json()
-    item = next(item for item in body["items"] if item["name"] == "TVDB Only")
-    assert item["tvdb_company_id"] == "123"
-    assert item["country_code"] is None
-    assert item["available_in_country"] is None
-    assert item["sources"] == ["tvdb"]
-    assert {entry["source_key"]: entry["status"] for entry in body["sources"]}["tvdb"] == "OK"
+    assert not any(item["source_key"] == "tvdb" for item in body["items"])
+    statuses = {entry["source_key"]: entry for entry in body["sources"]}
+    assert statuses["tvdb"]["status"] == "MANUAL_ONLY"
+    assert statuses["tvdb"]["count"] == 0
 
 
 @respx.mock

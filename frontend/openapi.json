@@ -963,6 +963,19 @@
         ],
         "summary": "Company TVDB (metadati, nessuna disponibilità per paese)",
         "operationId": "list_tvdb_companies_api_sources_tvdb_companies_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "default": "",
+              "title": "Q"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -970,6 +983,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TVDbCompanyListOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }

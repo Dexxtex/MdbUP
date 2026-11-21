@@ -451,7 +451,9 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
                       ? "OK"
                       : source.status === "MISSING_CREDENTIAL"
                         ? "credenziale mancante"
-                        : "errore"
+                        : source.status === "MANUAL_ONLY"
+                          ? "solo Company ID manuale"
+                          : "errore"
                   }`,
               )
               .join(" · ")}
@@ -461,11 +463,19 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
           (source) => source.source_key === "tvdb" && source.status === "MISSING_CREDENTIAL",
         ) ? (
           <p className="mt-2 text-xs text-ink-muted">
-            TheTVDB è opzionale: per vedere le sue company aggiungi la API key in{" "}
+            TheTVDB è opzionale: per cercare le sue company aggiungi la API key in{" "}
             <Link className="text-accent underline" to="/app/settings">
               Impostazioni → Credenziali
             </Link>
             . TVDB fornisce company ID e metadati, non la disponibilità italiana.
+          </p>
+        ) : null}
+        {catalog.data?.sources.some(
+          (source) => source.source_key === "tvdb" && source.status === "MANUAL_ONLY",
+        ) ? (
+          <p className="mt-2 text-xs text-ink-muted">
+            TheTVDB non espone un elenco di provider streaming: inserisci il Company ID
+            nel campo dedicato, oppure cerca il nome sul sito TheTVDB.
           </p>
         ) : null}
         {catalog.isError ? <ErrorState error={catalog.error} /> : null}

@@ -17,7 +17,6 @@ from app.core.config import Settings
 from app.core.logging import get_logger
 from app.integrations.justwatch.client import JustWatchClient, JustWatchError
 from app.integrations.tmdb.client import TMDbClient, TMDbError
-from app.integrations.tvdb.client import TVDbClient, TVDbError
 from app.services import credentials as credentials_service
 from app.services.credentials import CredentialKind
 
@@ -180,40 +179,19 @@ def _justwatch_candidates(
 def _tvdb_candidates(
     db: Session, settings: Settings
 ) -> tuple[list[tuple[str, dict[str, Any]]], SourceDiscovery]:
+    """TVDB is manual/search-only: it has no streaming company listing endpoint."""
     try:
-        token = credentials_service.get_secret(db, settings, CredentialKind.TVDB)
+        credentials_service.get_secret(db, settings, CredentialKind.TVDB)
     except Exception as exc:  # Credentials are optional for discovery.
         logger.info("provider_catalog_tvdb_credential_missing", error=type(exc).__name__)
         return [], SourceDiscovery(
             "tvdb", "MISSING_CREDENTIAL", "Configura la TheTVDB API key nelle Impostazioni."
         )
-    client = TVDbClient(
-        token,
-        timeout=float(settings.http_timeout_seconds),
-        max_retries=settings.http_max_retries,
-    )
-    try:
-        companies = client.list_streaming_companies()
-    except TVDbError as exc:
-        logger.warning("provider_catalog_tvdb_failed", error=type(exc).__name__)
-        return [], SourceDiscovery("tvdb", "ERROR", "TheTVDB non ha risposto correttamente.")
-    finally:
-        client.close()
-    rows = [
-        (
-            company.name,
-            {
-                "source": "tvdb",
-                "tvdb_company_id": company.company_id,
-                # TVDB does not expose country availability.
-                "country_code": None,
-                "available": None,
-            },
-        )
-        for company in companies
-    ]
-    return rows, SourceDiscovery(
-        "tvdb", "OK", "Company TVDB (metadati; disponibilità per paese non dichiarata).", len(rows)
+    return [], SourceDiscovery(
+        "tvdb",
+        "MANUAL_ONLY",
+        "TheTVDB non espone un elenco streaming: cerca per nome o inserisci il Company ID.",
+        0,
     )
 
 

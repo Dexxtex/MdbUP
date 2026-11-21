@@ -45,11 +45,12 @@ def list_sources(
     summary="Company TVDB (metadati, nessuna disponibilità per paese)",
 )
 def list_tvdb_companies(
+    q: str = Query(default="", max_length=100),
     db: Session = Depends(get_db_dep),
     settings: Settings = Depends(get_settings_dep),
     _user: AppUser = Depends(get_current_user),
 ) -> schemas_catalog.TVDbCompanyListOut:
-    items = tvdb_service.list_streaming_companies(db, settings)
+    items = tvdb_service.search_companies(db, settings, q)
     return schemas_catalog.TVDbCompanyListOut(
         items=[schemas_catalog.TVDbCompanyOut.model_validate(item) for item in items],
         total=len(items),

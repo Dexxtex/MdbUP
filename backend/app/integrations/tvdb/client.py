@@ -17,7 +17,6 @@ import httpx
 from app.integrations.tvdb.models import TVDbCatalogItem, TVDbCompany, TVDbGenre
 
 DEFAULT_BASE_URL = "https://api4.thetvdb.com/v4"
-_STREAMING_TYPES = ("SVOD", "TVOD / PPV", "AVOD")
 
 
 def _data_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -134,40 +133,40 @@ class TVDbClient:
         if not self._token:
             self._login()
 
-    def list_streaming_companies(self, *, limit: int = 500) -> list[TVDbCompany]:
-        """Return SVOD/TVOD/AVOD companies from TVDB's search index.
+    def search_companies(self, query: str, *, limit: int = 50) -> list[TVDbCompany]:
+        """Search TVDB companies by name.
 
-        TVDB has no country availability on companies. The caller must label
-        these rows as metadata/identifier candidates, not as Italian offers.
+        TVDB has no streaming-only company type and no country availability:
+        these rows are identifiers, never proof of an Italian offer.
         """
+        query = query.strip()
+        if len(query) < 2:
+            return []
         self._ensure_token()
+        payload = self._request(
+            "GET",
+            "/search",
+            params={
+                "query": query,
+                "type": "company",
+                "limit": max(1, min(limit, 100)),
+            },
+        )
         rows: dict[str, TVDbCompany] = {}
-        for company_type in _STREAMING_TYPES:
-            payload = self._request(
-                "GET",
-                "/search",
-                params={
-                    "type": "company",
-                    "primaryType": company_type,
-                    "limit": limit,
-                },
+        for item in _data_items(payload):
+            raw_id = item.get("id") or item.get("objectID")
+            name = item.get("name") or item.get("title")
+            if raw_id is None or not name:
+                continue
+            company_id = str(raw_id).removeprefix("company-")
+            rows[company_id] = TVDbCompany(
+                company_id=company_id,
+                name=str(name),
+                company_type=item.get("company_type") or item.get("companyTypeName"),
+                slug=item.get("slug"),
+                country=item.get("country"),
             )
-            for item in _data_items(payload):
-                if not isinstance(item, dict):
-                    continue
-                company_id = item.get("id") or item.get("objectID")
-                name = item.get("name") or item.get("title")
-                if company_id is None or not name:
-                    continue
-                key = str(company_id)
-                rows[key] = TVDbCompany(
-                    company_id=key,
-                    name=str(name),
-                    company_type=item.get("company_type") or company_type,
-                    slug=item.get("slug"),
-                    country=item.get("country"),
-                )
-        return sorted(rows.values(), key=lambda item: item.name.casefold())
+        return sorted(rows.values(), key=lambda row: (row.name.casefold(), row.company_id))
 
     def list_genres(self) -> list[TVDbGenre]:
         """TVDB genres used by the series filter."""

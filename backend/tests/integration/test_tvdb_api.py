@@ -34,17 +34,15 @@ def _mock_companies() -> None:
             200,
             json={
                 "status": "success",
-                "data": {
-                    "items": [
-                        {
-                            "id": "123",
-                            "name": "TVDB Service",
-                            "company_type": "SVOD",
-                            "slug": "tvdb-service",
-                            "country": "usa",
-                        }
-                    ]
-                },
+                "data": [
+                    {
+                        "id": "company-123",
+                        "name": "TVDB Service",
+                        "company_type": "Network",
+                        "slug": "tvdb-service",
+                        "country": "usa",
+                    }
+                ],
             },
         )
     )
@@ -55,7 +53,7 @@ def test_tvdb_companies_and_healthcheck(client, admin, app_settings) -> None:
     _configure(client, admin, app_settings)
     _mock_companies()
 
-    response = client.get("/api/sources/tvdb/companies")
+    response = client.get("/api/sources/tvdb/companies?q=service")
 
     assert response.status_code == 200, response.text
     body = response.json()

@@ -16,7 +16,7 @@ def _client() -> TVDbClient:
 
 
 @respx.mock
-def test_login_and_streaming_company_search() -> None:
+def test_login_and_company_name_search() -> None:
     respx.post(f"{BASE}/login").mock(
         return_value=httpx.Response(200, json={"status": "success", "data": {"token": "jwt"}})
     )
@@ -25,25 +25,34 @@ def test_login_and_streaming_company_search() -> None:
             200,
             json={
                 "status": "success",
-                "data": {
-                    "items": [
-                        {"id": "1", "name": "Netflix", "company_type": "SVOD"},
-                        {"id": "2", "name": "Netflix", "company_type": "SVOD"},
-                    ]
-                },
+                "data": [
+                    {"id": "company-1", "name": "Netflix", "company_type": "Network"},
+                    {"id": "company-2", "name": "Netflix", "company_type": "Network"},
+                ],
             },
         )
     )
     client = _client()
     try:
-        companies = client.list_streaming_companies()
+        companies = client.search_companies("netflix")
     finally:
         client.close()
     assert [(item.company_id, item.name) for item in companies] == [
         ("1", "Netflix"),
         ("2", "Netflix"),
     ]
-    assert search.call_count == 3
+    assert search.call_count == 1
+
+
+@respx.mock
+def test_short_company_query_does_not_call_tvdb() -> None:
+    search = respx.get(f"{BASE}/search").mock(return_value=httpx.Response(500))
+    client = _client()
+    try:
+        assert client.search_companies(" ") == []
+    finally:
+        client.close()
+    assert search.call_count == 0
 
 
 @respx.mock
@@ -51,7 +60,7 @@ def test_auth_error_is_not_retried() -> None:
     respx.post(f"{BASE}/login").mock(return_value=httpx.Response(401))
     client = _client()
     with pytest.raises(TVDbAuthError):
-        client.list_streaming_companies()
+        client.search_companies("netflix")
     client.close()
 
 
@@ -60,5 +69,5 @@ def test_non_json_payload_is_reported() -> None:
     respx.post(f"{BASE}/login").mock(return_value=httpx.Response(200, text="not-json"))
     client = _client()
     with pytest.raises(TVDbRequestError):
-        client.list_streaming_companies()
+        client.search_companies("netflix")
     client.close()
