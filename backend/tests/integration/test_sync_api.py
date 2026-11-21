@@ -329,6 +329,63 @@ def test_run_without_valid_snapshot_returns_409(client, admin, seeded, app_setti
     assert response.json()["error"]["code"] == "SNAPSHOT_INVALID"
 
 
+def test_new_binding_is_disabled_by_default(client, admin, seeded) -> None:
+    collection = _collection(client, "netflix-movie")
+    target_id = _create_target()
+    response = client.post(
+        "/api/bindings",
+        json={
+            "collection_id": collection["id"],
+            "target_id": target_id,
+            "mode": "MIRROR",
+            "schedule": "MANUAL",
+            "thresholds": {
+                "max_removal_pct": 100,
+                "max_removal_abs": 100,
+                "max_addition_pct": 100,
+            },
+            "policy_version": "v1",
+        },
+        headers=admin,
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["enabled"] is False
+
+
+def test_real_run_requires_dry_run_for_tmdb(client, admin, seeded, app_settings) -> None:
+    _set_mdblist_credential(app_settings)
+    collection = _collection(client, "netflix-movie")
+    _create_snapshot(collection["id"], [1])
+    target_id = _create_target()
+    binding = _create_binding(client, admin, collection["id"], target_id)
+
+    response = client.post(
+        f"/api/bindings/{binding['id']}/runs",
+        json={"dry_run": False},
+        headers=admin,
+    )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "DRY_RUN_REQUIRED"
+
+
+def test_enabling_tmdb_binding_requires_dry_run(client, admin, seeded, app_settings) -> None:
+    _set_mdblist_credential(app_settings)
+    collection = _collection(client, "netflix-movie")
+    _create_snapshot(collection["id"], [1])
+    target_id = _create_target()
+    binding = _create_binding(client, admin, collection["id"], target_id, enabled=False)
+
+    response = client.patch(
+        f"/api/bindings/{binding['id']}",
+        json={"enabled": True, "policy_version": "v1"},
+        headers=admin,
+    )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "DRY_RUN_REQUIRED"
+
+
 @respx.mock
 def test_dry_run_then_real_run(client, admin, seeded, app_settings) -> None:
     _set_mdblist_credential(app_settings)
@@ -412,6 +469,14 @@ def test_threshold_requires_approval_and_approve_plan_hash(
         return_value=httpx.Response(200, json={"added": {"movies": 1}})
     )
 
+    dry = client.post(
+        f"/api/bindings/{binding['id']}/runs",
+        json={"dry_run": True},
+        headers=admin,
+    )
+    assert dry.status_code == 202, dry.text
+    assert client.get(f"/api/runs/{dry.json()['run_id']}").json()["status"] == "SUCCEEDED"
+
     started = client.post(
         f"/api/bindings/{binding['id']}/runs",
         json={"dry_run": False},
@@ -458,6 +523,14 @@ def test_cancel_awaiting_approval(client, admin, seeded, app_settings) -> None:
     )
     _mock_list_metadata()
     respx.get(f"{BASE}/lists/42/items").mock(return_value=_items_response([1]))
+
+    dry = client.post(
+        f"/api/bindings/{binding['id']}/runs",
+        json={"dry_run": True},
+        headers=admin,
+    )
+    assert dry.status_code == 202, dry.text
+    assert client.get(f"/api/runs/{dry.json()['run_id']}").json()["status"] == "SUCCEEDED"
 
     started = client.post(
         f"/api/bindings/{binding['id']}/runs",
@@ -706,6 +779,14 @@ def test_mirror_removal_threshold_blocks_before_any_remove(
     remove_route = respx.post(f"{BASE}/lists/42/items/remove").mock(
         return_value=httpx.Response(200, json={"removed": {"movies": 2}})
     )
+
+    dry = client.post(
+        f"/api/bindings/{binding['id']}/runs",
+        json={"dry_run": True},
+        headers=admin,
+    )
+    assert dry.status_code == 202, dry.text
+    assert client.get(f"/api/runs/{dry.json()['run_id']}").json()["status"] == "SUCCEEDED"
 
     started = client.post(
         f"/api/bindings/{binding['id']}/runs",

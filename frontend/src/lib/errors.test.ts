@@ -86,13 +86,13 @@ describe("describeApiError", () => {
     expect(presentation.message).toContain("req_1");
   });
 
-  it("spiega DRY_RUN_REQUIRED per i binding JustWatch", () => {
+  it("spiega DRY_RUN_REQUIRED per un binding senza dry-run", () => {
     const presentation = describeApiError(
       apiError({ status: 409, code: "DRY_RUN_REQUIRED", category: "CONFLICT" }),
     );
     expect(presentation.title).toBe("Dry-run richiesto");
     expect(presentation.message).toContain("dry-run");
-    expect(presentation.message).toContain("JustWatch");
+    expect(presentation.message).toContain("run reale");
     expect(presentation.retryable).toBe(false);
   });
 

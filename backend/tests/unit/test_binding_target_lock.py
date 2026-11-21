@@ -114,6 +114,25 @@ def _detached_binding(target_id: uuid.UUID, *, created_at) -> SyncBinding:
     return binding
 
 
+def _dry_run(session: Session, binding: SyncBinding, collection) -> None:
+    assert collection.last_valid_snapshot_id is not None
+    session.add(
+        SyncRun(
+            binding_id=binding.id,
+            target_id=binding.target_id,
+            media_type=binding.media_type,
+            snapshot_id=collection.last_valid_snapshot_id,
+            mode=binding.mode,
+            status="SUCCEEDED",
+            is_dry_run=True,
+            trigger_type="MANUAL",
+            started_at=utcnow(),
+            finished_at=utcnow(),
+        )
+    )
+    session.commit()
+
+
 def _legacy_binding(
     session: Session, collection, target, *, created_at, enabled: bool = True
 ) -> SyncBinding:
@@ -235,6 +254,7 @@ def test_scheduler_skips_a_non_owner_binding_of_a_locked_target(
     owner = _legacy_binding(
         session, first_collection, target, created_at=utcnow() - timedelta(days=1)
     )
+    _dry_run(session, owner, first_collection)
     # Disabled in the database (one enabled row per target is enforced there),
     # but presented as due to the scheduler to exercise its own guard.
     intruder = _legacy_binding(
@@ -248,5 +268,6 @@ def test_scheduler_skips_a_non_owner_binding_of_a_locked_target(
     assert outcome.enqueued == 1
     assert outcome.skipped == 1
     runs = list(session.scalars(select(SyncRun)).all())
-    assert len(runs) == 1
-    assert runs[0].binding_id == owner.id
+    scheduled = [run for run in runs if not run.is_dry_run]
+    assert len(scheduled) == 1
+    assert scheduled[0].binding_id == owner.id

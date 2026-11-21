@@ -142,10 +142,10 @@ export default function HelpPage() {
               provider. Per questo le collezioni JustWatch hanno <code>date_basis=UNKNOWN</code>.
             </p>
             <p>
-              Un binding JustWatch nasce <strong>disabilitato</strong>. Snapshot e preview sono
-              sempre disponibili; una sync MDBList reale richiede un <strong>dry-run completato
-              con successo</strong> ed è sempre manuale. Lo scheduler non avvia sync MDBList
-              automatiche per JustWatch.
+              Come ogni binding, anche quello JustWatch nasce <strong>disabilitato</strong>.
+              Snapshot e preview sono sempre disponibili; una sync MDBList reale richiede un
+              <strong>dry-run completato con successo</strong> ed è sempre manuale. Lo scheduler
+              non avvia sync MDBList automatiche per JustWatch.
             </p>
             <p>
               Classifiche e “In arrivo” sono etichette dell’aggregatore, non una Top 10 ufficiale
@@ -163,9 +163,11 @@ export default function HelpPage() {
               Le soglie bloccano piani troppo distruttivi.
             </p>
             <p>
-              Usa <strong>Dry-run</strong> per vedere quante aggiunte/rimozioni sarebbero
-              necessarie. Un run reale può richiedere approvazione, a seconda delle soglie e
-              della policy del binding.
+              Ogni binding nasce disabilitato: usa <strong>Dry-run</strong> per vedere quante
+              aggiunte/rimozioni sarebbero necessarie e ottieni un dry-run riuscito prima di
+              abilitarlo. Il primo run reale senza dry-run viene rifiutato con
+              <code> DRY_RUN_REQUIRED</code>. Un run reale può inoltre richiedere approvazione,
+              a seconda delle soglie e della policy del binding.
             </p>
             <p>
               La pagina <Link className="text-accent underline" to="/app/runs">Run</Link> mostra
@@ -189,8 +191,8 @@ export default function HelpPage() {
             <div>
               <dt className="font-semibold text-ink">“Dry-run richiesto”</dt>
               <dd className="text-ink-muted">
-                Il binding JustWatch non ha ancora un dry-run riuscito. Esegui il dry-run dalla
-                pagina Binding, poi abilita il binding.
+                Il binding non ha ancora un dry-run riuscito. Esegui il dry-run dalla pagina
+                Binding, poi abilitalo. Per JustWatch la sync automatica resta sempre disattivata.
               </dd>
             </div>
             <div>

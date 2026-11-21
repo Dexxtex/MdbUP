@@ -6,11 +6,12 @@ import uuid
 from datetime import timedelta
 
 import pytest
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from app.core.locks import DispatchLock
 from app.core.time import ensure_utc, utcnow
-from app.db.models import CollectionSnapshot, SnapshotItem
+from app.db.models import CollectionSnapshot, SnapshotItem, SyncRun
 from app.db.session import get_session_factory
 from app.domain.enums import SyncRunStatus
 from app.jobs import scheduler
@@ -75,6 +76,24 @@ def _snapshot(db: Session, collection, tmdb_ids: list[int]) -> CollectionSnapsho
     return snapshot
 
 
+def _succeeded_dry_run(db: Session, binding, snapshot_id) -> None:
+    db.add(
+        SyncRun(
+            binding_id=binding.id,
+            target_id=binding.target_id,
+            media_type=binding.media_type,
+            snapshot_id=snapshot_id,
+            mode=binding.mode,
+            status="SUCCEEDED",
+            is_dry_run=True,
+            trigger_type="MANUAL",
+            started_at=utcnow(),
+            finished_at=utcnow(),
+        )
+    )
+    db.commit()
+
+
 def _binding(db: Session, collection, *, schedule_policy: str = "AUTO_APPLY_IF_SAFE"):
     target = targets_repo.create_target(db, remote_list_id=42, name="Test list", mediatype="MOVIE")
     binding = bindings_repo.create_binding(
@@ -102,6 +121,8 @@ def _binding(db: Session, collection, *, schedule_policy: str = "AUTO_APPLY_IF_S
         next_run_at=None,
     )
     db.commit()
+    if collection.last_valid_snapshot_id is not None:
+        _succeeded_dry_run(db, binding, collection.last_valid_snapshot_id)
     return binding
 
 
@@ -127,6 +148,20 @@ def test_due_binding_creates_one_scheduled_run_per_slot(
 
     second = scheduler.enqueue_due_bindings(session, app_settings, now=now, dispatch=False)
     assert second.enqueued == 0
+
+
+def test_scheduler_skips_real_run_without_a_dry_run(session: Session, seeded, app_settings) -> None:
+    collection = collections_repo.get_collection_by_slug(session, "netflix-movie")
+    assert collection is not None
+    _snapshot(session, collection, [1])
+    binding = _binding(session, collection)
+    session.execute(delete(SyncRun).where(SyncRun.binding_id == binding.id))
+    session.commit()
+
+    outcome = scheduler.enqueue_due_bindings(session, app_settings, now=utcnow(), dispatch=False)
+
+    assert outcome.enqueued == 0
+    assert outcome.skipped == 1
 
 
 def test_dry_run_only_policy_creates_a_dry_run(session: Session, seeded, app_settings) -> None:
@@ -218,6 +253,8 @@ def _interval_binding(db: Session, collection, *, hours: int = 2):
         next_run_at=utcnow() - timedelta(minutes=1),
     )
     db.commit()
+    if collection.last_valid_snapshot_id is not None:
+        _succeeded_dry_run(db, binding, collection.last_valid_snapshot_id)
     return binding
 
 

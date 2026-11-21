@@ -113,7 +113,7 @@ export function justWatchPolicyError(
   return "Per le collezioni JustWatch devi accettare esplicitamente la policy dell'aggregatore.";
 }
 
-/** Il binding JustWatch nasce disabilitato: serve un dry-run riuscito. */
+/** Nota JustWatch: nessuna data, nessuna sync automatica, dry-run prima del run reale. */
 export function justWatchBindingNotice(): string {
   return "Sync MDBList disabilitata di default: solo snapshot e preview; dry-run obbligatorio prima del primo run reale.";
 }

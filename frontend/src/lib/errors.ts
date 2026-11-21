@@ -56,7 +56,7 @@ export function describeApiError(error: unknown): ErrorPresentation {
       ...base,
       title: "Dry-run richiesto",
       message:
-        "Per questa collezione JustWatch serve un dry-run completato con successo prima di eseguire un run reale.",
+        "Serve un dry-run completato con successo prima di eseguire un run reale su questa lista.",
       retryable: false,
     };
   }

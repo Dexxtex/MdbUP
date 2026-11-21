@@ -111,9 +111,9 @@ export default function BindingEditPage() {
       setFormError("Accetta la policy prima di abilitare il binding.");
       return;
     }
-    if (isJustWatch && enabled && !data.enabled) {
+    if (enabled && !data.enabled) {
       setFormError(
-        "Per un binding JustWatch l'abilitazione richiede un dry-run completato con successo: usa la pagina Binding per il dry-run.",
+        "L'abilitazione richiede un dry-run completato con successo: usa la pagina Binding per il dry-run.",
       );
       return;
     }
@@ -182,15 +182,13 @@ export default function BindingEditPage() {
         </div>
       ) : null}
 
-      {isJustWatch ? (
-        <div className="mb-4">
-          <InlineNotice tone="warning">
-            Collezione JustWatch: {justWatchBindingNotice()} Il binding resta in pausa finché
-            non esegui un dry-run con successo. Un run reale senza dry-run risponde
-            DRY_RUN_REQUIRED.
-          </InlineNotice>
-        </div>
-      ) : null}
+      <div className="mb-4">
+        <InlineNotice tone="warning">
+          Il binding resta in pausa finché non esegui un dry-run con successo. Un run reale
+          senza dry-run risponde DRY_RUN_REQUIRED.
+          {isJustWatch ? ` ${justWatchBindingNotice()}` : ""}
+        </InlineNotice>
+      </div>
 
       <Card>
         <div className="grid gap-6 lg:grid-cols-2">
@@ -327,13 +325,8 @@ export default function BindingEditPage() {
         <div className="mt-6 space-y-4 border-t border-line pt-4">
           <Checkbox
             id="binding-enabled"
-            label={
-              isJustWatch && !data.enabled
-                ? "Binding attivo (richiede un dry-run completato)"
-                : "Binding attivo"
-            }
+            label="Binding attivo (richiede un dry-run completato)"
             checked={enabled}
-            disabled={isJustWatch && !data.enabled}
             onChange={(event) => setEnabled(event.target.checked)}
           />
           <Checkbox

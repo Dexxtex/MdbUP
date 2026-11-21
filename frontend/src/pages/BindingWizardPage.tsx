@@ -258,7 +258,7 @@ export default function BindingWizardPage() {
         reorder_enabled: draft.reorderEnabled,
         schedule_policy: draft.schedulePolicy,
         require_review: draft.requireReview,
-        enabled: !justwatch,
+        enabled: false,
         policy_version: BINDING_POLICY_VERSION,
       });
       clearBindingDraft();
@@ -533,9 +533,8 @@ export default function BindingWizardPage() {
           <div className="space-y-4">
             <p className="text-sm text-ink-muted">
               L&apos;anteprima calcola il piano senza scrivere nulla sulla lista remota.
-              {isJustWatch
-                ? " Per JustWatch il binding resta disabilitato finché non completa un dry-run."
-                : ""}
+              Il binding viene creato disabilitato: serve un dry-run completato con
+              successo prima di abilitarlo e prima del primo run reale.
             </p>
             <Button onClick={() => void onComputePreview()} busy={createPreview.isPending}>
               {values.previewId ? "Ricalcola anteprima" : "Calcola anteprima"}
@@ -929,13 +928,14 @@ export default function BindingWizardPage() {
               </p>
             ) : null}
 
+            <div className="space-y-2 rounded-md border border-warning/40 bg-warning-soft p-3">
+              <InlineNotice tone="warning">
+                Il binding viene creato disabilitato. Esegui un dry-run con successo
+                dalla pagina Binding prima di abilitarlo e prima del primo run reale
+                (altrimenti il server risponde DRY_RUN_REQUIRED).
+              </InlineNotice>
             {values.justwatchCollection ? (
-              <div className="space-y-2 rounded-md border border-warning/40 bg-warning-soft p-3">
-                <InlineNotice tone="warning">
-                  Collezione JustWatch: il binding viene creato disabilitato. Esegui un
-                  dry-run con successo dalla pagina Binding prima del primo run reale
-                  (altrimenti il server risponde DRY_RUN_REQUIRED).
-                </InlineNotice>
+              <>
                 <Checkbox
                   id="justwatchPolicyAccepted"
                   label="Accetto la policy JustWatch: aggregatore, date non disponibili, nessuna sync automatica finché non c'è un dry-run riuscito."
@@ -947,8 +947,9 @@ export default function BindingWizardPage() {
                     {errors.justwatchPolicyAccepted.message}
                   </p>
                 ) : null}
-              </div>
+              </>
             ) : null}
+            </div>
 
             {submitError ? <ErrorState error={submitError} /> : null}
           </div>

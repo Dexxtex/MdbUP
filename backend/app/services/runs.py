@@ -38,7 +38,6 @@ from app.repositories import runs as runs_repo
 from app.repositories import snapshots as snapshots_repo
 from app.repositories import targets as targets_repo
 from app.services import credentials as credentials_service
-from app.services.collections import is_justwatch_collection
 from app.services.credentials import CredentialKind
 
 TERMINAL_STATUS_VALUES = {status.value for status in TERMINAL_RUN_STATUSES}
@@ -370,13 +369,9 @@ def _start_run_locked(
     collection = collections_repo.get_collection(db, binding.collection_id)
     if collection is None:
         raise NotFoundError("Collezione del binding non trovata.")
-    # Guardrail: an aggregator binding cannot write before a dry-run proved the
-    # plan is viable. A dry-run itself stays always possible.
-    if (
-        not payload.dry_run
-        and is_justwatch_collection(db, collection)
-        and not runs_repo.has_succeeded_dry_run(db, binding.id)
-    ):
+    # Every real MDBList write needs a successful dry-run first; snapshots and
+    # previews remain available without it. Dry-runs themselves are always allowed.
+    if not payload.dry_run and not runs_repo.has_succeeded_dry_run(db, binding.id):
         raise ConflictError(
             "Eseguire prima un dry-run completato con successo per questo binding.",
             code="DRY_RUN_REQUIRED",

@@ -127,6 +127,14 @@ def enqueue_due_bindings(
                 db.commit()
                 continue
             dry_run = binding.schedule_policy == SchedulePolicy.DRY_RUN_ONLY.value
+            if not dry_run and not runs_repo.has_succeeded_dry_run(db, binding.id):
+                logger.info(
+                    "scheduler_skips_run_without_dry_run",
+                    binding_id=str(binding.id),
+                )
+                skipped += 1
+                db.commit()
+                continue
             slot = moment.replace(second=0, microsecond=0).isoformat()
             run = runs_repo.create_run(
                 db,

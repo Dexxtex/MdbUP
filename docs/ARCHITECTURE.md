@@ -86,14 +86,16 @@ Regole applicate e verificate in Fase 11:
 5. gli esiti incerti restano `UNCERTAIN` e vengono riconciliati, senza mai
    ricreare o svuotare le liste.
 
-Per JustWatch (aggregatore, `date_basis=UNKNOWN`) il binding nasce **disabilitato**:
-snapshot e preview sono sempre possibili, mentre una sync MDBList reale richiede
-un dry-run completato con successo e non viene mai accodata automaticamente
-dallo scheduler. Provider, mapping e collezioni sono creati dall’operatore;
+Tutti i nuovi binding nascono **disabilitati**: snapshot e preview sono sempre
+possibili, mentre il primo run reale richiede un dry-run completato con successo;
+lo scheduler salta qualsiasi run reale privo di dry-run. Per JustWatch
+(aggregatore, `date_basis=UNKNOWN`) lo scheduler non accoda mai una sync MDBList
+automatica, anche dopo il dry-run. Provider, mapping e collezioni sono creati dall’operatore;
 `seed-sources` precarica solo le fonti e `justwatch-collections` può riverificare
-i mapping JustWatch live. La pagina **Provider** può leggere il catalogo unificato
-TMDb/JustWatch/TVDB; TheTVDB è una fonte di metadati/company ID e filtri per serie (genere/anno), non di disponibilità
-territoriale.
+i mapping JustWatch live. La pagina **Provider** legge i cataloghi TMDb e JustWatch
+separatamente; TheTVDB è una fonte di metadati/company ID e filtri per serie
+(genere/anno), non di disponibilità territoriale e non viene elencata come provider
+streaming.
 
 ### Scheduling
 
