@@ -88,7 +88,7 @@ def test_tvdb_genre_and_year_catalog(client, admin, app_settings) -> None:
             200,
             json={
                 "status": "success",
-                "data": {"items": [{"id": 3, "name": "Drama", "slug": "drama"}]},
+                "data": [{"id": 3, "name": "Drama", "slug": "drama"}],
             },
         )
     )
@@ -97,17 +97,15 @@ def test_tvdb_genre_and_year_catalog(client, admin, app_settings) -> None:
             200,
             json={
                 "status": "success",
-                "data": {
-                    "items": [
-                        {
-                            "id": 42,
-                            "name": "Example",
-                            "year": "2024",
-                            "score": 12.5,
-                            "slug": "example",
-                        }
-                    ]
-                },
+                "data": [
+                    {
+                        "id": 42,
+                        "name": "Example",
+                        "year": "2024",
+                        "score": 12.5,
+                        "slug": "example",
+                    }
+                ],
             },
         )
     )

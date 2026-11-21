@@ -20,6 +20,18 @@ DEFAULT_BASE_URL = "https://api4.thetvdb.com/v4"
 _STREAMING_TYPES = ("SVOD", "TVOD / PPV", "AVOD")
 
 
+def _data_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """TVDB returns either ``data: [...]`` or ``data: {items: [...]}``."""
+    data = payload.get("data")
+    if isinstance(data, list):
+        return [item for item in data if isinstance(item, dict)]
+    if isinstance(data, dict):
+        items = data.get("items")
+        if isinstance(items, list):
+            return [item for item in items if isinstance(item, dict)]
+    return []
+
+
 class TVDbError(RuntimeError):
     """Base class for TVDB transport/protocol errors."""
 
@@ -140,7 +152,7 @@ class TVDbClient:
                     "limit": limit,
                 },
             )
-            for item in (payload.get("data") or {}).get("items") or []:
+            for item in _data_items(payload):
                 if not isinstance(item, dict):
                     continue
                 company_id = item.get("id") or item.get("objectID")
@@ -162,7 +174,7 @@ class TVDbClient:
         self._ensure_token()
         payload = self._request("GET", "/genres")
         rows: list[TVDbGenre] = []
-        for item in (payload.get("data") or {}).get("items") or []:
+        for item in _data_items(payload):
             if not isinstance(item, dict) or item.get("id") is None or not item.get("name"):
                 continue
             rows.append(
@@ -203,7 +215,7 @@ class TVDbClient:
         self._ensure_token()
         payload = self._request("GET", f"/{segment}/filter", params=params)
         rows: list[TVDbCatalogItem] = []
-        for item in (payload.get("data") or {}).get("items") or []:
+        for item in _data_items(payload):
             if not isinstance(item, dict) or item.get("id") is None or not item.get("name"):
                 continue
             score = item.get("score")
