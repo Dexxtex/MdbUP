@@ -596,6 +596,7 @@ Dettagli: [`docs/phases/phase-01.md`](docs/phases/phase-01.md).
 - [`docs/phases/phase-11.md`](docs/phases/phase-11.md) — pulizia, riorganizzazione e verifica finale.
 - [`docs/justwatch-it-verification.md`](docs/justwatch-it-verification.md) — verifica live degli endpoint JustWatch per film e serie in Italia.
 - [`docs/justwatch-genres-catalog-verification.md`](docs/justwatch-genres-catalog-verification.md) — verifica generi e catalogo JustWatch per film e serie in Italia.
+- [`docs/justwatch-dates-verification.md`](docs/justwatch-dates-verification.md) — verifica dei campi data JustWatch (uscita, offerta, disponibilità).
 - Guida in-app: `/app/help` — configurazione iniziale, provider, collezioni, preview, binding e policy JustWatch.
 
 ---

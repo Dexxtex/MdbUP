@@ -101,7 +101,10 @@ accoda mai una sync MDBList automatica per questa fonte.
 
 ## Limiti
 
-- JustWatch pubblico non fornisce date di aggiunta: `date_basis=UNKNOWN`.
+- JustWatch pubblico non fornisce una data **ufficiale** di aggiunta: `date_basis=UNKNOWN`.
+  Esistono però campi data nelle offerte (`dateCreated`, `availableFromTime`,
+  `availableToTime`) e la data di uscita `content.originalReleaseDate`; dettagli
+  ed esempi in [`justwatch-dates-verification.md`](justwatch-dates-verification.md).
 - Le classifiche sono rank dell’aggregatore, **non** una Top 10 ufficiale.
 - Il totale `newTitles` per le serie conta stagioni/episodi, non serie uniche:
   possibili duplicati tra pagine, gestiti dalla deduplicazione a valle.
