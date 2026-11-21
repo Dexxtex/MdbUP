@@ -104,7 +104,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - Backend: comandi/errori spostati in `app/domain/`, servizi senza dipendenze da `app.api`, API senza SQL diretto; rimossi moduli/helper non usati e dipendenze inutilizzate.
 - Frontend: hook spostati in `src/hooks/`, export morti rimossi, payload API separati dai componenti.
 - `.gitignore` e `.dockerignore` aggiornati per escludere cache, test, build, backup e segreti.
-- Test: **464 backend**, **198 frontend**, **14 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
+- Test: **466 backend**, **199 frontend**, **16 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
 - Dettagli: [`docs/phases/phase-11.md`](docs/phases/phase-11.md).
 
 ### Fase 6 — hardening e regole avanzate
@@ -183,6 +183,10 @@ Live: collezione `netflix-movie-justwatch` acquisita con **5.525 titoli**, snaps
 
 Dettagli, limiti misurati e superficie API verificata:
 [`docs/phases/phase-08.md`](docs/phases/phase-08.md).
+
+**Gestione provider:** le card e la tabella della pagina **Provider** hanno il pulsante
+**Elimina** per i provider senza collezioni. Un provider collegato a una o più collezioni
+resta protetto (`PROVIDER_IN_USE`): non vengono mai cancellate liste MDBList remote.
 
 **Scoperta provider:** la pagina **Provider** usa `GET /api/providers/catalog` per mostrare
 TMDb (94 film + 68 serie in IT, deduplicati) e JustWatch (109 package), in **gruppi separati
@@ -471,12 +475,12 @@ npm run test:e2e
 npm audit --omit=dev
 ```
 
-Stato attuale: **464 test backend**, **198 test frontend** e **14 test E2E
+Stato attuale: **466 test backend**, **199 test frontend** e **16 test E2E
 Playwright** verdi; `ruff check`, `ruff format --check`, `mypy`, build Vite,
 lint e audit senza vulnerabilità. I test unitari usano `respx`/fixture; la
 verifica live è stata eseguita separatamente su TMDb e MDBList reali.
 
-Coverage gate: backend **90.61%** statement e **100%** statement/branch sui router API (`app/api/routers/*`), frontend **96.03%** linee / **90.30%** branch / **95.15%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
+Coverage gate: backend **90.63%** statement e **100%** statement/branch sui router API (`app/api/routers/*`), frontend **95.51%** linee / **90.33%** branch / **94.73%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
 
 ---
 
@@ -498,6 +502,7 @@ Coverage gate: backend **90.61%** statement e **100%** statement/branch sui rout
 | `GET` | `/api/sources/tvdb/genres` | Generi TVDB |
 | `GET` | `/api/sources/tvdb/series` | Serie TVDB filtrate per genere, anno e paese di origine |
 | `POST` | `/api/providers` | Crea un provider scelto dall’utente con mapping opzionali |
+| `DELETE` | `/api/providers/{id}` | Elimina un provider non usato da collezioni |
 | `GET` | `/api/collections` | Collezioni con origine/date_basis e filtri |
 | `POST` | `/api/collections` | Crea una collezione (catalogo o Appena rilevati) |
 | `PATCH` | `/api/collections/{id}` | Modifica una collezione |

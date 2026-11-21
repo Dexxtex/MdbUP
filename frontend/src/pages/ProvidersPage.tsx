@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useBindings, useCollections, useProviderCatalog, useProviders, useSources } from "../hooks/queries";
-import { useCreateProvider } from "../hooks/mutations";
+import { useCreateProvider, useDeleteProvider } from "../hooks/mutations";
 import type {
   Collection,
   Provider,
@@ -29,7 +29,13 @@ import { StatusPill } from "../components/ui/status-pill";
 import { Timestamp } from "../components/ui/time";
 import { formatNumber } from "../lib/format";
 import { hasJustWatchMapping } from "../lib/justwatch";
-import { IconBuilding, IconGrid, IconLayers, IconSearch } from "../components/ui/icons";
+import {
+  IconBuilding,
+  IconGrid,
+  IconLayers,
+  IconSearch,
+  IconTrash,
+} from "../components/ui/icons";
 import { JustWatchConnectorCard } from "../components/justwatch/connector-card";
 import { ProviderMatrix } from "../components/providers/provider-matrix";
 
@@ -176,9 +182,13 @@ function JustWatchMappingCell({ provider }: { provider: Provider }) {
 function ProviderCard({
   provider,
   freshness,
+  onDelete,
+  deleting,
 }: {
   provider: Provider;
   freshness: SnapshotFreshness | undefined;
+  onDelete: (provider: Provider) => void;
+  deleting: boolean;
 }) {
   return (
     <article
@@ -261,6 +271,23 @@ function ProviderCard({
           <IconLayers />
           {formatNumber(freshness?.collections ?? 0)} collezioni
         </Link>
+        <Button
+          variant="danger"
+          size="sm"
+          className="mt-2 w-full"
+          busy={deleting}
+          disabled={provider.collections_count > 0}
+          title={
+            provider.collections_count > 0
+              ? "Rimuovi prima le collezioni collegate a questo provider."
+              : `Elimina ${provider.name}`
+          }
+          data-testid={`provider-delete-${provider.slug}`}
+          onClick={() => onDelete(provider)}
+        >
+          <IconTrash />
+          Elimina
+        </Button>
       </div>
     </article>
   );
@@ -268,6 +295,8 @@ function ProviderCard({
 
 function providerColumns(
   freshness: Map<string, SnapshotFreshness>,
+  onDelete: (provider: Provider) => void,
+  deletingId: string | null,
 ): Column<Provider>[] {
   return [
     { key: "name", header: "Provider", render: (provider) => provider.name },
@@ -312,6 +341,28 @@ function providerColumns(
           </div>
         );
       },
+    },
+    {
+      key: "actions",
+      header: "Azioni",
+      render: (provider) => (
+        <Button
+          variant="danger"
+          size="sm"
+          busy={deletingId === provider.id}
+          disabled={provider.collections_count > 0}
+          title={
+            provider.collections_count > 0
+              ? "Rimuovi prima le collezioni collegate."
+              : `Elimina ${provider.name}`
+          }
+          data-testid={`provider-delete-${provider.slug}`}
+          onClick={() => onDelete(provider)}
+        >
+          <IconTrash />
+          Elimina
+        </Button>
+      ),
     },
   ];
 }
@@ -656,11 +707,21 @@ export default function ProvidersPage() {
   const sources = useSources();
   const collections = useCollections({});
   const bindings = useBindings();
+  const deleteProvider = useDeleteProvider();
   const justwatchSource = (sources.data ?? []).find((source) => source.key === "justwatch");
   const freshness = useMemo(
     () => freshnessByProvider(collections.data ?? []),
     [collections.data],
   );
+
+  const handleDelete = (provider: Provider) => {
+    if (provider.collections_count > 0) return;
+    const confirmed = window.confirm(
+      `Eliminare il provider “${provider.name}”? Le collezioni non vengono toccate.`,
+    );
+    if (!confirmed) return;
+    deleteProvider.mutate(provider.id);
+  };
 
   const allProviders = providers.data ?? [];
   const knownChips = KNOWN_PROVIDERS.filter((name) =>
@@ -782,6 +843,11 @@ export default function ProvidersPage() {
       {providers.isError ? (
         <ErrorState error={providers.error} onRetry={() => void providers.refetch()} />
       ) : null}
+      {deleteProvider.isError ? (
+        <div className="mb-4">
+          <ErrorState error={deleteProvider.error} />
+        </div>
+      ) : null}
 
       {providers.isSuccess ? (
         <>
@@ -809,6 +875,8 @@ export default function ProvidersPage() {
                   key={provider.id}
                   provider={provider}
                   freshness={freshness.get(provider.id)}
+                  onDelete={handleDelete}
+                  deleting={deleteProvider.isPending && deleteProvider.variables === provider.id}
                 />
               ))}
             </div>
@@ -816,7 +884,11 @@ export default function ProvidersPage() {
             <Card>
               <DataTable
                 caption={`Provider per il paese ${country}`}
-                columns={providerColumns(freshness)}
+                columns={providerColumns(
+                  freshness,
+                  handleDelete,
+                  deleteProvider.isPending ? (deleteProvider.variables ?? null) : null,
+                )}
                 rows={filtered}
                 rowKey={(provider) => provider.id}
               />

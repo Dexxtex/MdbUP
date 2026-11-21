@@ -96,6 +96,15 @@ describe("describeApiError", () => {
     expect(presentation.retryable).toBe(false);
   });
 
+  it("spiega PROVIDER_IN_USE senza proporre un retry", () => {
+    const presentation = describeApiError(
+      apiError({ status: 409, code: "PROVIDER_IN_USE", category: "CONFLICT" }),
+    );
+    expect(presentation.title).toBe("Provider in uso");
+    expect(presentation.message).toContain("collezioni");
+    expect(presentation.retryable).toBe(false);
+  });
+
   it("riconosce ORDER_NOT_ENFORCED come avviso, non errore rosso", () => {
     const presentation = describeApiError(
       apiError({ status: 200, code: "ORDER_NOT_ENFORCED", category: "TARGET" }),

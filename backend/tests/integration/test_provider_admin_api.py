@@ -116,3 +116,54 @@ def test_seed_providers_does_not_create_demo_collections(client, admin) -> None:
     assert seed_reference_data() == 0
     assert client.get("/api/providers").json()["total"] == 12
     assert client.get("/api/collections").json()["total"] == 0
+
+
+def test_delete_unused_provider_removes_it(client, admin) -> None:
+    assert seed_sources() == 0
+    created = client.post(
+        "/api/providers",
+        json={
+            "slug": "da-eliminare",
+            "name": "Da eliminare",
+            "tmdb_movie_id": "12345",
+            "justwatch_short_name": "del",
+        },
+        headers=admin,
+    )
+    assert created.status_code == 201, created.text
+    provider_id = created.json()["id"]
+
+    deleted = client.delete(f"/api/providers/{provider_id}", headers=admin)
+
+    assert deleted.status_code == 204
+    assert deleted.content == b""
+    assert client.get(f"/api/providers/{provider_id}").status_code == 404
+
+
+def test_delete_provider_in_use_is_blocked(client, admin) -> None:
+    assert seed_sources() == 0
+    created = client.post(
+        "/api/providers",
+        json={"slug": "in-uso", "name": "In uso", "tmdb_movie_id": "77777"},
+        headers=admin,
+    )
+    assert created.status_code == 201, created.text
+    provider = created.json()
+    collection = client.post(
+        "/api/collections",
+        json={
+            "provider_id": provider["id"],
+            "media_type": "MOVIE",
+            "name": "Collezione del provider",
+            "slug": "collezione-provider",
+        },
+        headers=admin,
+    )
+    assert collection.status_code == 201, collection.text
+
+    response = client.delete(f"/api/providers/{provider['id']}", headers=admin)
+
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "PROVIDER_IN_USE"
+    assert response.json()["error"]["details"]["collections"] == 1
+    assert client.get(f"/api/providers/{provider['id']}").status_code == 200

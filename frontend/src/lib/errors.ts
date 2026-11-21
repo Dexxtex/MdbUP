@@ -71,6 +71,16 @@ export function describeApiError(error: unknown): ErrorPresentation {
     };
   }
 
+  if (error.code === "PROVIDER_IN_USE") {
+    return {
+      ...base,
+      title: "Provider in uso",
+      message:
+        "Il provider è collegato a una o più collezioni. Rimuovi prima quelle collezioni, poi elimina il provider.",
+      retryable: false,
+    };
+  }
+
   if (error.code === "PROVIDER_ALREADY_EXISTS") {
     return {
       ...base,

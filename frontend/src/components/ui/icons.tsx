@@ -69,6 +69,14 @@ export function IconBuilding(props: IconProps) {
   );
 }
 
+export function IconTrash(props: IconProps) {
+  return (
+    <svg {...baseProps(props)}>
+      <path d="M4 6h12M8 6V4h4v2M6 6l.8 10h6.4L14 6M9 9v4M11 9v4" />
+    </svg>
+  );
+}
+
 export function IconNode(props: IconProps) {
   return (
     <svg {...baseProps(props)}>

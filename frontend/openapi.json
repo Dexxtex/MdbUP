@@ -835,37 +835,28 @@
         }
       }
     },
-    "/api/providers/catalog": {
-      "get": {
+    "/api/providers/{provider_id}": {
+      "delete": {
         "tags": [
           "providers"
         ],
-        "summary": "Provider disponibili da TMDb, JustWatch e TheTVDB",
-        "operationId": "provider_catalog_endpoint_api_providers_catalog_get",
+        "summary": "Elimina un provider non usato da collezioni",
+        "operationId": "delete_provider_api_providers__provider_id__delete",
         "parameters": [
           {
-            "name": "country",
-            "in": "query",
-            "required": false,
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
             "schema": {
               "type": "string",
-              "minLength": 2,
-              "maxLength": 2,
-              "default": "IT",
-              "title": "Country"
+              "format": "uuid",
+              "title": "Provider Id"
             }
           }
         ],
         "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProviderCatalogOut"
-                }
-              }
-            }
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -878,9 +869,7 @@
             }
           }
         }
-      }
-    },
-    "/api/providers/{provider_id}": {
+      },
       "get": {
         "tags": [
           "providers"
@@ -918,6 +907,51 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProviderOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/providers/catalog": {
+      "get": {
+        "tags": [
+          "providers"
+        ],
+        "summary": "Provider disponibili da TMDb, JustWatch e TheTVDB",
+        "operationId": "provider_catalog_endpoint_api_providers_catalog_get",
+        "parameters": [
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 2,
+              "default": "IT",
+              "title": "Country"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCatalogOut"
                 }
               }
             }

@@ -177,6 +177,20 @@ export function useCreateProvider() {
   });
 }
 
+export function useDeleteProvider() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (providerId: string) =>
+      apiFetch<void>(`/providers/${providerId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["providers"] });
+      void queryClient.invalidateQueries({ queryKey: ["collections"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sources });
+    },
+  });
+}
+
 export function useCreateCollection() {
   const queryClient = useQueryClient();
   return useMutation({

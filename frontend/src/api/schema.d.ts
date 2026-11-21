@@ -352,23 +352,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/providers/catalog": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Provider disponibili da TMDb, JustWatch e TheTVDB */
-        get: operations["provider_catalog_endpoint_api_providers_catalog_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/providers/{provider_id}": {
         parameters: {
             query?: never;
@@ -378,6 +361,24 @@ export interface paths {
         };
         /** Dettaglio provider */
         get: operations["get_provider_api_providers__provider_id__get"];
+        put?: never;
+        post?: never;
+        /** Elimina un provider non usato da collezioni */
+        delete: operations["delete_provider_api_providers__provider_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/providers/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Provider disponibili da TMDb, JustWatch e TheTVDB */
+        get: operations["provider_catalog_endpoint_api_providers_catalog_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3509,37 +3510,6 @@ export interface operations {
             };
         };
     };
-    provider_catalog_endpoint_api_providers_catalog_get: {
-        parameters: {
-            query?: {
-                country?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProviderCatalogOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_provider_api_providers__provider_id__get: {
         parameters: {
             query?: {
@@ -3560,6 +3530,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProviderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_provider_api_providers__provider_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    provider_catalog_endpoint_api_providers_catalog_get: {
+        parameters: {
+            query?: {
+                country?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderCatalogOut"];
                 };
             };
             /** @description Validation Error */

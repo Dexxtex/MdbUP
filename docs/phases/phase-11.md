@@ -150,18 +150,18 @@ negli script puntano ai nuovi path.
 
 | Controllo | Esito |
 |---|---|
-| `pytest` backend | **464 passed** |
+| `pytest` backend | **466 passed** |
 | `mypy app` | **0 errori**, 134 file |
 | `ruff check` | pulito |
 | `ruff format --check` | **205 file** formattati |
 | `pip-audit` | **0 vulnerabilità** |
-| Vitest | **198 passed** |
-| Playwright E2E | **14 passed** |
+| Vitest | **199 passed** |
+| Playwright E2E | **16 passed** |
 | `npm run typecheck` | verde |
 | `npm run lint` | verde |
 | `npm run build` | verde |
-| Coverage backend (statement) | **90.61%** (gate 90%; router API 100% statement/branch) |
-| Coverage frontend logica (line/branch/function) | **96.03% / 90.30% / 95.15%** |
+| Coverage backend (statement) | **90.63%** (gate 90%; router API 100% statement/branch) |
+| Coverage frontend logica (line/branch/function) | **95.51% / 90.33% / 94.73%** |
 | `npm audit --omit=dev` | **0 vulnerabilità** |
 | `knip` | nessun export/file non usato (solo tipi generati OpenAPI) |
 

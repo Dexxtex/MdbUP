@@ -5,8 +5,10 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
+from app.db.models import Availability, EpisodeEvent, ProviderMapping
 from app.domain.commands import ProviderCreateIn
 from app.domain.enums import AuditActorType
 from app.domain.errors import ConflictError, NotFoundError, ValidationError
@@ -289,3 +291,43 @@ def create_provider(
     )
     db.commit()
     return get_provider(db, provider.id)
+
+
+def delete_provider(
+    db: Session,
+    provider_id: uuid.UUID,
+    *,
+    actor_user_id: uuid.UUID | None = None,
+) -> None:
+    """Delete an unused provider and its local mappings/observations.
+
+    Collections are protected: deleting a provider referenced by a catalog
+    would orphan bindings and snapshots. The operator must remove those local
+    collections first.
+    """
+    provider = providers_repo.get_provider(db, provider_id)
+    if provider is None:
+        raise NotFoundError("Provider non trovato.", details={"provider_id": str(provider_id)})
+    counts = collections_repo.count_by_provider(db)
+    collection_count = sum(counts.get(provider.id, {}).values())
+    if collection_count > 0:
+        raise ConflictError(
+            "Il provider è usato da una o più collezioni: rimuovile prima di eliminarlo.",
+            code="PROVIDER_IN_USE",
+            details={"provider_id": str(provider.id), "collections": collection_count},
+        )
+    snapshot = {"slug": provider.slug, "name": provider.name}
+    db.execute(delete(Availability).where(Availability.provider_id == provider.id))
+    db.execute(delete(EpisodeEvent).where(EpisodeEvent.provider_id == provider.id))
+    db.execute(delete(ProviderMapping).where(ProviderMapping.provider_id == provider.id))
+    db.delete(provider)
+    audit.record(
+        db,
+        action="provider_deleted",
+        entity_type="provider",
+        entity_id=provider_id,
+        actor_user_id=actor_user_id,
+        actor_type=AuditActorType.USER if actor_user_id else AuditActorType.SYSTEM,
+        before=snapshot,
+    )
+    db.commit()

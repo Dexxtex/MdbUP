@@ -50,6 +50,20 @@ def create_provider(
     return schemas_catalog.ProviderOut.model_validate(summary)
 
 
+@router.delete(
+    "/providers/{provider_id}",
+    status_code=204,
+    dependencies=[Depends(require_csrf)],
+    summary="Elimina un provider non usato da collezioni",
+)
+def delete_provider(
+    provider_id: uuid.UUID,
+    db: Session = Depends(get_db_dep),
+    admin: AppUser = Depends(require_admin),
+) -> None:
+    providers_service.delete_provider(db, provider_id, actor_user_id=admin.id)
+
+
 @router.get(
     "/providers/catalog",
     response_model=schemas_catalog.ProviderCatalogOut,

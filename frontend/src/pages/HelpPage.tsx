@@ -64,6 +64,8 @@ export default function HelpPage() {
                 (oppure inserisci gli ID manualmente). TVDB non espone un elenco streaming: inserisci
                 il Company ID manuale. TVDB fornisce company ID e metadati, non la disponibilità per
                 l’Italia; gli ID sono configurazione manuale: verificali sulla fonte prima di usarli.
+                Le card dei provider senza collezioni hanno il pulsante <strong>Elimina</strong>; un
+                provider collegato a collezioni resta protetto.
               </p>
             </Step>
             <Step number={4} title="Crea una collezione">
