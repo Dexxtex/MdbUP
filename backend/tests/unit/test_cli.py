@@ -272,6 +272,25 @@ def test_remove_demo_collections_dry_run_then_apply(db, seeded, capsys) -> None:
         assert collections_repo.list_collections(session) == []
 
 
+def test_remove_demo_collections_keeps_cli_created_collection(db, seeded, capsys) -> None:
+    from app.seed import remove_demo_collections
+
+    assert (
+        cli.create_collection(
+            provider_slug="netflix",
+            media_type="movie",
+            slug="operator-catalog",
+            name="Catalogo operatore",
+            genre_ids=[18],
+        )
+        == 0
+    )
+    assert remove_demo_collections(apply=True) == 0
+    with _session() as session:
+        remaining = collections_repo.list_collections(session)
+        assert [item.slug for item in remaining] == ["operator-catalog"]
+
+
 def test_remove_demo_providers_after_collections(db, seeded, capsys) -> None:
     from app.seed import remove_demo_collections, remove_demo_providers
 

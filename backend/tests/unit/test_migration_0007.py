@@ -16,6 +16,7 @@ MIGRATION_PATH = (
 DDL = """
 CREATE TABLE collection (
     id VARCHAR(32) PRIMARY KEY,
+    slug VARCHAR(200) NOT NULL,
     quality_flags TEXT NOT NULL,
     source_collection_key VARCHAR(200)
 );
@@ -55,6 +56,9 @@ def test_revision_id_and_chain() -> None:
     assert module.revision == "0007_remove_seed_collections"
     assert len(module.revision) <= 32
     assert module.down_revision == "0006_snapshot_dedup"
+    from app.seed import _demo_collection_slugs
+
+    assert set(module.SEED_COLLECTION_SLUGS) == _demo_collection_slugs()
 
 
 def test_upgrade_removes_only_unbound_seed_collections(tmp_path) -> None:
@@ -66,11 +70,12 @@ def test_upgrade_removes_only_unbound_seed_collections(tmp_path) -> None:
                 connection.execute(sa.text(statement))
         connection.execute(
             sa.text(
-                "INSERT INTO collection (id, quality_flags, source_collection_key) VALUES "
-                "('seed-unbound', :flags, '8:MOVIE'), "
-                "('seed-bound', :flags, '119:MOVIE'), "
-                "('user-custom', :flags, 'custom:my-list'), "
-                "('user-normal', '{}', '8:MOVIE')"
+                "INSERT INTO collection (id, slug, quality_flags, source_collection_key) VALUES "
+                "('seed-unbound', 'netflix-movie', :flags, '8:MOVIE'), "
+                "('seed-bound', 'netflix-show', :flags, '119:MOVIE'), "
+                "('user-custom', 'operator-custom', :flags, 'custom:my-list'), "
+                "('user-normal', 'operator-normal', '{}', '8:MOVIE'), "
+                "('user-cli', 'operator-cli', :flags, '8:MOVIE')"
             ),
             {"flags": seed_flags},
         )
@@ -100,4 +105,4 @@ def test_upgrade_removes_only_unbound_seed_collections(tmp_path) -> None:
             connection.execute(sa.text("SELECT snapshot_id FROM episode_event")).scalar_one()
             is None
         )
-    assert ids == {"seed-bound", "user-custom", "user-normal"}
+    assert ids == {"seed-bound", "user-custom", "user-normal", "user-cli"}

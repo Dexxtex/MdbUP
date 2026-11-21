@@ -271,12 +271,22 @@ def seed_sources() -> int:
     return 0
 
 
+def _demo_collection_slugs() -> set[str]:
+    slugs: set[str] = set()
+    for provider in TMDB_PROVIDER_SEED:
+        slugs.add(f"{provider.slug}-movie")
+        if provider.tv_external_id is not None:
+            slugs.add(f"{provider.slug}-show")
+    return slugs
+
+
 def _demo_collections(db: Session) -> list[Collection]:
-    """Collections carrying the seed marker added by ``_upsert_tmdb_collections``."""
+    allowed = _demo_collection_slugs()
     return [
         collection
         for collection in db.scalars(select(Collection)).all()
-        if (collection.quality_flags or {}).get("unverified_provider_mapping")
+        if collection.slug in allowed
+        and (collection.quality_flags or {}).get("unverified_provider_mapping")
         and collection.source_collection_key
         and not str(collection.source_collection_key).startswith("custom:")
     ]

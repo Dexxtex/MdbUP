@@ -11,8 +11,9 @@ bound collections are left untouched because deleting them would cascade into
 active scheduling/run history.
 
 The predicate is intentionally narrow: the collection must carry the seed's
-``unverified_provider_mapping`` quality flag and a real (non-``custom:``)
-source key. A user-created collection never has that combination.
+``unverified_provider_mapping`` quality flag, a real (non-``custom:``) source
+key and one of the 23 slugs created by the old bootstrap. Operator-created
+collections, including those made by ``create-collection``, are never removed.
 """
 
 from __future__ import annotations
@@ -33,6 +34,31 @@ COLLECTION = "collection"
 SNAPSHOT = "collection_snapshot"
 BINDING = "sync_binding"
 EPISODE_EVENT = "episode_event"
+SEED_COLLECTION_SLUGS = (
+    "netflix-movie",
+    "netflix-show",
+    "prime-video-movie",
+    "prime-video-show",
+    "disney-plus-movie",
+    "disney-plus-show",
+    "now-movie",
+    "now-show",
+    "timvision-movie",
+    "timvision-show",
+    "infinity-plus-movie",
+    "rakuten-tv-movie",
+    "rakuten-tv-show",
+    "mubi-movie",
+    "mubi-show",
+    "apple-tv-plus-movie",
+    "apple-tv-plus-show",
+    "paramount-plus-movie",
+    "paramount-plus-show",
+    "raiplay-movie",
+    "raiplay-show",
+    "mediaset-infinity-movie",
+    "mediaset-infinity-show",
+)
 
 
 def _has_table(bind: sa.engine.Connection, name: str) -> bool:
@@ -55,7 +81,8 @@ def _is_seed_collection(row: Any) -> bool:
     flags = _as_flags(row.quality_flags)
     source_key = row.source_collection_key
     return bool(
-        flags.get("unverified_provider_mapping")
+        row.slug in SEED_COLLECTION_SLUGS
+        and flags.get("unverified_provider_mapping")
         and source_key
         and not str(source_key).startswith("custom:")
     )
@@ -102,7 +129,7 @@ def upgrade() -> None:
         return
     rows = list(
         bind.execute(
-            sa.text(f"SELECT id, quality_flags, source_collection_key FROM {COLLECTION}")
+            sa.text(f"SELECT id, slug, quality_flags, source_collection_key FROM {COLLECTION}")
         ).mappings()
     )
     for row in rows:

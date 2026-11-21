@@ -51,6 +51,9 @@ def test_revision_id_and_chain() -> None:
     module = _load_migration()
     assert module.revision == "0008_remove_seed_providers"
     assert module.down_revision == "0007_remove_seed_collections"
+    from app.seed import PROVIDER_SEED
+
+    assert set(module.SEED_SLUGS) == {item.slug for item in PROVIDER_SEED}
 
 
 def test_upgrade_removes_only_unreferenced_seed_providers(tmp_path) -> None:

@@ -27,6 +27,20 @@ def test_trusted_proxy_uses_last_forwarded_hop() -> None:
     assert get_client_ip(request, settings) == "203.0.113.9"
 
 
+def test_trusted_proxy_without_header_falls_back_to_peer() -> None:
+    settings = Settings(trusted_proxies="10.0.0.2")
+    request = _request("10.0.0.2")
+
+    assert get_client_ip(request, settings) == "10.0.0.2"
+
+
+def test_trusted_proxy_with_empty_last_hop_falls_back_to_peer() -> None:
+    settings = Settings(trusted_proxies="10.0.0.2")
+    request = _request("10.0.0.2", "203.0.113.9, ")
+
+    assert get_client_ip(request, settings) == "10.0.0.2"
+
+
 def test_empty_pointer_keeps_peer_when_no_forwarded_header() -> None:
     settings = Settings(trusted_proxies="10.0.0.2")
     request = Request({"type": "http", "client": None, "headers": []})
