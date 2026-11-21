@@ -60,13 +60,22 @@ def get_request_id(request: Request) -> str:
     return getattr(request.state, "request_id", "")
 
 
-def get_client_ip(request: Request) -> str:
-    """Client IP as seen by the reverse proxy (Caddy sets ``X-Forwarded-For``)."""
+def get_client_ip(request: Request, settings: Settings | None = None) -> str:
+    """Return the peer IP, trusting ``X-Forwarded-For`` only from known proxies.
+
+    The header is client-controlled unless a reverse proxy overwrites/appends it.
+    Trusting it unconditionally would let anyone rotate the rate-limit key.
+    """
+    peer = request.client.host if request.client else "unknown"
+    active = settings or get_settings()
     forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        # Caddy appends the real peer; the left-most value is client-controlled.
-        return forwarded.split(",")[-1].strip()
-    return request.client.host if request.client else "unknown"
+    if forwarded and peer in active.trusted_proxy_list:
+        # The trusted proxy appends the real peer; the left-most value is still
+        # client-controlled and must never be used.
+        candidate = forwarded.split(",")[-1].strip()
+        if candidate:
+            return candidate
+    return peer
 
 
 def _origin_parts(value: str) -> tuple[str, str, int | None] | None:

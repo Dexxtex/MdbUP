@@ -27,6 +27,10 @@ CREATE TABLE collection_snapshot (
     id VARCHAR(32) PRIMARY KEY,
     collection_id VARCHAR(32) NOT NULL
 );
+CREATE TABLE episode_event (
+    id VARCHAR(32) PRIMARY KEY,
+    snapshot_id VARCHAR(32)
+);
 """
 
 
@@ -78,6 +82,9 @@ def test_upgrade_removes_only_unbound_seed_collections(tmp_path) -> None:
                 "INSERT INTO collection_snapshot (id, collection_id) VALUES ('s1', 'seed-unbound')"
             )
         )
+        connection.execute(
+            sa.text("INSERT INTO episode_event (id, snapshot_id) VALUES ('e1', 's1')")
+        )
     module = _load_migration()
 
     _upgrade(engine, module)
@@ -85,4 +92,12 @@ def test_upgrade_removes_only_unbound_seed_collections(tmp_path) -> None:
 
     with engine.connect() as connection:
         ids = {row[0] for row in connection.execute(sa.text("SELECT id FROM collection")).all()}
+        assert (
+            connection.execute(sa.text("SELECT COUNT(*) FROM collection_snapshot")).scalar_one()
+            == 0
+        )
+        assert (
+            connection.execute(sa.text("SELECT snapshot_id FROM episode_event")).scalar_one()
+            is None
+        )
     assert ids == {"seed-bound", "user-custom", "user-normal"}

@@ -104,7 +104,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - Backend: comandi/errori spostati in `app/domain/`, servizi senza dipendenze da `app.api`, API senza SQL diretto; rimossi moduli/helper non usati e dipendenze inutilizzate.
 - Frontend: hook spostati in `src/hooks/`, export morti rimossi, payload API separati dai componenti.
 - `.gitignore` e `.dockerignore` aggiornati per escludere cache, test, build, backup e segreti.
-- Test: **446 backend**, **198 frontend**, **14 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
+- Test: **457 backend**, **198 frontend**, **14 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
 - Dettagli: [`docs/phases/phase-11.md`](docs/phases/phase-11.md).
 
 ### Fase 6 — hardening e regole avanzate
@@ -185,10 +185,11 @@ Dettagli, limiti misurati e superficie API verificata:
 [`docs/phases/phase-08.md`](docs/phases/phase-08.md).
 
 **Scoperta provider:** la pagina **Provider** usa `GET /api/providers/catalog` per mostrare
-TMDb (94 film + 68 serie in IT, deduplicati), JustWatch (109 package) e, se configurata,
-TheTVDB in **gruppi separati per fonte**. Le fonti non vengono unite: ogni candidato conserva
-la propria provenienza e il proprio mapping. TVDB viene usato per le **company ID e i metadati**,
-non per la disponibilità per paese. Per categoria e anno si usano
+TMDb (94 film + 68 serie in IT, deduplicati) e JustWatch (109 package), in **gruppi separati
+per fonte**. Le fonti non vengono unite: ogni candidato conserva la propria provenienza e il
+proprio mapping. TheTVDB **non espone un elenco di provider streaming**: si usa la ricerca per
+nome (`/api/sources/tvdb/companies?q=…`) o si inserisce il Company ID manualmente. TVDB viene
+usato per le **company ID e i metadati**, non per la disponibilità per paese. Per categoria e anno si usano
 `/api/sources/tvdb/genres` e `/api/sources/tvdb/series?genre_id=…&year=…`;
 `country` e `language` TVDB indicano **paese di origine e lingua originale**, non disponibilità
 in Italia. TVDB è trattato come fonte **solo per serie TV**: nessun endpoint film o lista mista.
@@ -286,7 +287,7 @@ Aprire `http://localhost:5173`. Il dev server Vite inoltra `/api` a `http://loca
 1. Aprire `/bootstrap` e usare il token `BOOTSTRAP_TOKEN`.
 2. Creare l'admin con una password di almeno 12 caratteri.
 3. In **Impostazioni → Credenziali** inserire TMDb API key, MDBList API key e, se vuoi usare TheTVDB, la sua API key.
-4. Aprire **Provider → Aggiungi provider** e scegliere il servizio dall’elenco disponibile (TMDb/JustWatch/TVDB), poi verificare i mapping proposti.
+4. Aprire **Provider → Aggiungi provider** e scegliere il servizio dall’elenco TMDb/JustWatch; per TVDB inserire il Company ID manuale (o cercarlo per nome), poi verificare i mapping proposti.
 5. Acquisire una collezione e creare un binding.
 6. Dalla pagina **Binding** usare `Dry-run` per il piano o `Esegui` per una sync reale; il piano reale richiede approvazione.
 
@@ -322,6 +323,7 @@ Variabili principali:
 | `BOOTSTRAP_TOKEN` | `bootstrap` | usato una sola volta su `/bootstrap` |
 | `METRICS_TOKEN` | `metrics` | token Prometheus |
 | `APP_BASE_URL` | `http://<host>:28080` | origine esatta per CSRF/cookie |
+| `TRUSTED_PROXIES` | vuoto | proxy fidato per `X-Forwarded-For`; vuoto = diretto |
 | `DEFAULT_SOURCE` | `justwatch` | fonte predefinita del builder |
 | `CATALOG_SCHEDULE_ENABLED` | `true` | scheduling scaglionato |
 
@@ -411,10 +413,12 @@ COOKIE_SECURE=true
 WEB_PORT=28080
 ```
 
-- Con TLS terminato dal proxy: `APP_BASE_URL=https://...`, `COOKIE_SECURE=true`;
+- Con TLS terminato dal proxy: `APP_BASE_URL=https://...`, `COOKIE_SECURE=true`,
+  `TRUSTED_PROXIES=<ip-o-hostname-del-proxy>` per accettare `X-Forwarded-For`;
   i cookie diventano `__Host-mdbsync-session`/`__Host-mdbsync-csrf`, `Secure`,
   `Path=/`, senza `Domain`.
-- In LAN HTTP: `APP_BASE_URL=http://<ip>:28080`, `COOKIE_SECURE=false`.
+- In LAN HTTP: `APP_BASE_URL=http://<ip>:28080`, `COOKIE_SECURE=false`; senza
+  proxy lasciare `TRUSTED_PROXIES` vuoto, così il rate limit usa l'IP reale.
 - HSTS, CSP e gli altri header di sicurezza possono essere aggiunti dal proxy;
   l'API applica comunque CSP/X-Frame-Options/Referrer-Policy alle proprie
   risposte.
@@ -467,12 +471,12 @@ npm run test:e2e
 npm audit --omit=dev
 ```
 
-Stato attuale: **446 test backend**, **198 test frontend** e **14 test E2E
+Stato attuale: **457 test backend**, **198 test frontend** e **14 test E2E
 Playwright** verdi; `ruff check`, `ruff format --check`, `mypy`, build Vite,
 lint e audit senza vulnerabilità. I test unitari usano `respx`/fixture; la
 verifica live è stata eseguita separatamente su TMDb e MDBList reali.
 
-Coverage gate: backend **90.23%** statement, frontend **96.03%** linee / **90.30%** branch / **95.15%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
+Coverage gate: backend **90.59%** statement e **100%** statement/branch sui router API (`app/api/routers/*`), frontend **96.03%** linee / **90.30%** branch / **95.15%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
 
 ---
 
@@ -489,8 +493,8 @@ Coverage gate: backend **90.23%** statement, frontend **96.03%** linee / **90.30
 | `POST` | `/api/auth/change-password` | Verifica password attuale, revoca tutte le sessioni |
 | `GET` | `/api/dashboard` | Contatori, alert, run recenti |
 | `GET` | `/api/providers` | Provider IT + mapping TMDb |
-| `GET` | `/api/providers/catalog` | Provider disponibili da TMDb, JustWatch e TheTVDB |
-| `GET` | `/api/sources/tvdb/companies` | Company TVDB (metadati; nessuna disponibilità per paese) |
+| `GET` | `/api/providers/catalog` | Provider disponibili da TMDb e JustWatch; TVDB è manuale |
+| `GET` | `/api/sources/tvdb/companies?q=` | Ricerca company TVDB per nome (metadati; nessuna disponibilità per paese) |
 | `GET` | `/api/sources/tvdb/genres` | Generi TVDB |
 | `GET` | `/api/sources/tvdb/series` | Serie TVDB filtrate per genere, anno e paese di origine |
 | `POST` | `/api/providers` | Crea un provider scelto dall’utente con mapping opzionali |

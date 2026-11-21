@@ -377,10 +377,10 @@ export default function DashboardPage() {
             {changeCounters ? (
               <p className="mb-3 flex flex-wrap gap-3 text-sm">
                 <span className="font-semibold text-success">
-                  +{formatNumber(changeCounters.added_today)} entrati
+                  +{formatNumber(changeCounters.added_window)} entrati
                 </span>
                 <span className="font-semibold text-danger">
-                  −{formatNumber(changeCounters.removed_today)} usciti
+                  −{formatNumber(changeCounters.removed_window)} usciti
                 </span>
               </p>
             ) : null}
@@ -398,7 +398,7 @@ export default function DashboardPage() {
               <ul className="space-y-2">
                 {recentChanges.map((change) => (
                   <li
-                    key={`${change.media_id}-${change.collection_id}-${change.direction}`}
+                    key={`${change.media_id}-${change.collection_id}-${change.direction}-${change.detected_at}`}
                     className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-surface-elevated px-3 py-2"
                   >
                     <div className="min-w-0">

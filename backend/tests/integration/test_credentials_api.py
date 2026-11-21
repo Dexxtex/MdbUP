@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import httpx
+import respx
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
@@ -104,6 +106,27 @@ def test_verify_requires_configured_credential(
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "CREDENTIAL_MISSING"
+
+
+@respx.mock
+def test_verify_configured_credential_returns_result(
+    client: TestClient, admin: dict[str, str], seeded: None
+) -> None:
+    assert (
+        client.put("/api/credentials/tmdb", json={"value": SECRET}, headers=admin).status_code
+        == 204
+    )
+    respx.get("https://api.themoviedb.org/3/configuration").mock(
+        return_value=httpx.Response(200, json={"images": {}})
+    )
+
+    response = client.post("/api/credentials/tmdb/verify", headers=admin)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["kind"] == "TMDB"
+    assert body["ok"] is True
+    assert body["status_code"] == 200
 
 
 def test_source_scoped_credentials_keep_separate_identities(

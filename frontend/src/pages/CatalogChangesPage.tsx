@@ -334,7 +334,7 @@ export default function CatalogChangesPage() {
               >
                 {data.items.map((item) => (
                   <CatalogChangeCard
-                    key={`${item.media_id}-${item.collection_id}-${item.direction}`}
+                    key={`${item.media_id}-${item.collection_id}-${item.direction}-${item.detected_at}`}
                     item={item}
                   />
                 ))}

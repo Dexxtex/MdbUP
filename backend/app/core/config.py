@@ -93,6 +93,9 @@ class Settings(BaseSettings):
     login_lockout_minutes: int = 30
     bootstrap_max_attempts: int = 3
     cors_origins: str = ""
+    # Comma-separated proxy peers allowed to set X-Forwarded-For. Empty means
+    # direct connections only: a client-supplied header cannot spoof the IP.
+    trusted_proxies: str = ""
     notifications_summary_enabled: bool = False
     notifications_summary_hour: int = 8
 
@@ -161,6 +164,10 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def trusted_proxy_list(self) -> list[str]:
+        return [proxy.strip() for proxy in self.trusted_proxies.split(",") if proxy.strip()]
 
     @property
     def is_https(self) -> bool:

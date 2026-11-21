@@ -10,10 +10,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
-from app.db.models import Collection, Provider, Source, SyncBinding
+from app.db.models import (
+    Availability,
+    Collection,
+    CollectionSnapshot,
+    EpisodeEvent,
+    Provider,
+    Source,
+    SyncBinding,
+)
 from app.db.session import session_scope
 from app.domain.enums import (
     COMBINED_SOURCE_KEY,
@@ -299,6 +307,9 @@ def remove_demo_providers(*, apply: bool = False) -> int:
             print("dry-run: usa --apply per rimuovere quelli senza collezioni")
             return 0
         for provider in removable:
+            # FKs without ON DELETE: clear observations before the provider.
+            db.execute(delete(Availability).where(Availability.provider_id == provider.id))
+            db.execute(delete(EpisodeEvent).where(EpisodeEvent.provider_id == provider.id))
             db.delete(provider)
         print(
             f"provider demo rimossi: {len(removable)}"
@@ -335,6 +346,16 @@ def remove_demo_collections(*, apply: bool = False, force: bool = False) -> int:
             return 0
         targets = removable + (blocked if force else [])
         for collection in targets:
+            # Episode events point at snapshots without ON DELETE: clear the
+            # nullable reference before the collection cascade removes them.
+            snapshot_ids = select(CollectionSnapshot.id).where(
+                CollectionSnapshot.collection_id == collection.id
+            )
+            db.execute(
+                update(EpisodeEvent)
+                .where(EpisodeEvent.snapshot_id.in_(snapshot_ids))
+                .values(snapshot_id=None)
+            )
             db.delete(collection)
         print(
             f"collezioni demo rimosse: {len(targets)}"

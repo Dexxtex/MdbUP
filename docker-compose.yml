@@ -42,10 +42,12 @@ x-app: &app
   environment:
     APP_ENV: production
     APP_BASE_URL: ${APP_BASE_URL:-http://localhost:28080}
-    APP_TIMEZONE: Europe/Rome
+    APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Rome}
     LOG_LEVEL: INFO
     LOG_FORMAT: json
     COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    # Vuoto = nessun proxy fidato: X-Forwarded-For ignorato sui collegamenti diretti.
+    TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
     SESSION_COOKIE_NAME: mdbsync-session
     CSRF_COOKIE_NAME: mdbsync-csrf
     METRICS_ENABLED: "true"

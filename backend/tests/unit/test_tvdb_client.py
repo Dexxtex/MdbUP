@@ -42,6 +42,31 @@ def test_login_and_company_name_search() -> None:
         ("2", "Netflix"),
     ]
     assert search.call_count == 1
+    params = search.calls[0].request.url.params
+    assert params["query"] == "netflix"
+    assert params["type"] == "company"
+
+
+@respx.mock
+def test_search_accepts_dict_shaped_data() -> None:
+    respx.post(f"{BASE}/login").mock(
+        return_value=httpx.Response(200, json={"status": "success", "data": {"token": "jwt"}})
+    )
+    respx.get(f"{BASE}/search").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "status": "success",
+                "data": {"items": [{"id": "company-9", "name": "Example"}]},
+            },
+        )
+    )
+    client = _client()
+    try:
+        companies = client.search_companies("example")
+    finally:
+        client.close()
+    assert [(item.company_id, item.name) for item in companies] == [("9", "Example")]
 
 
 @respx.mock

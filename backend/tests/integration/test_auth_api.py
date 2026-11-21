@@ -71,6 +71,19 @@ def test_login_rejects_bad_password_generically(client: TestClient) -> None:
     assert response.json()["error"]["message"] == "Credenziali non valide."
 
 
+def test_session_rotates_missing_csrf_cookie(client: TestClient, app_settings) -> None:
+    _bootstrap(client)
+    login = client.post("/api/auth/login", json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD})
+    assert login.status_code == 200
+    client.cookies.set(app_settings.csrf_cookie, "stale-token")
+
+    session = client.get("/api/auth/session")
+
+    assert session.status_code == 200
+    assert session.json()["csrf_token"] != "stale-token"
+    assert app_settings.csrf_cookie in " ".join(session.headers.get_list("set-cookie"))
+
+
 def test_session_requires_cookie(client: TestClient) -> None:
     response = client.get("/api/auth/session")
 

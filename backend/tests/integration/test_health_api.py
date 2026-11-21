@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from app.api.routers import health as health_router
 from app.core.config import APP_VERSION
 
 
@@ -24,6 +25,16 @@ def test_ready_reports_dependency_checks(client: TestClient) -> None:
     # No Redis in the test environment: degraded, but the API is still usable.
     assert body["checks"]["redis"] is False
     assert body["status"] == "degraded"
+
+
+def test_ready_returns_503_when_database_is_down(client: TestClient, monkeypatch) -> None:
+    monkeypatch.setattr(health_router.system_status, "database_ready", lambda _db: False)
+
+    response = client.get("/api/ready")
+
+    assert response.status_code == 503
+    assert response.json()["status"] == "degraded"
+    assert response.json()["checks"]["db"] is False
 
 
 def test_ready_reports_missing_encryption_key(client: TestClient, app_settings) -> None:

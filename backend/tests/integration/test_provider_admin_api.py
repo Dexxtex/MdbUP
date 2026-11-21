@@ -78,6 +78,23 @@ def test_create_provider_with_manual_mappings(client, admin) -> None:
     assert justwatch_created.json()["quality_flags"]["provider_mapping_verified"] is False
 
 
+def test_provider_detail_returns_country_aware_summary(client, admin) -> None:
+    assert seed_sources() == 0
+    created = client.post(
+        "/api/providers",
+        json={"slug": "detail-provider", "name": "Detail Provider"},
+        headers=admin,
+    )
+    assert created.status_code == 201, created.text
+    provider_id = created.json()["id"]
+
+    response = client.get(f"/api/providers/{provider_id}?country=it")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["id"] == provider_id
+    assert response.json()["slug"] == "detail-provider"
+
+
 def test_create_provider_validates_slug_and_duplicates(client, admin) -> None:
     assert seed_sources() == 0
     payload = {"slug": "provider-test", "name": "Provider Test"}

@@ -20,6 +20,14 @@ CREATE TABLE provider_mapping (
     id VARCHAR(32) PRIMARY KEY,
     provider_id VARCHAR(32) NOT NULL
 );
+CREATE TABLE availability (
+    id VARCHAR(32) PRIMARY KEY,
+    provider_id VARCHAR(32) NOT NULL
+);
+CREATE TABLE episode_event (
+    id VARCHAR(32) PRIMARY KEY,
+    provider_id VARCHAR(32) NOT NULL
+);
 """
 
 
@@ -63,6 +71,12 @@ def test_upgrade_removes_only_unreferenced_seed_providers(tmp_path) -> None:
         connection.execute(
             sa.text("INSERT INTO provider_mapping (id, provider_id) VALUES ('m1', 'p-unused')")
         )
+        connection.execute(
+            sa.text("INSERT INTO availability (id, provider_id) VALUES ('a1', 'p-unused')")
+        )
+        connection.execute(
+            sa.text("INSERT INTO episode_event (id, provider_id) VALUES ('e1', 'p-unused')")
+        )
     module = _load_migration()
 
     _upgrade(engine, module)
@@ -70,4 +84,6 @@ def test_upgrade_removes_only_unreferenced_seed_providers(tmp_path) -> None:
 
     with engine.connect() as connection:
         ids = {row[0] for row in connection.execute(sa.text("SELECT id FROM provider"))}
+        assert connection.execute(sa.text("SELECT COUNT(*) FROM availability")).scalar_one() == 0
+        assert connection.execute(sa.text("SELECT COUNT(*) FROM episode_event")).scalar_one() == 0
     assert ids == {"p-used", "p-custom"}

@@ -26,6 +26,8 @@ depends_on = None
 PROVIDER = "provider"
 MAPPING = "provider_mapping"
 COLLECTION = "collection"
+AVAILABILITY = "availability"
+EPISODE_EVENT = "episode_event"
 SEED_SLUGS = (
     "netflix",
     "prime-video",
@@ -59,6 +61,13 @@ def _has_collection(bind: sa.engine.Connection, provider_id: Any) -> bool:
 
 
 def _delete_provider(bind: sa.engine.Connection, provider_id: Any) -> None:
+    # These FKs have no ON DELETE: remove observations before the parent row.
+    for table in (AVAILABILITY, EPISODE_EVENT):
+        if _has_table(bind, table):
+            bind.execute(
+                sa.text(f"DELETE FROM {table} WHERE provider_id = :provider_id"),
+                {"provider_id": provider_id},
+            )
     if _has_table(bind, MAPPING):
         bind.execute(
             sa.text(f"DELETE FROM {MAPPING} WHERE provider_id = :provider_id"),

@@ -119,3 +119,47 @@ def test_tvdb_genre_and_year_catalog(client, admin, app_settings) -> None:
     assert body["items"][0]["item_id"] == "42"
     assert body["items"][0]["score"] == 12.5
     assert filter_route.called
+    params = filter_route.calls[-1].request.url.params
+    assert params["country"] == "ita"
+    assert params["lang"] == "ita"
+    assert params["genre"] == "3"
+    assert params["year"] == "2024"
+
+    defaults = client.get("/api/sources/tvdb/series")
+    assert defaults.status_code == 200, defaults.text
+    default_params = filter_route.calls[-1].request.url.params
+    assert default_params["country"] == "ita"
+    assert default_params["lang"] == "ita"
+    assert "genre" not in default_params
+    assert "year" not in default_params
+
+
+@respx.mock
+def test_tvdb_auth_failure_maps_to_source_error(client, admin, app_settings) -> None:
+    _configure(client, admin, app_settings)
+    respx.post(f"{TVDB}/login").mock(return_value=httpx.Response(401))
+
+    response = client.get("/api/sources/tvdb/genres")
+
+    assert response.status_code == 409, response.text
+    error = response.json()["error"]
+    assert error["code"] == "SOURCE_AUTH_FAILED"
+    assert error["category"] == "SOURCE"
+    assert error["retryable"] is False
+
+
+@respx.mock
+def test_tvdb_request_failure_maps_to_source_unavailable(client, admin, app_settings) -> None:
+    _configure(client, admin, app_settings)
+    respx.post(f"{TVDB}/login").mock(
+        return_value=httpx.Response(200, json={"status": "success", "data": {"token": "t"}})
+    )
+    respx.get(f"{TVDB}/search").mock(return_value=httpx.Response(400))
+
+    response = client.get("/api/sources/tvdb/companies?q=netflix")
+
+    assert response.status_code == 503, response.text
+    error = response.json()["error"]
+    assert error["code"] == "SOURCE_UNAVAILABLE"
+    assert error["category"] == "SOURCE"
+    assert error["retryable"] is True

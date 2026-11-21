@@ -60,10 +60,10 @@ export default function HelpPage() {
             <Step number={3} title="Crea un provider">
               <p>
                 Apri <Link className="text-accent underline" to="/app/providers">Provider</Link> e usa
-                <strong> Aggiungi provider</strong>. Scegli un servizio dall’elenco TMDb/JustWatch/TVDB
-                (oppure inserisci gli ID manualmente). TVDB fornisce company ID e metadati, non la
-                disponibilità per l’Italia; gli ID sono configurazione manuale: verificali sulla fonte
-                prima di usarli.
+                <strong> Aggiungi provider</strong>. Scegli un servizio dall’elenco TMDb/JustWatch
+                (oppure inserisci gli ID manualmente). TVDB non espone un elenco streaming: inserisci
+                il Company ID manuale. TVDB fornisce company ID e metadati, non la disponibilità per
+                l’Italia; gli ID sono configurazione manuale: verificali sulla fonte prima di usarli.
               </p>
             </Step>
             <Step number={4} title="Crea una collezione">

@@ -407,7 +407,7 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
         <Field
           id="provider-catalog-search"
           label="Cerca nei provider disponibili"
-          hint="Le fonti sono separate: TMDb, JustWatch e TheTVDB. La selezione compila solo i mapping della fonte scelta."
+          hint="Le fonti sono separate: TMDb e JustWatch. TheTVDB non espone un elenco streaming: usa il Company ID manuale."
         >
           <Input
             id="provider-catalog-search"

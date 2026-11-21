@@ -32,6 +32,7 @@ depends_on = None
 COLLECTION = "collection"
 SNAPSHOT = "collection_snapshot"
 BINDING = "sync_binding"
+EPISODE_EVENT = "episode_event"
 
 
 def _has_table(bind: sa.engine.Connection, name: str) -> bool:
@@ -76,6 +77,15 @@ def _delete_collection(bind: sa.engine.Connection, collection_id: Any) -> None:
     # PostgreSQL cascades snapshots; delete them explicitly too so the same
     # migration is deterministic on SQLite test databases.
     if _has_table(bind, SNAPSHOT):
+        if _has_table(bind, EPISODE_EVENT):
+            bind.execute(
+                sa.text(
+                    f"UPDATE {EPISODE_EVENT} SET snapshot_id = NULL "
+                    f"WHERE snapshot_id IN (SELECT id FROM {SNAPSHOT} "
+                    "WHERE collection_id = :collection_id)"
+                ),
+                {"collection_id": collection_id},
+            )
         bind.execute(
             sa.text(f"DELETE FROM {SNAPSHOT} WHERE collection_id = :collection_id"),
             {"collection_id": collection_id},
