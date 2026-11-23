@@ -68,8 +68,8 @@ export default function HelpPage() {
                 Apri <Link className="text-accent underline" to="/app/providers">Provider</Link> e
                 scegli prima il <strong>paese</strong> dal menu ISO in alto: catalogo, card, matrice e
                 messaggi seguono quel paese, e la matrice confronta i provider di quel paese.
-                Poi usa <strong>Aggiungi provider</strong> e scegli un servizio dall’elenco
-                TMDb/JustWatch (oppure inserisci gli ID manualmente). Il campo
+                Poi usa <strong>Aggiungi provider</strong> e scegli il servizio dal menu del
+                catalogo: gli identificativi TMDb/JustWatch si compilano da soli. Il campo
                 <strong> Cerca provider</strong> filtra la pagina e apre l’elenco dei provider
                 presenti: se per il paese scelto non ce ne sono, l’elenco non compare.
                 TVDB non espone un elenco streaming: inserisci il Company ID manuale. TVDB fornisce
@@ -115,9 +115,10 @@ export default function HelpPage() {
               <StatusPill label="Nessun mapping" tone="neutral" />
             </div>
             <p>
-              “Da verificare” non significa che il provider non esista: significa che l’ID è stato
-              inserito manualmente e non è stato confermato live. Le collezioni si possono creare
-              comunque, ma il flag <code>provider_mapping_verified</code> resta <code>false</code>.
+              “Da verificare” non significa che il provider non esista: significa che l’ID viene
+              dal catalogo (o dal Company ID TVDB) e non è stato confermato live. Le collezioni si
+              possono creare comunque, ma il flag <code>provider_mapping_verified</code> resta
+              <code>false</code>.
             </p>
             <p>
               Il <strong>paese</strong> non è un filtro cosmetico: provider, mapping e collezioni
@@ -127,9 +128,11 @@ export default function HelpPage() {
               quelli di altri paesi).
             </p>
             <p>
-              Questa versione non ha un editor di mapping: gli ID salvati restano quelli digitati
-              alla creazione e non c’è un percorso per riallineare i mapping dal pannello. Controlla
-              gli ID sulla fonte prima di salvare.
+              Questa versione non ha un editor di mapping: gli identificativi sono quelli del
+              provider scelto a catalogo (più l’eventuale Company ID TVDB) e non c’è un percorso
+              per aggiungerli o riallinearli dal pannello. Per questo la creazione richiede una
+              scelta dal catalogo: un provider senza identificativi non potrebbe avere collezioni.
+              Verifica gli ID sulla fonte prima di usarlo.
             </p>
           </div>
         </Card>

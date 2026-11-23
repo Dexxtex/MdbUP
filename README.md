@@ -204,8 +204,10 @@ usato per le **company ID e i metadati**, non per la disponibilità per paese. P
 `/api/sources/tvdb/genres` e `/api/sources/tvdb/series?genre_id=…&year=…`;
 `country` e `language` TVDB indicano **paese di origine e lingua originale**, non disponibilità
 in Italia. TVDB è trattato come fonte **solo per serie TV**: nessun endpoint film o lista mista.
-La selezione compila i mapping,
-che restano modificabili e non vengono dichiarati verificati live finché non lo sono davvero.
+La selezione compila i mapping: la
+creazione richiede una scelta dal catalogo (non ci sono campi ID manuali per TMDb/JustWatch),
+perché senza identificativi il provider non potrebbe avere collezioni e non esiste un editor
+per aggiungerli dopo. I mapping non vengono dichiarati verificati live finché non lo sono.
 
 ---
 

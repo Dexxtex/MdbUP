@@ -37,6 +37,7 @@ import { formatNumber } from "../lib/format";
 import { hasJustWatchMapping } from "../lib/justwatch";
 import { IconBuilding, IconGrid, IconLayers, IconTrash } from "../components/ui/icons";
 import { ProviderMatrix } from "../components/providers/provider-matrix";
+import { ProviderCatalogPicker } from "../components/providers/provider-catalog-picker";
 import { ProviderSuggest } from "../components/providers/provider-suggest";
 
 /** Provider italiani noti: le chip compaiono solo se il backend li espone. */
@@ -428,7 +429,7 @@ function providerColumns(
   ];
 }
 
-function CreateProviderCard({ onClose }: { onClose: () => void }) {
+function CreateProviderCard({ country, onClose }: { country: string; onClose: () => void }) {
   const createProvider = useCreateProvider();
   const [payload, setPayload] = useState<
     Omit<ProviderCreatePayload, "justwatch_monetization_types">
@@ -443,9 +444,9 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
     tvdb_company_id: "",
   });
   const [offers, setOffers] = useState<OfferType[]>(["FLATRATE"]);
-  const catalog = useProviderCatalog("IT");
+  const catalog = useProviderCatalog(country);
+  const [candidateKey, setCandidateKey] = useState("");
   const [catalogQuery, setCatalogQuery] = useState("");
-  const [selectedCandidate, setSelectedCandidate] = useState("");
 
   const candidates = useMemo(() => {
     const needle = catalogQuery.trim().toLocaleLowerCase("it");
@@ -454,17 +455,21 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
     );
   }, [catalog.data, catalogQuery]);
 
+  const sourceLabel = (source: string) =>
+    source === "tmdb" ? "TMDb" : source === "justwatch" ? "JustWatch" : "TVDB";
+
   const groupedCandidates = useMemo(
     () =>
       PROVIDER_SOURCE_ORDER.map((source) => ({
         source,
+        label: sourceLabel(source),
         items: candidates.filter((candidate) => candidate.source_key === source),
       })).filter((group) => group.items.length > 0),
     [candidates],
   );
 
   const chooseCandidate = (key: string) => {
-    setSelectedCandidate(key);
+    setCandidateKey(key);
     const candidate = (catalog.data?.items ?? []).find((item) => item.key === key);
     if (candidate) applyCandidate(candidate);
   };
@@ -485,9 +490,6 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
     );
     setOffers(candidateOffers.length > 0 ? candidateOffers : ["FLATRATE"]);
   };
-
-  const sourceLabel = (source: string) =>
-    source === "tmdb" ? "TMDb" : source === "justwatch" ? "JustWatch" : "TVDB";
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -510,48 +512,31 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
       <div className="mb-3">
         <h2 className="text-lg font-semibold text-ink">Nuovo provider</h2>
         <p className="text-sm text-ink-muted">
-          Inserisci il servizio che vuoi monitorare. I mapping sono facoltativi, ma senza
-          almeno un ID TMDb o JustWatch non potrai creare collezioni per questo provider.
-          Gli ID che digiti qui restano manuali: la card li mostrerà come “da verificare”.
+          Un provider è un servizio che vuoi monitorare: Netflix, RaiPlay, un servizio locale.
+          Scegliendolo dal catalogo gli identificativi si compilano da soli; puoi anche
+          scriverli a mano. Servono almeno un identificativo TMDb o JustWatch perché il
+          provider possa avere collezioni.
         </p>
       </div>
       <div className="mb-4 rounded-lg border border-line bg-surface-muted p-3">
         <Field
           id="provider-catalog-search"
-          label="Cerca nei provider disponibili"
-          hint="Le fonti sono separate: TMDb e JustWatch. TheTVDB non espone un elenco streaming: usa il Company ID manuale."
+          label="Cerca o scegli un provider"
+          hint={
+            catalog.isLoading
+              ? "Sto leggendo il catalogo…"
+              : candidates.length === 0
+                ? `Nessun provider a catalogo per questo paese: puoi inserire gli identificativi a mano qui sotto.`
+                : `Scrivi parte del nome o apri il menu (${candidates.length} voci, raggruppate per fonte). Scegliere una voce compila gli identificativi.`
+          }
         >
-          <Input
+          <ProviderCatalogPicker
             id="provider-catalog-search"
             value={catalogQuery}
-            onChange={(event) => setCatalogQuery(event.target.value)}
-            placeholder="Es. Netflix, Disney, Rai…"
+            onChange={setCatalogQuery}
+            groups={groupedCandidates}
+            onSelect={(candidate) => chooseCandidate(candidate.key)}
           />
-        </Field>
-        <Field id="provider-catalog-select" label="Provider disponibili">
-          <Select
-            id="provider-catalog-select"
-            value={selectedCandidate}
-            onChange={(event) => chooseCandidate(event.target.value)}
-            disabled={catalog.isLoading || candidates.length === 0}
-          >
-            <option value="">
-              {catalog.isLoading
-                ? "Caricamento provider…"
-                : candidates.length === 0
-                  ? "Nessun provider trovato"
-                  : `${candidates.length} provider disponibili`}
-            </option>
-            {groupedCandidates.map((group) => (
-              <optgroup key={group.source} label={sourceLabel(group.source)}>
-                {group.items.map((candidate) => (
-                  <option key={candidate.key} value={candidate.key}>
-                    {candidate.name}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </Select>
         </Field>
         {catalog.data ? (
           <p className="mt-2 text-xs text-ink-muted">
@@ -560,12 +545,12 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
                 (source) =>
                   `${sourceLabel(source.source_key)}: ${
                     source.status === "OK"
-                      ? "OK"
+                      ? "catalogo disponibile"
                       : source.status === "MISSING_CREDENTIAL"
-                        ? "credenziale mancante"
+                        ? "serve una credenziale"
                         : source.status === "MANUAL_ONLY"
-                          ? "solo Company ID manuale"
-                          : "errore"
+                          ? "solo inserimento manuale"
+                          : "non disponibile"
                   }`,
               )
               .join(" · ")}
@@ -593,21 +578,18 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
         {catalog.isError ? <ErrorState error={catalog.error} /> : null}
       </div>
       <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
-        <h3 className="text-sm font-semibold text-ink sm:col-span-2">Identità del provider</h3>
+        <h3 className="text-sm font-semibold text-ink sm:col-span-2">
+          Nome e identificativi del provider
+        </h3>
+        <p className="text-xs text-ink-muted sm:col-span-2">
+          Il nome è ciò che leggi nelle schermate; l’identificativo è ciò che compare negli
+          indirizzi e rende il provider unico.
+        </p>
         <Field
-          id="provider-slug"
-          label="Slug"
-          hint="Identificativo univoco per URL e collezioni: minuscole, numeri e trattini."
+          id="provider-name"
+          label="Nome del provider"
+          hint="Come lo vedi in dashboard, collezioni e matrice. Es. Netflix, RaiPlay."
         >
-          <Input
-            id="provider-slug"
-            value={payload.slug}
-            onChange={(event) => setPayload({ ...payload, slug: event.target.value })}
-            placeholder="mio-provider"
-            required
-          />
-        </Field>
-        <Field id="provider-name" label="Nome visualizzato" hint="Come comparirà nella dashboard e nelle collezioni.">
           <Input
             id="provider-name"
             value={payload.name}
@@ -617,11 +599,24 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
           />
         </Field>
         <Field
+          id="provider-slug"
+          label="Identificativo (slug)"
+          hint="Versione corta e unica usata negli indirizzi: minuscole, numeri e trattini. Es. netflix."
+        >
+          <Input
+            id="provider-slug"
+            value={payload.slug}
+            onChange={(event) => setPayload({ ...payload, slug: event.target.value })}
+            placeholder="mio-provider"
+            required
+          />
+        </Field>
+        <Field
           id="provider-kind"
-          label="Modello commerciale"
+          label="Come si paga"
           hint={
-            PROVIDER_KINDS.find((item) => item.value === payload.kind)?.description ??
-            "Classificazione del servizio."
+            (PROVIDER_KINDS.find((item) => item.value === payload.kind)?.description ??
+              "Classificazione del servizio.") + " È solo un’etichetta: non cambia le sync."
           }
         >
           <Select
@@ -641,98 +636,17 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
             ))}
           </Select>
         </Field>
-        <h3 className="text-sm font-semibold text-ink sm:col-span-2">Mapping TMDb</h3>
-        <Field
-          id="provider-tmdb-movie"
-          label="ID TMDb film"
-          hint="ID numerico del provider TMDb per i film. Compilato dal catalogo; facoltativo."
-        >
-          <Input
-            id="provider-tmdb-movie"
-            value={payload.tmdb_movie_id ?? ""}
-            onChange={(event) => setPayload({ ...payload, tmdb_movie_id: event.target.value })}
-          />
-        </Field>
-        <Field
-          id="provider-tmdb-tv"
-          label="ID TMDb serie"
-          hint="ID numerico del provider TMDb per le serie. Può essere assente per alcuni servizi."
-        >
-          <Input
-            id="provider-tmdb-tv"
-            value={payload.tmdb_tv_id ?? ""}
-            onChange={(event) => setPayload({ ...payload, tmdb_tv_id: event.target.value })}
-          />
-        </Field>
-        <h3 className="text-sm font-semibold text-ink sm:col-span-2">Mapping JustWatch</h3>
-        <Field
-          id="provider-justwatch-short"
-          label="Codice breve JustWatch"
-          hint="shortName del package, es. nfx o prv. È l’identificativo usato nelle collezioni."
-        >
-          <Input
-            id="provider-justwatch-short"
-            value={payload.justwatch_short_name ?? ""}
-            onChange={(event) =>
-              setPayload({ ...payload, justwatch_short_name: event.target.value })
-            }
-          />
-        </Field>
-        <Field
-          id="provider-justwatch-technical"
-          label="Nome tecnico JustWatch"
-          hint="technicalName del package, es. netflix. Non è l’ID e serve alla verifica live."
-        >
-          <Input
-            id="provider-justwatch-technical"
-            value={payload.justwatch_technical_name ?? ""}
-            onChange={(event) =>
-              setPayload({ ...payload, justwatch_technical_name: event.target.value })
-            }
-          />
-        </Field>
-        <Field
-          id="provider-justwatch-offers"
-          label="Offerte JustWatch"
-          hint="Seleziona tutte le modalità che il package espone per questo servizio."
-        >
-          <div className="flex flex-wrap gap-2" data-testid="provider-offers">
-            {OFFER_OPTIONS.map((option) => (
-              <ToggleChip
-                key={option.value}
-                pressed={offers.includes(option.value)}
-                title={option.description}
-                testId={`provider-offer-${option.value}`}
-                onClick={() =>
-                  setOffers((current) =>
-                    current.includes(option.value)
-                      ? current.filter((value) => value !== option.value)
-                      : [...current, option.value],
-                  )
-                }
-              >
-                {option.label}
-              </ToggleChip>
-            ))}
-          </div>
-          <details className="mt-2 text-xs text-ink-muted">
-            <summary className="cursor-pointer font-medium text-ink">
-              Cosa significano queste offerte?
-            </summary>
-            <ul className="mt-2 space-y-1">
-              {OFFER_OPTIONS.map((option) => (
-                <li key={option.value}>
-                  <strong className="text-ink">{option.label}</strong>: {option.description}
-                </li>
-              ))}
-            </ul>
-          </details>
-        </Field>
-        <h3 className="text-sm font-semibold text-ink sm:col-span-2">TheTVDB (metadati)</h3>
+        <h3 className="text-sm font-semibold text-ink sm:col-span-2">
+          Identificativo TheTVDB (solo metadati)
+        </h3>
+        <p className="text-xs text-ink-muted sm:col-span-2">
+          TheTVDB non dice dove il servizio è disponibile: aggiunge solo un ID azienda per
+          collegare metadati di film e serie.
+        </p>
         <Field
           id="provider-tvdb-company"
-          label="Company ID TheTVDB"
-          hint="ID numerico della company TVDB. Metadati: non implica disponibilità nel paese selezionato."
+          label="ID azienda su TheTVDB"
+          hint="Numero dell’azienda su TheTVDB. Aggiunge metadati; non implica disponibilità nel paese."
         >
           <Input
             id="provider-tvdb-company"
@@ -741,12 +655,13 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
           />
         </Field>
         <div className="flex items-end gap-2 sm:col-span-2">
-          <Button type="submit" busy={createProvider.isPending}>
+          <Button type="submit" busy={createProvider.isPending} disabled={!candidateKey}>
             Crea provider
           </Button>
           <p className="text-xs text-ink-muted">
-            Gli ID sono configurazione manuale e restano “da verificare”: controllali sulla
-            fonte prima di creare collezioni.
+            {candidateKey
+              ? "Gli identificativi arrivano dal catalogo e restano “da verificare” finché non li controlli sulla fonte."
+              : "Scegli prima un provider dal catalogo: gli identificativi non si possono aggiungere dopo."}
           </p>
         </div>
       </form>
@@ -862,7 +777,7 @@ export default function ProvidersPage() {
         }
       />
 
-      {showCreate ? <CreateProviderCard onClose={() => setShowCreate(false)} /> : null}
+      {showCreate ? <CreateProviderCard country={country} onClose={() => setShowCreate(false)} /> : null}
 
       <Card className="mb-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
