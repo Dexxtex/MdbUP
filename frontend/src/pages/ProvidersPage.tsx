@@ -13,6 +13,7 @@ import type {
   ProviderCreatePayload,
   OfferType,
 } from "../api/types";
+import { CountrySelect } from "../components/ui/country-select";
 import { DataTable, type Column } from "../components/ui/data-table";
 import {
   EmptyState,
@@ -31,6 +32,7 @@ import {
 } from "../components/ui/primitives";
 import { StatusPill } from "../components/ui/status-pill";
 import { Timestamp } from "../components/ui/time";
+import { DEFAULT_COUNTRY } from "../lib/countries";
 import { formatNumber } from "../lib/format";
 import { hasJustWatchMapping } from "../lib/justwatch";
 import {
@@ -583,7 +585,7 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
             <Link className="text-accent underline" to="/app/settings">
               Impostazioni → Credenziali
             </Link>
-            . TVDB fornisce company ID e metadati, non la disponibilità italiana.
+            . TVDB fornisce company ID e metadati, non la disponibilità per paese.
           </p>
         ) : null}
         {catalog.data?.sources.some(
@@ -736,7 +738,7 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
         <Field
           id="provider-tvdb-company"
           label="Company ID TheTVDB"
-          hint="ID numerico della company TVDB. Metadati: non implica disponibilità in Italia."
+          hint="ID numerico della company TVDB. Metadati: non implica disponibilità nel paese selezionato."
         >
           <Input
             id="provider-tvdb-company"
@@ -764,7 +766,7 @@ function CreateProviderCard({ onClose }: { onClose: () => void }) {
 }
 
 export default function ProvidersPage() {
-  const [country, setCountry] = useState("IT");
+  const [country, setCountry] = useState(DEFAULT_COUNTRY);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"cards" | "table">("cards");
   const [showCreate, setShowCreate] = useState(false);
@@ -872,13 +874,12 @@ export default function ProvidersPage() {
 
       <Card className="mb-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
-          <Field id="country" label="Paese" hint="Codice ISO a 2 lettere, es. IT.">
-            <Input
-              id="country"
-              value={country}
-              maxLength={2}
-              onChange={(event) => setCountry(event.target.value.toUpperCase())}
-            />
+          <Field
+            id="country"
+            label="Paese"
+            hint="Cerca per nome o codice ISO 3166-1 (es. Italia o IT)."
+          >
+            <CountrySelect id="country" value={country} onChange={setCountry} />
           </Field>
           <Field id="provider-search" label="Cerca provider">
             <div className="relative">
@@ -925,6 +926,7 @@ export default function ProvidersPage() {
       {providers.isSuccess ? (
         <div className="mb-6">
           <ProviderMatrix
+            country={country}
             providers={providers.data}
             collections={collections.data ?? []}
             bindings={bindings.data ?? []}

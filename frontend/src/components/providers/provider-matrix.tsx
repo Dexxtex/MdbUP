@@ -11,6 +11,7 @@ import {
   type ProviderMatrixSortKey,
   type SortDirection,
 } from "../../lib/provider-matrix";
+import { countryName } from "../../lib/countries";
 import { formatNumber } from "../../lib/format";
 import { EmptyState } from "../ui/feedback";
 import { Button, Card, ToggleChip } from "../ui/primitives";
@@ -215,10 +216,12 @@ export function ProviderMatrix({
   providers,
   collections,
   bindings,
+  country,
 }: {
   providers: readonly Provider[];
   collections: readonly Collection[];
   bindings: readonly Binding[];
+  country: string;
 }) {
   const [filter, setFilter] = useState<ProviderMatrixFilter>("all");
   const [sortKey, setSortKey] = useState<ProviderMatrixSortKey>("name");
@@ -296,7 +299,7 @@ export function ProviderMatrix({
           <div className="mt-4 hidden overflow-x-auto md:block">
             <table className="w-full min-w-[64rem] border-collapse text-left text-sm">
               <caption className="sr-only">
-                Matrice comparativa dei provider italiani
+                Matrice comparativa dei provider — {countryName(country)}
               </caption>
               <thead>
                 <tr className="border-b border-line">
