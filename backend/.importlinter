@@ -1,0 +1,70 @@
+; Confini tra layer del monolite modulare (docs/ARCHITECTURE.md §2).
+;
+; Esegui dalla cartella backend/:   uv run --with import-linter lint-imports --no-cache
+; `--no-cache` non e' pignoleria: la cache non si invalida quando un file viene
+; eliminato, quindi il contratto resta BROKEN anche dopo aver rimosso la
+; violazione (riprodotto 3 volte su 3). Senza cache l'esito e' deterministico.
+; Su Windows, se reindirizzi stdout a /dev/null la spinner di rich va in crash
+; (exit 1 con traceback): e' un artefatto locale, non un contratto rotto.
+; In CI stdout e' catturato su file/pipe e non succede; in locale usa TERM=dumb.
+; Le violazioni note NON sono nascoste: ognuna sta in ignore_imports con il
+; motivo accanto. Togliere una riga da ignore_imports = il contratto torna a
+; controllare quella dipendenza e fallisce finche' il codice non viene sistemato.
+
+[importlinter]
+root_package = app
+; Un ignore che non corrisponde piu' a nulla e' un errore, non un silenzio:
+; impedisce di lasciare eccezioni fantasma dopo un refactor.
+unmatched_ignore_imports_alerting = error
+
+; ---------------------------------------------------------------------------
+; 1. I connettori non conoscono il layer dei servizi.
+;    Direzione documentata: services -> connectors (mai il contrario).
+; ---------------------------------------------------------------------------
+[importlinter:contract:connectors-shallow]
+name = I connettori non importano i servizi
+type = forbidden
+source_modules =
+    app.connectors
+forbidden_modules =
+    app.services
+ignore_imports =
+    ; Eccezione: il registry deve leggere la credenziale cifrata per costruire
+    ; il client TMDb/TVDB. Sistemarla = iniettare il segreto nel factory
+    ; (create_connector(settings, source_key, secret)) e spostare qui la sola
+    ; risoluzione. Il resto del layer e' gia' pulito.
+    app.connectors.registry -> app.services.credentials
+
+; ---------------------------------------------------------------------------
+; 2. I client HTTP non conoscono i connettori.
+;    Direzione documentata: connectors -> integrations (mai il contrario).
+; ---------------------------------------------------------------------------
+[importlinter:contract:integrations-standalone]
+name = Le integrazioni HTTP non importano i connettori
+type = forbidden
+source_modules =
+    app.integrations
+forbidden_modules =
+    app.connectors
+; Nessuna eccezione: HealthStatus vive in app/domain/health.py, quindi i client
+; HTTP non hanno piu' motivo di importare app.connectors.
+
+; ---------------------------------------------------------------------------
+; 3. Dentro jobs/ il grafo e' aciclico: task, scheduler e app Celery possono
+;    collaborare senza richiamarsi a vicenda.
+; ---------------------------------------------------------------------------
+[importlinter:contract:jobs-acyclic]
+name = Nessun ciclo dentro app.jobs
+type = acyclic_siblings
+ancestors =
+    app.jobs
+ignore_imports =
+    ; Eccezione: i task ottengono l'app Celery solo per inviare i messaggi
+    ; (import dentro la funzione _celery_app()), e l'app importa i task per
+    ; registrarli. Sistema: include=["app.jobs.tasks"] in celery_app + nomi
+    ; dei task in un modulo senza dipendenze.
+    app.jobs.tasks -> app.jobs.celery_app
+    ; Eccezione: i task delegano a scheduler.run_once() dentro le funzioni;
+    ; lo scheduler accoda i task allo stesso modo. Sistema: passare il job di
+    ; scheduling all'app Celery invece di richiamarlo dai task.
+    app.jobs.tasks -> app.jobs.scheduler

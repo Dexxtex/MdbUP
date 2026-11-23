@@ -31,7 +31,7 @@ MASK_PREFIX = "\u2022\u2022\u2022\u2022"
 MASKED_VISIBLE_CHARS = 4
 
 
-class EncryptionKeyMissingError(RuntimeError):
+class MissingKeyMaterialError(RuntimeError):
     """Raised when ``APP_ENCRYPTION_KEY`` is not configured."""
 
 
@@ -49,7 +49,7 @@ class EncryptedSecret:
 def load_key(material: str) -> bytes:
     """Decode a base64 encoded 32 byte key."""
     if not material:
-        raise EncryptionKeyMissingError(
+        raise MissingKeyMaterialError(
             "APP_ENCRYPTION_KEY non configurata: le credenziali non possono essere cifrate."
         )
     try:
@@ -172,6 +172,6 @@ def encryption_key_available(settings: Settings) -> bool:
     """True when a usable ``APP_ENCRYPTION_KEY`` is configured."""
     try:
         load_key(settings.app_encryption_key)
-    except (EncryptionKeyMissingError, ValueError):
+    except (MissingKeyMaterialError, ValueError):
         return False
     return True

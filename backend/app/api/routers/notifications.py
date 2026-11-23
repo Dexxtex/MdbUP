@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_dep, require_admin, require_csrf
 from app.api.schemas import notifications as schemas_notifications
+from app.core.config import get_settings
 from app.db.models import AppUser, NotificationChannel
 from app.services import notifications as notifications_service
 
@@ -64,7 +65,7 @@ def create_channel(
 ) -> schemas_notifications.NotificationChannelOut:
     channel = notifications_service.create_channel(
         db,
-        _settings(db),
+        get_settings(),
         name=payload.name,
         kind=payload.kind,
         secret=payload.secret,
@@ -90,7 +91,7 @@ def update_channel(
 ) -> schemas_notifications.NotificationChannelOut:
     channel = notifications_service.update_channel(
         db,
-        _settings(db),
+        get_settings(),
         channel_id,
         name=payload.name,
         secret=payload.secret,
@@ -129,7 +130,7 @@ def test_channel(
     _admin: AppUser = Depends(require_admin),
 ) -> schemas_notifications.NotificationTestOut:
     started = time.monotonic()
-    result = notifications_service.send_test(db, _settings(db), channel_id)
+    result = notifications_service.send_test(db, get_settings(), channel_id)
     return schemas_notifications.NotificationTestOut(
         ok=result.ok,
         status_code=result.status_code,
@@ -140,9 +141,3 @@ def test_channel(
         ),
         latency_ms=int((time.monotonic() - started) * 1000),
     )
-
-
-def _settings(db: Session):  # noqa: ANN001 - local helper keeps imports small
-    from app.core.config import get_settings
-
-    return get_settings()

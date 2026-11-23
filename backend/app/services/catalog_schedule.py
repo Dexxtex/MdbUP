@@ -42,7 +42,7 @@ from app.core.logging import get_logger
 from app.core.time import ensure_utc, utcnow
 from app.db.models import Collection, CollectionSnapshot, JobExecution, Provider, Source
 from app.domain.enums import JobStatus, SnapshotStatus
-from app.jobs.tasks import ACQUIRE_COLLECTION_TASK
+from app.jobs.tasks import ACQUIRE_COLLECTION_TASK, enqueue_acquire_collection
 from app.repositories import settings as settings_repo
 
 logger = get_logger(__name__)
@@ -193,9 +193,7 @@ def enqueue_due_catalog_acquisitions(
 
 
 def _default_enqueue(db: Session, settings: Settings, collection_id: uuid.UUID) -> JobExecution:
-    from app.jobs import tasks
-
-    return tasks.enqueue_acquire_collection(db, settings, collection_id)
+    return enqueue_acquire_collection(db, settings, collection_id)
 
 
 def _catalog_rows(db: Session) -> list[_CatalogRow]:

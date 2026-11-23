@@ -18,10 +18,10 @@ from typing import Any
 
 import httpx
 
-from app.connectors.base import HealthStatus
 from app.core.metrics import record_api_call
 from app.core.retry import backoff_delay
 from app.domain.enums import MediaType
+from app.domain.health import HealthStatus
 from app.integrations.tmdb.models import (
     TMDbDiscoverItem,
     TMDbDiscoverPage,

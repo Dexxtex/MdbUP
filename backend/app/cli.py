@@ -46,7 +46,12 @@ from app.services import justwatch_collections
 from app.services.availability import backfill_from_snapshots
 from app.services.credentials import CredentialKind
 from app.services.provider_verification import verify_tmdb_providers
-from app.services.seed import seed_reference_data, seed_sources
+from app.services.seed import (
+    remove_demo_collections,
+    remove_demo_providers,
+    seed_reference_data,
+    seed_sources,
+)
 from app.services.tv_events import detect_tv_changes
 
 __all__ = [
@@ -491,12 +496,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "seed-providers":
         return seed_reference_data()
     if args.command == "remove-demo-providers":
-        from app.services.seed import remove_demo_providers
-
         return remove_demo_providers(apply=args.apply)
     if args.command == "remove-demo-collections":
-        from app.services.seed import remove_demo_collections
-
         return remove_demo_collections(apply=args.apply, force=args.force)
     if args.command == "detect-tv-changes":
         with session_scope() as db:

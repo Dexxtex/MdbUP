@@ -29,13 +29,16 @@ from app.domain.errors import (
     ServiceUnavailableError,
     SourceUnavailableError,
 )
+from app.integrations.tmdb.client import TMDbClient
 from app.repositories import bindings as bindings_repo
 from app.repositories import collections as collections_repo
 from app.repositories import runs as runs_repo
 from app.repositories import sources as sources_repo
 from app.services import acquisition
+from app.services import credentials as credentials_service
 from app.services import sync as sync_service
 from app.services.collections import is_justwatch_collection
+from app.services.credentials import CredentialKind
 
 logger = get_logger(__name__)
 
@@ -574,9 +577,6 @@ def enqueue_scheduled_catalog_acquisitions(now: str | None = None) -> dict[str, 
 
 def detect_tv_changes(limit: int = 50) -> dict[str, int]:
     """Celery beat task: detect new seasons/episodes without creating media rows."""
-    from app.integrations.tmdb.client import TMDbClient
-    from app.services import credentials as credentials_service
-    from app.services.credentials import CredentialKind
     from app.services.tv_events import detect_tv_changes as detect
 
     settings = get_settings()

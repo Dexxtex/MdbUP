@@ -470,6 +470,7 @@ cd backend
 REDIS_URL="" APP_ENV=test uv run pytest --cov=app --cov-report=term-missing --cov-fail-under=90
 uv run ruff check .
 uv run ruff format --check .
+uv run --with import-linter lint-imports --no-cache   # confini tra layer (.importlinter)
 uv run mypy app
 uv run --with pip-audit pip-audit
 

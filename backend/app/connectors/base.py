@@ -6,6 +6,7 @@ from datetime import date
 from typing import Any, Protocol
 
 from app.domain.enums import CollectionKind, CollectionOrigin, DateBasis, MediaType
+from app.domain.health import HealthStatus
 
 
 class NotSupportedError(RuntimeError):
@@ -30,13 +31,6 @@ class ConnectorCapabilities:
     partial_on_error: bool = False
     max_page_size: int = 100
     notes: str = ""
-
-
-@dataclass(frozen=True)
-class HealthStatus:
-    ok: bool
-    message: str = ""
-    latency_ms: int | None = None
 
 
 @dataclass(frozen=True)

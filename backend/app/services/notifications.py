@@ -30,7 +30,7 @@ from app.core.crypto import (
     build_aad,
     mask_secret,
 )
-from app.core.crypto import EncryptionKeyMissingError as CryptoKeyMissingError
+from app.core.crypto import MissingKeyMaterialError as CryptoKeyMissingError
 from app.core.logging import get_logger
 from app.core.time import ensure_utc, utcnow
 from app.db.models import NotificationChannel, SyncRun

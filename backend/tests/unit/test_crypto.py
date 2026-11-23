@@ -8,7 +8,7 @@ import pytest
 
 from app.core.crypto import (
     DecryptionError,
-    EncryptionKeyMissingError,
+    MissingKeyMaterialError,
     SecretCipher,
     build_aad,
     encryption_key_available,
@@ -84,7 +84,7 @@ def test_load_key_rejects_wrong_length() -> None:
 
 
 def test_load_key_requires_a_value() -> None:
-    with pytest.raises(EncryptionKeyMissingError):
+    with pytest.raises(MissingKeyMaterialError):
         load_key("")
 
 

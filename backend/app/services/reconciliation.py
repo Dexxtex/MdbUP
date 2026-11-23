@@ -18,7 +18,7 @@ from app.domain.enums import SyncOperationAction, SyncOperationStatus
 from app.integrations.mdblist.client import MdbListClient, MdbListError
 from app.integrations.mdblist.models import MdbListListItem
 from app.repositories import runs as runs_repo
-from app.services.planning import MediaKey, reorder_chunks
+from app.services.planning import MediaKey, remote_key, reorder_chunks
 
 DEFAULT_PAGE_SIZE = 100
 DEFAULT_MAX_PAGES = 1000
@@ -85,7 +85,6 @@ def read_all_remote_items(
 
 
 def remote_keys(items: Sequence[MdbListListItem]) -> set[MediaKey]:
-    from app.services.planning import remote_key
 
     keys: set[MediaKey] = set()
     for item in items:

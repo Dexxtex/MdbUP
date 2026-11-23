@@ -24,7 +24,7 @@ from app.core.crypto import (
     mask_secret,
 )
 from app.core.crypto import (
-    EncryptionKeyMissingError as CryptoKeyMissingError,
+    MissingKeyMaterialError as CryptoKeyMissingError,
 )
 from app.core.logging import get_logger
 from app.db.models import Credential
