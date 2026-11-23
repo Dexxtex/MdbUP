@@ -132,19 +132,25 @@ def healthcheck_source(
 
 
 def _summary(db: Session, source: Source, settings: Settings | None = None) -> SourceSummary:
+    credential_configured = _credential_configured(db, source)
+    status, status_message = _effective_status(
+        source,
+        requires_credentials=registry.required_credential_kind(source.key) is not None,
+        credential_configured=credential_configured,
+    )
     return SourceSummary(
         id=source.id,
         key=source.key,
         name=source.name,
         type=source.type,
         base_url=source.base_url,
-        status=source.status,
-        status_message=source.status_message,
+        status=status,
+        status_message=status_message,
         is_official=source.is_official,
         origin_default=source.origin_default,
         requires_contract=source.requires_contract,
         capabilities=dict(source.capabilities or {}),
-        credential_configured=_credential_configured(db, source),
+        credential_configured=credential_configured,
         connector_available=registry.is_registered(source.key),
         justwatch=_justwatch_block(db, source, settings),
         last_healthcheck_at=source.last_healthcheck_at,
@@ -209,3 +215,43 @@ def _credential_configured(db: Session, source: Source) -> bool:
         db, scope=spec.scope.value, source_id=source.id, key=spec.key
     )
     return row is not None
+
+
+def effective_status(db: Session, source: Source) -> tuple[str, str | None]:
+    """Status to display, reconciled with the credential actually stored.
+
+    ``Source.status`` is only rewritten by a healthcheck, so saving TMDb or TVDB
+    credentials leaves the row on ``UNCONFIGURED`` until an operator runs one by
+    hand: every reader of that column (dashboard, alerts, counters) then claims
+    the source is unconfigured while the credentials are in place. Deriving the
+    status from the credential keeps it honest in both directions - a saved
+    secret clears ``UNCONFIGURED`` and a deleted one brings it back - and leaves
+    ``DISABLED``/``ERROR``/``DEGRADED`` from healthchecks untouched.
+    """
+    return _effective_status(
+        source,
+        requires_credentials=registry.required_credential_kind(source.key) is not None,
+        credential_configured=_credential_configured(db, source),
+    )
+
+
+def _effective_status(
+    source: Source,
+    *,
+    requires_credentials: bool,
+    credential_configured: bool,
+) -> tuple[str, str | None]:
+    if source.status == SourceStatus.DISABLED.value:
+        return source.status, source.status_message
+    if not requires_credentials:
+        return source.status, source.status_message
+    if not credential_configured:
+        if source.status == SourceStatus.UNCONFIGURED.value:
+            return source.status, source.status_message
+        return SourceStatus.UNCONFIGURED.value, "Credenziale non configurata."
+    if source.status == SourceStatus.UNCONFIGURED.value:
+        return (
+            SourceStatus.OK.value,
+            "Credenziale configurata: verifica del connettore non ancora eseguita.",
+        )
+    return source.status, source.status_message

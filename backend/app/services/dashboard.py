@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from math import ceil
@@ -30,6 +31,7 @@ from app.repositories import providers as providers_repo
 from app.repositories import snapshots as snapshots_repo
 from app.repositories import sources as sources_repo
 from app.services import credentials as credentials_service
+from app.services import sources as sources_service
 from app.services.credentials import CredentialKind
 
 
@@ -54,6 +56,9 @@ class DashboardSummary:
 
 def get_dashboard(db: Session, settings: Settings) -> DashboardSummary:
     sources = sources_repo.list_sources(db)
+    # ``Source.status`` only moves on a manual healthcheck; reconcile it with the
+    # stored credential before anything reads it (rows, counters and alerts).
+    source_status = {source.id: sources_service.effective_status(db, source) for source in sources}
     collections = collections_repo.list_collections(db)
     latest_snapshots = snapshots_repo.latest_snapshots_for(
         db, [collection.id for collection in collections]
@@ -70,12 +75,16 @@ def get_dashboard(db: Session, settings: Settings) -> DashboardSummary:
         "valid_snapshots": snapshots_repo.count_valid(db),
         "running_snapshots": snapshot_status_counts.get("RUNNING", 0),
         "sources_total": len(sources),
-        "sources_ok": sum(1 for source in sources if source.status == SourceStatus.OK.value),
+        "sources_ok": sum(
+            1 for source in sources if source_status[source.id][0] == SourceStatus.OK.value
+        ),
         "sources_unconfigured": sum(
-            1 for source in sources if source.status == SourceStatus.UNCONFIGURED.value
+            1
+            for source in sources
+            if source_status[source.id][0] == SourceStatus.UNCONFIGURED.value
         ),
         "sources_disabled": sum(
-            1 for source in sources if source.status == SourceStatus.DISABLED.value
+            1 for source in sources if source_status[source.id][0] == SourceStatus.DISABLED.value
         ),
         "jobs_queued": job_counts.get(JobStatus.QUEUED.value, 0),
         "jobs_running": job_counts.get(JobStatus.RUNNING.value, 0),
@@ -93,7 +102,7 @@ def get_dashboard(db: Session, settings: Settings) -> DashboardSummary:
             )
         ),
     }
-    alerts = _alerts(db, settings, sources, collections, latest_snapshots)
+    alerts = _alerts(db, settings, sources, source_status, collections, latest_snapshots)
     return DashboardSummary(
         counters=counters,
         alerts=alerts,
@@ -105,8 +114,8 @@ def get_dashboard(db: Session, settings: Settings) -> DashboardSummary:
                 "id": str(source.id),
                 "key": source.key,
                 "name": source.name,
-                "status": source.status,
-                "status_message": source.status_message,
+                "status": source_status[source.id][0],
+                "status_message": source_status[source.id][1],
                 "last_healthcheck_at": source.last_healthcheck_at,
             }
             for source in sources
@@ -175,12 +184,14 @@ def _alerts(
     db: Session,
     settings: Settings,
     sources: list[Source],
+    source_status: dict[uuid.UUID, tuple[str, str | None]],
     collections: list[Collection],
     latest_snapshots: dict[Any, CollectionSnapshot],
 ) -> list[DashboardAlert]:
     alerts: list[DashboardAlert] = []
     for source in sources:
-        if source.status == SourceStatus.UNCONFIGURED.value:
+        status, status_message = source_status[source.id]
+        if status == SourceStatus.UNCONFIGURED.value:
             alerts.append(
                 DashboardAlert(
                     code="SOURCE_UNCONFIGURED",
@@ -189,14 +200,13 @@ def _alerts(
                     details={"source_key": source.key},
                 )
             )
-        elif source.status == SourceStatus.DISABLED.value:
+        elif status == SourceStatus.DISABLED.value:
             alerts.append(
                 DashboardAlert(
                     code="SOURCE_DISABLED",
                     severity="info",
                     message=(
-                        f"Fonte '{source.name}' disabilitata: "
-                        f"{source.status_message or 'non attiva'}."
+                        f"Fonte '{source.name}' disabilitata: {status_message or 'non attiva'}."
                     ),
                     details={"source_key": source.key},
                 )
