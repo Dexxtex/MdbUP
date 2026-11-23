@@ -7,7 +7,7 @@ import {
   mockAuthenticatedSession,
 } from "./support/fixtures";
 
-test("la pagina Cambi Catalogo IT filtra il feed e mostra i contatori", async ({ page }) => {
+test("la pagina Cambi Catalogo filtra il feed e mostra i contatori", async ({ page }) => {
   const api = new ApiMock(page);
   mockAuthenticatedSession(api);
   api.json("GET", "/api/providers", { items: [PROVIDER_NETFLIX], total: 1 });

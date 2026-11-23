@@ -19,6 +19,7 @@ import type {
   MediaType,
   OfferType,
 } from "../api/types";
+import { useCountry } from "../app/country-context";
 import { CollectionSourceBadge } from "../components/ui/badges";
 import { SnapshotStatusPill } from "../components/ui/status-pill";
 import { collectionProviderName } from "../lib/collections";
@@ -178,7 +179,10 @@ export default function CollectionEditPage() {
   const initialMedia: MediaType =
     searchParams.get("media_type") === "SHOW" ? "SHOW" : "MOVIE";
   const collection = useCollection(collectionId);
-  const providers = useProviders("IT");
+  const { country } = useCountry();
+  // Modificando una collezione esistente conta il SUO paese: il contesto
+  // globale serve solo quando si crea una collezione nuova.
+  const providers = useProviders(collection.data?.country_code ?? country);
   const settings = useSettings();
   const create = useCreateCollection();
   const update = useUpdateCollection(collectionId ?? "");

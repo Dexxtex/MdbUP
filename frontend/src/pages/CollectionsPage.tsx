@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useCountry } from "../app/country-context";
+import { countryName } from "../lib/countries";
 import { useCollections, useProviders } from "../hooks/queries";
 import { useDeleteCollection } from "../hooks/mutations";
 import type { Collection } from "../api/types";
@@ -175,22 +177,68 @@ function collectionColumns(
   ];
 }
 
+const FILTER_KEYS = ["provider", "media", "origin", "kind", "active"] as const;
+
 export default function CollectionsPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [providerId, setProviderId] = useState(() => searchParams.get("provider") ?? "");
-  const [mediaType, setMediaType] = useState("");
-  const [origin, setOrigin] = useState("");
-  const [kind, setKind] = useState("");
-  const [isActive, setIsActive] = useState("");
+  const [mediaType, setMediaType] = useState(() => searchParams.get("media") ?? "");
+  const [origin, setOrigin] = useState(() => searchParams.get("origin") ?? "");
+  const [kind, setKind] = useState(() => searchParams.get("kind") ?? "");
+  const [isActive, setIsActive] = useState(() => searchParams.get("active") ?? "");
   const navigate = useNavigate();
 
-  const providers = useProviders("IT");
+  const { country } = useCountry();
+  const providers = useProviders(country);
   const collections = useCollections({ providerId, mediaType, origin, kind, isActive });
   const deleteCollection = useDeleteCollection();
 
   const activeFilterCount = [providerId, mediaType, origin, kind, isActive].filter(
     Boolean,
   ).length;
+
+  // I filtri vivono anche nell'URL: così il link "Apri elenco" del provider,
+  // un refresh o un link condiviso mostrano la stessa vista.
+  const filtersQuery = useMemo(() => {
+    const next = new URLSearchParams();
+    if (providerId) next.set("provider", providerId);
+    if (mediaType) next.set("media", mediaType);
+    if (origin) next.set("origin", origin);
+    if (kind) next.set("kind", kind);
+    if (isActive) next.set("active", isActive);
+    return next.toString();
+  }, [providerId, mediaType, origin, kind, isActive]);
+
+  const resetFilters = () => {
+    setProviderId("");
+    setMediaType("");
+    setOrigin("");
+    setKind("");
+    setIsActive("");
+  };
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    for (const key of FILTER_KEYS) {
+      next.delete(key);
+    }
+    for (const [key, value] of new URLSearchParams(filtersQuery)) {
+      next.set(key, value);
+    }
+    const nextQuery = next.toString();
+    if (nextQuery === searchParams.toString()) return;
+    setSearchParams(next, { replace: true });
+  }, [filtersQuery, searchParams, setSearchParams]);
+
+  const currentProvider = (providers.data ?? []).find((item) => item.id === providerId);
+
+  // Un link che porta un provider di un altro paese: il filtro non avrebbe
+  // un'opzione visibile, quindi si azzera appena la lista è disponibile.
+  useEffect(() => {
+    if (providerId && providers.isSuccess && currentProvider === undefined) {
+      setProviderId("");
+    }
+  }, [providerId, providers.isSuccess, currentProvider]);
 
   const handleDelete = (collection: Collection) => {
     const confirmed = window.confirm(
@@ -211,9 +259,26 @@ export default function CollectionsPage() {
         }
       />
 
+      {currentProvider ? (
+        <div
+          data-testid="collections-context"
+          className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-surface-muted px-3 py-2 text-sm"
+        >
+          <span className="text-ink">
+            Collezioni di <strong>{currentProvider.name}</strong>
+            {activeFilterCount > 1 ? (
+              <span className="text-ink-muted"> · altri filtri attivi</span>
+            ) : null}
+          </span>
+          <Button variant="ghost" size="sm" onClick={resetFilters}>
+            Tutte le collezioni
+          </Button>
+        </div>
+      ) : null}
+
       <Card className="mb-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <Field id="filter-provider" label="Provider">
+          <Field id="filter-provider" label={`Provider — ${countryName(country)}`}>
             <Select
               id="filter-provider"
               value={providerId}
@@ -292,13 +357,7 @@ export default function CollectionsPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {
-                setProviderId("");
-                setMediaType("");
-                setOrigin("");
-                setKind("");
-                setIsActive("");
-              }}
+              onClick={resetFilters}
             >
               Azzera filtri
             </Button>

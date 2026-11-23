@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { useCountry } from "../app/country-context";
+import { countryName } from "../lib/countries";
 import { useProviders, useRuns } from "../hooks/queries";
 import type { Run, RunStatus } from "../api/types";
 import { DataTable, type Column } from "../components/ui/data-table";
@@ -85,7 +87,8 @@ export default function RunsPage() {
   useEffect(() => {
     setStatus(statusParam);
   }, [statusParam]);
-  const providers = useProviders("IT");
+  const { country } = useCountry();
+  const providers = useProviders(country);
   const runs = useRuns({ providerId, status, mediaType });
 
   return (
@@ -98,7 +101,7 @@ export default function RunsPage() {
 
       <Card className="mb-6">
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field id="run-provider" label="Provider">
+          <Field id="run-provider" label={`Provider — ${countryName(country)}`}>
             <Select
               id="run-provider"
               value={providerId}

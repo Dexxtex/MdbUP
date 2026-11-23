@@ -32,11 +32,12 @@ import {
 } from "../components/ui/primitives";
 import { StatusPill } from "../components/ui/status-pill";
 import { Timestamp } from "../components/ui/time";
-import { DEFAULT_COUNTRY } from "../lib/countries";
 import { formatNumber } from "../lib/format";
 import { hasJustWatchMapping } from "../lib/justwatch";
 import { IconBuilding, IconGrid, IconLayers, IconTrash } from "../components/ui/icons";
 import { ProviderMatrix } from "../components/providers/provider-matrix";
+import { useCountry } from "../app/country-context";
+import { withCountry } from "../lib/country-url";
 import { ProviderCatalogPicker } from "../components/providers/provider-catalog-picker";
 import { TvdbCompanySelect } from "../components/providers/tvdb-company-select";
 import { ProviderSuggest } from "../components/providers/provider-suggest";
@@ -221,6 +222,7 @@ function ProviderCard({
   deleting: boolean;
   deletingCollectionId: string | null;
 }) {
+  const { country } = useCountry();
   const linkedCollections = Math.max(
     provider.collections_count,
     collections.length,
@@ -306,7 +308,7 @@ function ProviderCard({
               Collezioni locali ({formatNumber(collections.length)})
             </p>
             <Link
-              to={`/app/collections?provider=${provider.id}`}
+              to={withCountry(`/app/collections?provider=${provider.id}`, country)}
               className="inline-flex items-center gap-1 text-xs font-medium text-accent underline"
             >
               <IconLayers />
@@ -707,7 +709,7 @@ function CreateProviderCard({ country, onClose }: { country: string; onClose: ()
 }
 
 export default function ProvidersPage() {
-  const [country, setCountry] = useState(DEFAULT_COUNTRY);
+  const { country, setCountry } = useCountry();
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"cards" | "table">("cards");
   const [showCreate, setShowCreate] = useState(false);

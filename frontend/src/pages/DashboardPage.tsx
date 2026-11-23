@@ -370,7 +370,7 @@ export default function DashboardPage() {
                 to="/app/catalog-changes"
                 className="text-sm font-medium text-accent underline"
               >
-                Apri Cambi Catalogo IT
+                Apri Cambi Catalogo
               </Link>
             </div>
 

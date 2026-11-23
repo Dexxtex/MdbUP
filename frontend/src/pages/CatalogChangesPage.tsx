@@ -1,5 +1,7 @@
 import { useDeferredValue, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useCountry } from "../app/country-context";
+import { countryName } from "../lib/countries";
 import { useCatalogChanges, useProviders } from "../hooks/queries";
 import type {
   CatalogChangeDirection,
@@ -129,7 +131,8 @@ export default function CatalogChangesPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const deferredSearch = useDeferredValue(search);
-  const providers = useProviders("IT");
+  const { country } = useCountry();
+  const providers = useProviders(country);
   const changes = useCatalogChanges({
     window,
     providerId,
@@ -156,8 +159,8 @@ export default function CatalogChangesPage() {
     <>
       <PageHeader
         eyebrow="Cambi catalogo"
-        title="Cambi Catalogo IT"
-        description="Entrate e uscite rilevate confrontando gli snapshot consecutivi delle collezioni italiane."
+        title="Cambi Catalogo"
+        description={`Entrate e uscite rilevate confrontando gli snapshot consecutivi. I provider proposti sono quelli di ${countryName(country)}.`}
         testId="catalog-changes-header"
         actions={
           <Button
@@ -222,7 +225,7 @@ export default function CatalogChangesPage() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Field id="catalog-provider" label="Provider">
+              <Field id="catalog-provider" label={`Provider — ${countryName(country)}`}>
                 <Select
                   id="catalog-provider"
                   value={providerId}

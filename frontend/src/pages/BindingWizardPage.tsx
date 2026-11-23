@@ -8,6 +8,7 @@ import {
   useCreatePreview,
   useCreateTarget,
 } from "../hooks/mutations";
+import { useCountry } from "../app/country-context";
 import { queryKeys } from "../api/query-keys";
 import {
   useCollection,
@@ -75,7 +76,12 @@ export default function BindingWizardPage() {
   const queryClient = useQueryClient();
 
   const step = clampStep(Number(searchParams.get("step") ?? "1"));
-  const initialDraft = useMemo(() => loadBindingDraft() ?? DEFAULT_BINDING_DRAFT, []);
+  const { country } = useCountry();
+  // Una bozza nuova parte dal paese del contesto; una bozza salvata mantiene il suo.
+  const initialDraft = useMemo(
+    () => loadBindingDraft() ?? { ...DEFAULT_BINDING_DRAFT, country },
+    [country],
+  );
 
   const {
     register,
@@ -97,7 +103,7 @@ export default function BindingWizardPage() {
   const [stepMessage, setStepMessage] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<unknown>(null);
 
-  const providers = useProviders(values.country || "IT");
+  const providers = useProviders(values.country || country);
   const sources = useSources();
   const collections = useCollections({
     providerId: values.providerId,

@@ -28,7 +28,9 @@ import {
   IconShield,
   IconX,
 } from "../components/ui/icons";
+import { useCountry } from "./country-context";
 import { cn } from "../lib/cn";
+import { withCountry } from "../lib/country-url";
 
 const SIDEBAR_STORAGE_KEY = "mdbup-sidebar-collapsed";
 
@@ -44,7 +46,7 @@ const navigation: NavItem[] = [
   { to: "/app", label: "Dashboard", end: true, icon: IconGrid, testId: "nav-dashboard" },
   {
     to: "/app/catalog-changes",
-    label: "Cambi Catalogo IT",
+    label: "Cambi Catalogo",
     end: false,
     icon: IconRefresh,
     testId: "nav-catalog-changes",
@@ -113,6 +115,7 @@ function NavItems({
   onNavigate?: () => void;
   firstLinkRef?: RefObject<HTMLAnchorElement>;
 }) {
+  const { country } = useCountry();
   return (
     <ul className="space-y-1">
       {navigation.map((item, index) => {
@@ -120,7 +123,7 @@ function NavItems({
         return (
           <li key={item.to}>
             <NavLink
-              to={item.to}
+              to={withCountry(item.to, country)}
               end={item.end}
               onClick={onNavigate}
               ref={index === 0 ? firstLinkRef : undefined}
