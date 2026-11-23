@@ -2,25 +2,25 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
-import { apiFetch } from "../api/client";
+import { apiFetch } from "../../api/client";
 import {
   useCreateNotificationChannel,
   useDeleteNotificationChannel,
   useTestNotificationChannel,
   useUpdateNotificationChannel,
-} from "../hooks/mutations";
-import { useNotificationChannels, useSystemStatus } from "../hooks/queries";
+} from "../../hooks/mutations";
+import { useNotificationChannels, useSystemStatus } from "../../hooks/queries";
 import type {
   NotificationChannel,
   NotificationKind,
   NotificationTestOut,
-} from "../api/types";
+} from "../../api/types";
 import {
   EmptyState,
   ErrorState,
   InlineNotice,
   TableSkeleton,
-} from "../components/ui/feedback";
+} from "../../components/ui/feedback";
 import {
   Button,
   Card,
@@ -28,13 +28,13 @@ import {
   Field,
   Input,
   Select,
-} from "../components/ui/primitives";
-import { StatusPill } from "../components/ui/status-pill";
-import { Timestamp } from "../components/ui/time";
-import { useToast } from "../components/ui/toast";
-import { formatBytes } from "../lib/format";
-import { changePasswordSchema, type ChangePasswordValues } from "../lib/validation";
-import { IconBell, IconDatabase, IconDownload, IconServer, IconUpload } from "../components/ui/icons";
+} from "../../components/ui/primitives";
+import { StatusPill } from "../../components/ui/status-pill";
+import { Timestamp } from "../../components/ui/time";
+import { useToast } from "../../components/ui/toast";
+import { formatBytes } from "../../lib/format";
+import { changePasswordSchema, type ChangePasswordValues } from "../../lib/validation";
+import { IconBell, IconDatabase, IconDownload, IconServer, IconUpload } from "../../components/ui/icons";
 
 const NOTIFICATION_EVENTS: { value: string; label: string }[] = [
   { value: "RUN_PENDING_APPROVAL", label: "Run in attesa di approvazione" },

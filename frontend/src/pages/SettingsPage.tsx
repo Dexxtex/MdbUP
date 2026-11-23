@@ -44,7 +44,7 @@ import {
   ConfigPortabilitySection,
   NotificationsSection,
   SystemStatusCard,
-} from "./SettingsSections";
+} from "../components/settings/settings-sections";
 import {
   credentialSchema,
   settingsSchema,
