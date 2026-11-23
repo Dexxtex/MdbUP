@@ -8,8 +8,8 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api import schemas_catalog_changes
 from app.api.deps import get_current_user, get_db_dep
+from app.api.schemas import catalog_changes as schemas_catalog_changes
 from app.db.models import AppUser
 from app.services import catalog_changes as catalog_changes_service
 

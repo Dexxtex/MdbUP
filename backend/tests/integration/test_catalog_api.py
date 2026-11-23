@@ -103,7 +103,7 @@ def test_dashboard_reports_alerts(client, admin, seeded) -> None:
     assert body["counters"]["collections"] == 23
     assert body["counters"]["providers"] == 12
     # Only the contract-gated JustWatch Partner API stays disabled: the public
-    # endpoint source is active (docs/phases/phase-08.md).
+    # endpoint source is active (phase-8 spec).
     assert body["counters"]["sources_disabled"] == 1
     codes = {alert["code"] for alert in body["alerts"]}
     assert "CREDENTIAL_MISSING" in codes
@@ -112,7 +112,7 @@ def test_dashboard_reports_alerts(client, admin, seeded) -> None:
 
 
 def test_seed_is_idempotent(client, admin, seeded) -> None:
-    from app.seed import seed_reference_data
+    from app.services.seed import seed_reference_data
 
     assert seed_reference_data(include_collections=True) == 0
     assert client.get("/api/providers").json()["total"] == 12

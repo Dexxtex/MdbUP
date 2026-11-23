@@ -7,7 +7,7 @@ import uuid
 from app.core.time import utcnow
 from app.db.models import SyncRun
 from app.db.session import get_session_factory
-from app.seed import seed_sources
+from app.services.seed import seed_sources
 from tests.integration.factories import (
     assert_episode_events_detached,
     assert_local_history_deleted,

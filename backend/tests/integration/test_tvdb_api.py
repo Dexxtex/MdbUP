@@ -5,8 +5,8 @@ from __future__ import annotations
 import httpx
 import respx
 
-from app.seed import seed_sources
 from app.services.credentials import CredentialKind, set_secret
+from app.services.seed import seed_sources
 
 TVDB = "https://api4.thetvdb.com/v4"
 

@@ -7,7 +7,6 @@ import uuid
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
-from app.api import schemas_catalog
 from app.api.deps import (
     get_current_user,
     get_db_dep,
@@ -15,6 +14,7 @@ from app.api.deps import (
     get_settings_dep,
     require_csrf,
 )
+from app.api.schemas import catalog as schemas_catalog
 from app.core.config import Settings
 from app.db.models import AppUser
 from app.services import sources as sources_service

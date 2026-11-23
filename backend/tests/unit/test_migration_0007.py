@@ -56,7 +56,7 @@ def test_revision_id_and_chain() -> None:
     assert module.revision == "0007_remove_seed_collections"
     assert len(module.revision) <= 32
     assert module.down_revision == "0006_snapshot_dedup"
-    from app.seed import _demo_collection_slugs
+    from app.services.seed import _demo_collection_slugs
 
     assert set(module.SEED_COLLECTION_SLUGS) == _demo_collection_slugs()
 

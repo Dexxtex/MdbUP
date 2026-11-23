@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.errors import ConflictError
-from app.api.schemas_sync import BindingCreateIn, BindingUpdateIn
+from app.api.schemas.sync import BindingCreateIn, BindingUpdateIn
 from app.core.time import utcnow
 from app.db.models import CollectionSnapshot, SyncBinding, SyncRun
 from app.db.session import get_session_factory

@@ -260,7 +260,7 @@ def test_read_password_and_parser(monkeypatch) -> None:
 
 
 def test_remove_demo_collections_dry_run_then_apply(db, seeded, capsys) -> None:
-    from app.seed import remove_demo_collections
+    from app.services.seed import remove_demo_collections
 
     assert remove_demo_collections() == 0
     assert "senza binding: 23" in capsys.readouterr().out
@@ -273,7 +273,7 @@ def test_remove_demo_collections_dry_run_then_apply(db, seeded, capsys) -> None:
 
 
 def test_remove_demo_collections_keeps_cli_created_collection(db, seeded, capsys) -> None:
-    from app.seed import remove_demo_collections
+    from app.services.seed import remove_demo_collections
 
     assert (
         cli.create_collection(
@@ -292,7 +292,7 @@ def test_remove_demo_collections_keeps_cli_created_collection(db, seeded, capsys
 
 
 def test_remove_demo_providers_after_collections(db, seeded, capsys) -> None:
-    from app.seed import remove_demo_collections, remove_demo_providers
+    from app.services.seed import remove_demo_collections, remove_demo_providers
 
     assert remove_demo_collections(apply=True) == 0
     assert remove_demo_providers(apply=True) == 0

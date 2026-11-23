@@ -1,6 +1,6 @@
 """Synchronous MDBList API client (API key in the ``apikey`` query parameter).
 
-Only endpoints verified in ``docs/phases/phase-01.md`` are used. Reads may
+Only endpoints verified in the phase-1 project spec are used. Reads may
 retry once on a short ``429``; writes never retry blindly because a timeout or a
 5xx after the request was sent leaves the remote outcome unknown. The caller
 records ``UNCERTAIN`` and reconciles by reading the list.

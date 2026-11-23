@@ -8,8 +8,8 @@ import uuid
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
-from app.api import schemas_notifications
 from app.api.deps import get_db_dep, require_admin, require_csrf
+from app.api.schemas import notifications as schemas_notifications
 from app.db.models import AppUser, NotificationChannel
 from app.services import notifications as notifications_service
 

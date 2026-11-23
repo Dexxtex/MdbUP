@@ -7,8 +7,8 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api import schemas_catalog
 from app.api.deps import get_current_user, get_db_dep
+from app.api.schemas import catalog as schemas_catalog
 from app.db.models import AppUser
 from app.services import snapshots as snapshots_service
 

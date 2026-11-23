@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.api.schemas_catalog import CollectionOut
+from app.api.schemas.catalog import CollectionOut
 from app.domain.commands import (
     ApproveRunIn,
     BindingCreateIn,

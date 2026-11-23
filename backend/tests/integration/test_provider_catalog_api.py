@@ -5,8 +5,8 @@ from __future__ import annotations
 import httpx
 import respx
 
-from app.seed import seed_sources
 from app.services.credentials import CredentialKind, set_secret
+from app.services.seed import seed_sources
 
 TMDB = "https://api.themoviedb.org/3"
 JUSTWATCH = "https://apis.justwatch.com/graphql"

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from sqlalchemy.orm import Session
 
-from app.api.schemas_catalog import CollectionCreateIn
+from app.api.schemas.catalog import CollectionCreateIn
 from app.db.models import CollectionSnapshot, SnapshotItem
 from app.db.session import get_session_factory
 from app.repositories import collections as collections_repo

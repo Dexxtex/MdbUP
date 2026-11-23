@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.seed import seed_sources
+from app.services.seed import seed_sources
 from tests.integration.factories import (
     assert_local_history_deleted,
     assert_no_episode_events,
@@ -117,7 +117,7 @@ def test_create_provider_validates_slug_and_duplicates(client, admin) -> None:
 
 
 def test_seed_providers_does_not_create_demo_collections(client, admin) -> None:
-    from app.seed import seed_reference_data
+    from app.services.seed import seed_reference_data
 
     assert seed_reference_data() == 0
     assert client.get("/api/providers").json()["total"] == 12

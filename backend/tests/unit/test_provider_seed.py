@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.domain.enums import SourceStatus
-from app.seed import PROVIDER_SEED, SOURCE_SEED, TMDB_PROVIDER_SEED
+from app.services.seed import PROVIDER_SEED, SOURCE_SEED, TMDB_PROVIDER_SEED
 
 # Providers requested for the Phase 7 expansion; they must already be seeded
 # with verified TMDb ids (no invented identifiers).

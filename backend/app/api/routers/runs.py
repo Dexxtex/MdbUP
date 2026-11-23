@@ -7,13 +7,13 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api import schemas_sync
 from app.api.deps import (
     get_current_user,
     get_db_dep,
     get_settings_dep,
     require_csrf,
 )
+from app.api.schemas import sync as schemas_sync
 from app.core.config import Settings
 from app.db.models import AppUser
 from app.domain.enums import (
