@@ -576,6 +576,20 @@ export interface ProviderCreatePayload {
 
 export type ProviderSourceKey = "tmdb" | "justwatch" | "tvdb";
 
+/** Company TheTVDB: solo metadati, nessuna disponibilità per paese. */
+export interface TVDbCompany {
+  company_id: string;
+  name: string;
+  company_type: string | null;
+  slug: string | null;
+  country: string | null;
+}
+
+export interface TVDbCompanyList {
+  items: TVDbCompany[];
+  total: number;
+}
+
 export interface ProviderCandidate {
   key: string;
   name: string;

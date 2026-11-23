@@ -20,9 +20,24 @@ const CANDIDATES = {
       justwatch_provider_id: null,
     },
     {
-      key: "justwatch:dnp",
+      key: "tmdb:337",
       name: "Disney+",
       suggested_slug: "disney-plus",
+      sources: ["tmdb"],
+      source_key: "tmdb",
+      tmdb_movie_id: "337",
+      tmdb_tv_id: null,
+      justwatch_short_name: null,
+      justwatch_technical_name: null,
+      justwatch_monetization_types: ["FLATRATE"],
+      tvdb_company_id: null,
+      logo_url: null,
+      justwatch_provider_id: null,
+    },
+    {
+      key: "justwatch:dnp",
+      name: "Disney+ (pacchetto)",
+      suggested_slug: "disney-plus-jw",
       sources: ["justwatch"],
       source_key: "justwatch",
       tmdb_movie_id: null,
@@ -49,6 +64,15 @@ test("ricerca e menù a tendina del catalogo sono un unico controllo", async ({ 
   mockAppShell(api);
   api.on("GET", "/api/providers/catalog", () => ({ body: CANDIDATES }));
   api.on("GET", "/api/providers", () => ({ body: { items: [], total: 0 } }));
+  api.on("GET", "/api/sources/tvdb/companies", () => ({
+    body: {
+      items: [
+        { company_id: "2120", name: "Netflix", company_type: "Production", slug: "netflix", country: "us" },
+        { company_id: "3543", name: "Netflix Studios", company_type: "Production", slug: "netflix-studios", country: "us" },
+      ],
+      total: 2,
+    },
+  }));
   api.on("GET", "/api/collections", () => ({ body: { items: [], total: 0 } }));
   await api.install();
 
@@ -70,10 +94,15 @@ test("ricerca e menù a tendina del catalogo sono un unico controllo", async ({ 
   await expect(listbox).toBeVisible();
   await expect(listbox.getByRole("group", { name: "TMDb" })).toBeVisible();
   await expect(listbox.getByRole("group", { name: "JustWatch" })).toBeVisible();
+  // fonte > categoria (tipo di catalogo coperto)
+  await expect(listbox.getByRole("group", { name: "Film e serie" })).toBeVisible();
+  await expect(listbox.getByRole("group", { name: "Solo film" })).toBeVisible();
+  await expect(listbox.getByRole("group", { name: "Pacchetti della fonte" })).toBeVisible();
 
   await picker.fill("disney");
-  await expect(listbox.getByRole("option")).toHaveCount(1);
-  await listbox.getByRole("option", { name: "Disney+" }).click();
+  await expect(listbox.getByRole("option")).toHaveCount(2);
+  // il candidato scelto arriva da TMDb: "Solo film" perché manca l'ID serie
+  await listbox.getByRole("group", { name: "Solo film" }).getByRole("option").first().click();
 
   // la scelta compila l'identità del provider
   await expect(page.getByLabel("Identificativo (slug)")).toHaveValue("disney-plus");
@@ -91,4 +120,45 @@ test("ricerca e menù a tendina del catalogo sono un unico controllo", async ({ 
         .map((call) => call.search),
     )
     .toContain("?country=DE");
+});
+
+test("l'ID azienda TVDB si sceglie da un menù con ricerca", async ({ page }) => {
+  const api = new ApiMock(page);
+  mockAuthenticatedSession(api);
+  mockAppShell(api);
+  api.on("GET", "/api/providers/catalog", () => ({ body: CANDIDATES }));
+  api.on("GET", "/api/providers", () => ({ body: { items: [], total: 0 } }));
+  api.on("GET", "/api/collections", () => ({ body: { items: [], total: 0 } }));
+  let search = "";
+  api.on("GET", "/api/sources/tvdb/companies", (call) => {
+    search = call.search;
+    return {
+      body: {
+        items: [
+          { company_id: "2120", name: "Netflix", company_type: "Production", slug: "netflix", country: "us" },
+          { company_id: "3543", name: "Netflix Studios", company_type: "Production", slug: "netflix-studios", country: "us" },
+        ],
+        total: 2,
+      },
+    };
+  });
+  await api.install();
+
+  await page.goto("/app/providers");
+  await page.getByRole("button", { name: "Aggiungi provider" }).click();
+
+  const field = page.getByLabel("ID azienda su TheTVDB");
+  await expect(field).toHaveValue("");
+  await field.click();
+  await field.fill("netflix");
+
+  // la ricerca è server-side: la query arriva all'endpoint TVDB
+  await expect.poll(() => search).toBe("?q=netflix");
+  const listbox = page.getByRole("listbox", { name: "Company TheTVDB" });
+  await expect(listbox.getByRole("option")).toHaveCount(2);
+  await listbox.getByRole("option", { name: /Netflix Studios/ }).click();
+
+  await expect(field).toHaveValue("3543");
+  await expect(page.getByText("Selezionato: Netflix Studios")).toBeVisible();
+  await expect(listbox).toHaveCount(0);
 });

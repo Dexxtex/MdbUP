@@ -34,6 +34,7 @@ import type {
   SystemStatus,
   Target,
   TargetList,
+  TVDbCompanyList,
 } from "../api/types";
 
 const ACTIVE_RUN_STATUSES: ReadonlySet<RunStatus> = new Set<RunStatus>([
@@ -91,6 +92,25 @@ export function useProviders(country: string) {
       );
       return pageItems<Provider>(payload);
     },
+  });
+}
+
+/**
+ * Ricerca company su TheTVDB (almeno 2 caratteri, come l'API): serve al campo
+ * "ID azienda" del form provider. Nessuna disponibilità per paese.
+ */
+export function useTvdbCompanies(query: string) {
+  const needle = query.trim();
+  return useQuery({
+    queryKey: queryKeys.tvdbCompanies(needle),
+    queryFn: ({ signal }) =>
+      apiFetch<TVDbCompanyList>(
+        `/sources/tvdb/companies?q=${encodeURIComponent(needle)}`,
+        { signal },
+      ),
+    enabled: needle.length >= 2,
+    staleTime: 60_000,
+    retry: false,
   });
 }
 

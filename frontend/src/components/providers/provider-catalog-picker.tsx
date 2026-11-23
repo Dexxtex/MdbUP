@@ -8,10 +8,18 @@ export interface CatalogOption {
   name: string;
 }
 
+/** Categoria dentro una fonte: es. "Film e serie", "Solo film". */
+export interface CatalogCategory<T extends CatalogOption> {
+  key: string;
+  label: string;
+  items: readonly T[];
+}
+
+/** Fonte con le sue categorie: fonte > categoria > voci. */
 export interface CatalogGroup<T extends CatalogOption> {
   source: string;
   label: string;
-  items: readonly T[];
+  categories: readonly CatalogCategory<T>[];
 }
 
 export interface ProviderCatalogPickerProps<T extends CatalogOption> {
@@ -25,7 +33,8 @@ export interface ProviderCatalogPickerProps<T extends CatalogOption> {
 
 /**
  * Ricerca e scelta del provider da catalogo in un unico controllo: si scrive
- * per filtrare, si apre il menu e si sceglie la voce (raggruppata per fonte).
+ * per filtrare, si apre il menu e si sceglie la voce, organizzata per
+ * fonte > categoria (es. TMDb > "Solo film").
  *
  * Se non c'è nessun candidato il menu non viene renderizzato: nessuna listbox
  * vuota e nessun messaggio; lo stato delle fonti resta nelle righe sotto.
@@ -43,7 +52,10 @@ export function ProviderCatalogPicker<T extends CatalogOption>({
   const [active, setActive] = useState(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
-  const flat = useMemo(() => groups.flatMap((group) => group.items), [groups]);
+  const flat = useMemo(
+    () => groups.flatMap((group) => group.categories.flatMap((category) => category.items)),
+    [groups],
+  );
 
   useEffect(() => {
     setActive(0);
@@ -115,30 +127,37 @@ export function ProviderCatalogPicker<T extends CatalogOption>({
               <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-ink-faint">
                 {group.label}
               </p>
-              <ul role="none">
-                {group.items.map((item) => {
-                  const index = flat.indexOf(item);
-                  return (
-                    <li
-                      key={item.key}
-                      id={`${id}-option-${item.key}`}
-                      role="option"
-                      aria-selected={index === active}
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        choose(item);
-                      }}
-                      onMouseEnter={() => setActive(index)}
-                      className={cn(
-                        "cursor-pointer px-3 py-2 text-sm",
-                        index === active ? "bg-surface-muted text-ink" : "text-ink",
-                      )}
-                    >
-                      {item.name}
-                    </li>
-                  );
-                })}
-              </ul>
+              {group.categories.map((category) => (
+                <div key={category.key} role="group" aria-label={category.label}>
+                  <p className="px-4 py-1 text-xs font-medium text-ink-muted">
+                    {category.label}
+                  </p>
+                  <ul role="none">
+                    {category.items.map((item) => {
+                      const index = flat.indexOf(item);
+                      return (
+                        <li
+                          key={item.key}
+                          id={`${id}-option-${item.key}`}
+                          role="option"
+                          aria-selected={index === active}
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            choose(item);
+                          }}
+                          onMouseEnter={() => setActive(index)}
+                          className={cn(
+                            "cursor-pointer px-5 py-2 text-sm",
+                            index === active ? "bg-surface-muted text-ink" : "text-ink",
+                          )}
+                        >
+                          {item.name}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
             </li>
           ))}
         </ul>

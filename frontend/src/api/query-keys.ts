@@ -31,6 +31,7 @@ export const queryKeys = {
   providers: (country: string) => ["providers", country] as const,
   providerCatalog: (country: string) => ["providers", "catalog", country] as const,
   sources: ["sources"] as const,
+  tvdbCompanies: (query: string) => ["sources", "tvdb", "companies", query] as const,
   collections: (filters: CollectionFilters) => ["collections", filters] as const,
   collection: (id: string) => ["collection", id] as const,
   collectionSnapshots: (id: string) => ["collection", id, "snapshots"] as const,

@@ -38,6 +38,7 @@ import { hasJustWatchMapping } from "../lib/justwatch";
 import { IconBuilding, IconGrid, IconLayers, IconTrash } from "../components/ui/icons";
 import { ProviderMatrix } from "../components/providers/provider-matrix";
 import { ProviderCatalogPicker } from "../components/providers/provider-catalog-picker";
+import { TvdbCompanySelect } from "../components/providers/tvdb-company-select";
 import { ProviderSuggest } from "../components/providers/provider-suggest";
 
 /** Provider italiani noti: le chip compaiono solo se il backend li espone. */
@@ -102,6 +103,29 @@ const OFFER_OPTIONS: { value: OfferType; label: string; description: string }[] 
 ];
 
 const PROVIDER_SOURCE_ORDER = ["tmdb", "justwatch", "tvdb"] as const;
+
+/** Categorie del menu: che tipo di catalogo copre il candidato, per fonte. */
+const CATEGORY_ORDER = [
+  { key: "movie-and-tv", label: "Film e serie" },
+  { key: "movie-only", label: "Solo film" },
+  { key: "tv-only", label: "Solo serie" },
+  { key: "package", label: "Pacchetti della fonte" },
+  { key: "company", label: "Company (metadati)" },
+] as const;
+
+type CategoryKey = (typeof CATEGORY_ORDER)[number]["key"];
+
+/** TMDb espone gli ID per media; JustWatch e TVDB non distinguono film e serie. */
+function candidateCategory(candidate: ProviderCandidate): CategoryKey {
+  if (candidate.source_key === "justwatch") return "package";
+  if (candidate.source_key === "tvdb") return "company";
+  const hasMovie = Boolean(candidate.tmdb_movie_id);
+  const hasTv = Boolean(candidate.tmdb_tv_id);
+  if (hasMovie && hasTv) return "movie-and-tv";
+  if (hasMovie) return "movie-only";
+  if (hasTv) return "tv-only";
+  return "movie-and-tv";
+}
 
 const STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -463,8 +487,16 @@ function CreateProviderCard({ country, onClose }: { country: string; onClose: ()
       PROVIDER_SOURCE_ORDER.map((source) => ({
         source,
         label: sourceLabel(source),
-        items: candidates.filter((candidate) => candidate.source_key === source),
-      })).filter((group) => group.items.length > 0),
+        categories: CATEGORY_ORDER.map((category) => ({
+          key: category.key,
+          label: category.label,
+          items: candidates.filter(
+            (candidate) =>
+              candidate.source_key === source &&
+              candidateCategory(candidate) === category.key,
+          ),
+        })).filter((category) => category.items.length > 0),
+      })).filter((group) => group.categories.length > 0),
     [candidates],
   );
 
@@ -646,12 +678,12 @@ function CreateProviderCard({ country, onClose }: { country: string; onClose: ()
         <Field
           id="provider-tvdb-company"
           label="ID azienda su TheTVDB"
-          hint="Numero dell’azienda su TheTVDB. Aggiunge metadati; non implica disponibilità nel paese."
+          hint="Cerca l’azienda per nome: il numero viene compilato da solo. Aggiunge metadati, non disponibilità nel paese."
         >
-          <Input
+          <TvdbCompanySelect
             id="provider-tvdb-company"
             value={payload.tvdb_company_id ?? ""}
-            onChange={(event) => setPayload({ ...payload, tvdb_company_id: event.target.value })}
+            onChange={(companyId) => setPayload({ ...payload, tvdb_company_id: companyId })}
           />
         </Field>
         <div className="flex items-end gap-2 sm:col-span-2">

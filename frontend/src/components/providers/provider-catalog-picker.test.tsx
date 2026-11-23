@@ -7,18 +7,28 @@ import { ProviderCatalogPicker } from "./provider-catalog-picker";
 
 afterEach(cleanup);
 
-type Item = { key: string; name: string };
-
-const GROUPS: { source: string; label: string; items: Item[] }[] = [
+const GROUPS = [
   {
     source: "tmdb",
     label: "TMDb",
-    items: [
-      { key: "netflix", name: "Netflix" },
-      { key: "disney", name: "Disney+" },
+    categories: [
+      {
+        key: "movie-and-tv",
+        label: "Film e serie",
+        items: [
+          { key: "netflix", name: "Netflix" },
+          { key: "disney", name: "Disney+" },
+        ],
+      },
     ],
   },
-  { source: "justwatch", label: "JustWatch", items: [{ key: "raiplay", name: "RaiPlay" }] },
+  {
+    source: "justwatch",
+    label: "JustWatch",
+    categories: [
+      { key: "package", label: "Pacchetti della fonte", items: [{ key: "raiplay", name: "RaiPlay" }] },
+    ],
+  },
 ];
 
 /** Controllato: il test fa da genitore, come la pagina. */
@@ -29,11 +39,16 @@ function renderPicker(groups = GROUPS) {
     const visible = groups
       .map((group) => ({
         ...group,
-        items: group.items.filter((item) =>
-          item.name.toLowerCase().includes(query.toLowerCase()),
-        ),
+        categories: group.categories
+          .map((category) => ({
+            ...category,
+            items: category.items.filter((item) =>
+              item.name.toLowerCase().includes(query.toLowerCase()),
+            ),
+          }))
+          .filter((category) => category.items.length > 0),
       }))
-      .filter((group) => group.items.length > 0);
+      .filter((group) => group.categories.length > 0);
     return (
       <ProviderCatalogPicker
         id="provider-catalog-search"
@@ -56,6 +71,9 @@ describe("ProviderCatalogPicker", () => {
     expect(screen.getByRole("listbox", { name: "Provider disponibili" })).toBeTruthy();
     expect(screen.getByRole("group", { name: "TMDb" })).toBeTruthy();
     expect(screen.getByRole("group", { name: "JustWatch" })).toBeTruthy();
+    // secondo livello: la categoria dentro la fonte
+    expect(screen.getByRole("group", { name: "Film e serie" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Pacchetti della fonte" })).toBeTruthy();
     expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
       "Netflix",
       "Disney+",

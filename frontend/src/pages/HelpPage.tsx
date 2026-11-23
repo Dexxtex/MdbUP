@@ -69,10 +69,11 @@ export default function HelpPage() {
                 scegli prima il <strong>paese</strong> dal menu ISO in alto: catalogo, card, matrice e
                 messaggi seguono quel paese, e la matrice confronta i provider di quel paese.
                 Poi usa <strong>Aggiungi provider</strong> e scegli il servizio dal menu del
-                catalogo: gli identificativi TMDb/JustWatch si compilano da soli. Il campo
+                catalogo, organizzato per fonte e per tipo di catalogo coperto (film e serie,
+                solo film, solo serie): gli identificativi TMDb/JustWatch si compilano da soli. Il campo
                 <strong> Cerca provider</strong> filtra la pagina e apre l’elenco dei provider
                 presenti: se per il paese scelto non ce ne sono, l’elenco non compare.
-                TVDB non espone un elenco streaming: inserisci il Company ID manuale. TVDB fornisce
+                TVDB non espone un elenco streaming: cerca l’azienda per nome nel campo dedicato (il numero si compila da solo) oppure inserisci il Company ID. TVDB fornisce
                 company ID e metadati, non la disponibilità nel paese selezionato; gli ID sono
                 configurazione manuale: verificali sulla fonte prima di usarli.
                 Le card dei provider hanno il pulsante <strong>Elimina</strong>: elimina il provider
