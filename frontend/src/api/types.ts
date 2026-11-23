@@ -141,7 +141,7 @@ interface JustWatchSourceInfo {
 
 /**
  * `SourceOut.capabilities` è un dizionario libero: qui le chiavi note
- * (docs/phases/phase-01.md §4.3).
+ * (specifica fase 1 §4.3).
  */
 interface SourceCapabilities {
   catalog?: boolean;

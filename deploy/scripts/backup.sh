@@ -3,7 +3,7 @@
 # MdbUP — backup logico di PostgreSQL, cifrato con age, con retention GFS.
 #
 # Cosa si salva: solo PostgreSQL. Redis non è un asset: i job persi vengono
-# riportati a VERIFYING dai SyncRun non terminali (docs/phases/phase-01.md §4).
+# riportati a VERIFYING dai SyncRun non terminali (specifica fase 1 §4).
 #
 # Uso (host, stack già avviato):
 #   deploy/scripts/backup.sh

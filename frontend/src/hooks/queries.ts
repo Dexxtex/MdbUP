@@ -282,7 +282,7 @@ export function useRun(runId: string | undefined) {
     refetchInterval: (query) =>
       isActiveRun(query.state.data?.status) ? 2_000 : false,
     refetchIntervalInBackground: false,
-    // docs/phases/phase-01.md §2.4: il refresh al focus è attivo solo per i
+    // Specifica fase 1 §2.4: il refresh al focus è attivo solo per i
     // run in corso, così tornando sul tab lo stato non resta indietro fino al tick.
     refetchOnWindowFocus: true,
   });

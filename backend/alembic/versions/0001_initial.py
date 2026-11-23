@@ -12,7 +12,7 @@ centinaia di righe di ``op.create_table``: così SQLite (test) e PostgreSQL
 (produzione) producono esattamente lo stesso schema e non possono divergere dai
 modelli. Le revisioni successive devono usare operazioni Alembic esplicite.
 
-Differenze note rispetto a ``docs/phases/phase-01.md`` (DDL di riferimento):
+Differenze note rispetto alla specifica di fase 1 (DDL di riferimento):
 
 * niente estensioni ``pgcrypto``/``citext``: le PK UUID sono generate in Python
   (``uuid4``) e le email sono normalizzate in minuscolo dal repository;

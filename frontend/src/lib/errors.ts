@@ -22,7 +22,7 @@ function readNumber(
 
 /**
  * Testi UI derivati dalla categoria: il messaggio grezzo del server non viene
- * mai mostrato (docs/phases/phase-01.md §6).
+ * mai mostrato (specifica fase 1 §6).
  */
 export function describeApiError(error: unknown): ErrorPresentation {
   if (!isApiError(error)) {
@@ -115,7 +115,7 @@ export function describeApiError(error: unknown): ErrorPresentation {
   /**
    * `429 AUTH_RATE_LIMITED` è un rate limit di autenticazione, non una sessione
    * scaduta: senza questo ramo la UI mostrerebbe "Sessione scaduta"
-   * (docs/phases/phase-01.md §6: "429 mostra un countdown").
+   * (specifica fase 1 §6: "429 mostra un countdown").
    */
   if (
     error.category === "AUTH" &&

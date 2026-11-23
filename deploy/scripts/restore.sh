@@ -5,7 +5,7 @@
 # Uso (host):
 #   deploy/scripts/restore.sh backups/mdbup-20250101T030000Z.dump.age [--yes]
 #
-# Sequenza (docs/phases/phase-01.md §4, disaster recovery):
+# Sequenza (specifica fase 1 §4, disaster recovery):
 #   1. verifica del checksum, se il file .sha256 è presente;
 #   2. stop di api/worker/scheduler (nessuna scrittura durante il ripristino);
 #   3. age -d e pg_restore --clean --if-exists nel container `postgres`;

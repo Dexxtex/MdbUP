@@ -16,7 +16,6 @@ venv/
 .ruff_cache/
 .coverage
 coverage.json
-backend/coverage.json
 frontend/coverage/
 htmlcov/
 dist/
@@ -40,6 +39,13 @@ backups/
 *.db
 *.tmp
 tmp_*
+
+# Registro locale dei commit (workflow dell'operatore, non versionato)
+pendingcommits.md
+
+# Documentazione di progetto: materiale locale dell'operatore, non versionato
+# (resta escluso anche dal contesto di build Docker, vedi .dockerignore).
+docs/
 
 # Editor / OS
 .vscode/

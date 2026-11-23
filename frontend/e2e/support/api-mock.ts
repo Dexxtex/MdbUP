@@ -25,7 +25,7 @@ interface MockRoute {
   handler: MockHandler;
 }
 
-/** Envelope errore unico (`docs/phases/phase-01.md` §6). */
+/** Envelope errore unico (specifica fase 1 §6). */
 export function errorEnvelope(
   code: string,
   category: ErrorCategory,

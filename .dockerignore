@@ -24,6 +24,7 @@ backups
 *.log
 *.db
 *.sqlite3
+pendingcommits.md
 
 # Python
 **/__pycache__
@@ -33,6 +34,7 @@ backups
 **/.mypy_cache
 **/.ruff_cache
 **/.coverage
+**/coverage.json
 htmlcov
 **/*.egg-info
 

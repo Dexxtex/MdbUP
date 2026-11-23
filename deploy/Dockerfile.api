@@ -2,7 +2,7 @@
 
 # MdbUP — immagine unica per api e worker.
 # Una sola superficie di supply chain: i due processi applicativi cambiano solo per `command`
-# (docs/phases/phase-01.md §1).
+# (specifica di progetto, fase 1 §1).
 #
 # Build (contesto = radice del repository):
 #   docker build -f deploy/Dockerfile.api -t mdbup-api:local .

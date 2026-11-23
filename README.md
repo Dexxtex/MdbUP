@@ -2,7 +2,7 @@
 
 Applicazione **self-hosted** per acquisire cataloghi e raccolte dei provider streaming in **Italia** e mantenere aggiornate liste statiche **MDBList** tramite API.
 
-> **Stato: Fase 11 completata lato repository.** Struttura riordinata in monolite modulare, file residui del vecchio stack rimossi, dipendenze e codice morto ripuliti, documentazione consolidata in `docs/phases/`. Lo stack resta a **4 servizi** (`api`, `worker`, `postgres`, `redis`) con API/SPA su **28080**, volumi `mdbup_v2_*` e seed automatico delle sole fonti. Restano invariati i vincoli: nessuna cancellazione/ricreazione delle **6 liste MDBList** e nessuna modifica ai volumi persistenti. La verifica live di scheduler e dry-run delle 6 liste richiede accesso allo stack di produzione ed è rimandata all'operatore.
+> **Stato: Fase 11 completata lato repository.** Struttura riordinata in monolite modulare, file residui del vecchio stack rimossi, dipendenze e codice morto ripuliti, documentazione di progetto consolidata in locale (`docs/`, non versionata). Lo stack resta a **4 servizi** (`api`, `worker`, `postgres`, `redis`) con API/SPA su **28080**, volumi `mdbup_v2_*` e seed automatico delle sole fonti. Restano invariati i vincoli: nessuna cancellazione/ricreazione delle **6 liste MDBList** e nessuna modifica ai volumi persistenti. La verifica live di scheduler e dry-run delle 6 liste richiede accesso allo stack di produzione ed è rimandata all'operatore.
 
 ---
 
@@ -74,7 +74,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - UI: card connettore in Provider/Impostazioni→Connettori, builder con fonte e tipologia, badge `Fonte: JustWatch (Aggregatore)`/`Classifica JustWatch`, anteprima e eventi stagioni/episodi.
 - Tutti i nuovi binding nascono disabilitati; lo scheduler salta i run reali senza dry-run e, per JustWatch, non accoda mai una sync automatica. Dry-run obbligatorio per ogni primo run reale (`DRY_RUN_REQUIRED`).
 - Test: **315 backend**, **93 frontend**, **10 E2E**.
-- Dettagli: [`docs/phases/phase-08.md`](docs/phases/phase-08.md) e [`docs/phases/phase-08.md`](docs/phases/phase-08.md).
+- Dettagli nella documentazione locale di fase 8.
 
 ### Fase 9 — multi-fonte, Cambi Catalogo IT e scheduling
 
@@ -85,7 +85,7 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - **Matrice provider** JustWatch/TMDb, widget dashboard, ricerca snapshot, eventi stagioni/episodi e avvisi In arrivo.
 - Live: Prime Video **8.240**, NOW **1.145**, Disney+ in arrivo **3**, Apple TV+ **116/105/3**; 6 liste MDBList invariate.
 - Test: **357 backend**, **115 frontend**, **12 E2E**.
-- Dettagli: [`docs/phases/phase-09.md`](docs/phases/phase-09.md) e [`docs/phases/phase-09.md`](docs/phases/phase-09.md).
+- Dettagli nella documentazione locale di fase 9.
 
 ### Fase 10 — CI verde, snapshot dedup e storage
 
@@ -95,17 +95,17 @@ Infinity+ non ha copertura TV in Italia: la relativa collezione serie è stata r
 - **Storage**: `GET /api/system/status.storage` con byte e righe di snapshot/run; indicatore in Impostazioni.
 - **Compose autonomo**: 4 servizi, environment variables, default di primo avvio e `seed-sources` automatico all'avvio dell'API.
 - Test: **361 backend**, **115 frontend**, **12 E2E**.
-- Dettagli: [`docs/phases/phase-10.md`](docs/phases/phase-10.md).
+- Dettagli nella documentazione locale di fase 10.
 
 ### Fase 11 — pulizia, riorganizzazione e architettura definitiva
 
 - Rimossi `frontend/Dockerfile`, `frontend/nginx.conf`, `.dockerignore` del vecchio frontend e i compose duplicati in `deploy/`.
-- Script operativi spostati in `deploy/scripts/`; compose unico alla root; documentazione consolidata in `docs/phases/phase-01.md` … `phase-11.md` e `docs/ARCHITECTURE.md`.
+- Script operativi spostati in `deploy/scripts/`; compose unico alla root; documentazione di progetto consolidata in locale (fasi 1-11 e note di architettura), esclusa dal versionamento e dal contesto di build.
 - Backend: comandi/errori spostati in `app/domain/`, servizi senza dipendenze da `app.api`, API senza SQL diretto; rimossi moduli/helper non usati e dipendenze inutilizzate.
 - Frontend: hook spostati in `src/hooks/`, export morti rimossi, payload API separati dai componenti.
 - `.gitignore` e `.dockerignore` aggiornati per escludere cache, test, build, backup e segreti.
 - Test: **469 backend**, **200 frontend**, **20 E2E**; typecheck, lint, build, mypy, ruff, pip-audit e npm audit verdi. Smoke test CI dei 4 container (`api`, `worker`, `postgres`, `redis`) e health su `28080`: **success**.
-- Dettagli: [`docs/phases/phase-11.md`](docs/phases/phase-11.md).
+- Dettagli nella documentazione locale di fase 11.
 
 ### Fase 6 — hardening e regole avanzate
 
@@ -181,8 +181,7 @@ Live: collezione `netflix-movie-justwatch` acquisita con **5.525 titoli**, snaps
 
 **Policy JustWatch:** è un aggregatore senza date dichiarate. Il binding nasce sempre disabilitato; sono consentiti snapshot e preview, mentre una **sync MDBList reale** richiede un dry-run completato con successo e resta manuale. Lo scheduler non accoda mai automaticamente una sync MDBList per una collezione JustWatch. Provider e mapping vengono creati dall’utente dalla pagina **Provider**; MdbUP non precarica provider, collezioni o liste. `justwatch-collections` resta disponibile per la riverifica live e la creazione massiva delle collezioni JustWatch.
 
-Dettagli, limiti misurati e superficie API verificata:
-[`docs/phases/phase-08.md`](docs/phases/phase-08.md).
+Dettagli, limiti misurati e superficie API verificata: documentazione locale di fase 8.
 
 **Gestione provider:** le card e la tabella della pagina **Provider** hanno il pulsante
 **Elimina** per qualsiasi provider, anche quando è l'ultimo configurato. L'eliminazione
@@ -248,13 +247,14 @@ che restano modificabili e non vengono dichiarati verificati live finché non lo
 │   ├── src/pages/              # pagine React
 │   ├── src/lib/                # funzioni pure, formato, validazione, tema
 │   └── e2e/                    # Playwright
-├── deploy/
-│   ├── Dockerfile.api          # immagine unica API + worker + SPA
-│   └── scripts/                # backup, verify e restore host
-└── docs/
-    ├── ARCHITECTURE.md         # architettura definitiva, flussi, sicurezza
-    └── phases/                 # report consolidati phase-01 … phase-11
+└── deploy/
+    ├── Dockerfile.api          # immagine unica API + worker + SPA
+    └── scripts/                # backup, verify e restore host
 ```
+
+La documentazione di progetto (`docs/`) **non è versionata**: vive solo nella
+copia locale dell'operatore, è esclusa da `.gitignore` e dal contesto di build
+Docker (`.dockerignore`).
 
 Non esistono più `frontend/Dockerfile`, `frontend/nginx.conf`, compose
 duplicati in `deploy/` o pacchetti frontend legacy: l'unica superficie di build
@@ -555,7 +555,7 @@ Tutte le mutazioni richiedono `X-CSRF-Token`; gli errori usano l'envelope `{erro
 - Docker: non-root, read-only, `cap_drop: ALL`, `no-new-privileges`; PostgreSQL/Redis non pubblicati.
 - Backup PostgreSQL cifrati con `age`; chiave di cifratura custodita separatamente.
 
-Dettagli: [`docs/phases/phase-01.md`](docs/phases/phase-01.md).
+Dettagli nella documentazione locale di fase 1.
 
 ---
 
@@ -600,21 +600,12 @@ Dettagli: [`docs/phases/phase-01.md`](docs/phases/phase-01.md).
 
 ## 12. Documentazione
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architettura definitiva a 4 servizi, flussi dati, sicurezza e mappa directory.
-- [`docs/phases/phase-01.md`](docs/phases/phase-01.md) — fonti, architettura, modello dati e piano.
-- [`docs/phases/phase-02.md`](docs/phases/phase-02.md) — contratto di implementazione e stato.
-- [`docs/phases/phase-03.md`](docs/phases/phase-03.md) — implementazione core.
-- [`docs/phases/phase-04.md`](docs/phases/phase-04.md) — automazione.
-- [`docs/phases/phase-05.md`](docs/phases/phase-05.md) — estensione multi-fonte.
-- [`docs/phases/phase-06.md`](docs/phases/phase-06.md) — hardening.
-- [`docs/phases/phase-07.md`](docs/phases/phase-07.md) — backup, notifiche, metriche e UI/UX.
-- [`docs/phases/phase-08.md`](docs/phases/phase-08.md) — JustWatch pubblico e guardrail.
-- [`docs/phases/phase-09.md`](docs/phases/phase-09.md) — multi-fonte, Cambi Catalogo IT e scheduling.
-- [`docs/phases/phase-10.md`](docs/phases/phase-10.md) — CI, snapshot dedup e storage.
-- [`docs/phases/phase-11.md`](docs/phases/phase-11.md) — pulizia, riorganizzazione e verifica finale.
-- [`docs/justwatch-it-verification.md`](docs/justwatch-it-verification.md) — verifica live degli endpoint JustWatch per film e serie in Italia.
-- [`docs/justwatch-genres-catalog-verification.md`](docs/justwatch-genres-catalog-verification.md) — verifica generi e catalogo JustWatch per film e serie in Italia.
-- [`docs/justwatch-dates-verification.md`](docs/justwatch-dates-verification.md) — verifica dei campi data JustWatch (uscita, offerta, disponibilità).
+La documentazione di progetto (`docs/ARCHITECTURE.md`, i report `docs/phases/phase-01 … phase-11`
+e le note di verifica JustWatch) è **materiale locale dell'operatore**: non è versionata
+(esclusa da `.gitignore`) e non entra nell'immagine Docker (esclusa da `.dockerignore`).
+Questo README è l'unico documento di progetto pubblicato: contiene stato, operatività,
+limiti noti e riferimenti alle fasi, senza link a file non presenti nel repository.
+
 - Guida in-app: `/app/help` — configurazione iniziale, provider, collezioni, preview, binding e policy JustWatch.
 
 ---
