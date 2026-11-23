@@ -57,6 +57,9 @@ export interface ProviderMatrixRow {
   justwatch: {
     movieVerified: boolean;
     tvVerified: boolean;
+    /** Stato per tipo media: simmetrico alle colonne TMDb. */
+    movie: MediaSnapshotState;
+    show: MediaSnapshotState;
     collections: number;
     lastSnapshotAt: string | null;
     stale: boolean;
@@ -92,6 +95,27 @@ function mediaState(
     (collection) =>
       collection.media_type === mediaType && collection.source_key === "tmdb",
   );
+  return snapshotState(matching, mapped, now);
+}
+
+function justwatchMediaState(
+  collections: readonly Collection[],
+  mediaType: MediaType,
+  mapped: boolean,
+  now: number,
+): MediaSnapshotState {
+  const matching = collections.filter(
+    (collection) =>
+      collection.media_type === mediaType && isJustWatchSource(collection.source_key),
+  );
+  return snapshotState(matching, mapped, now);
+}
+
+function snapshotState(
+  matching: readonly Collection[],
+  mapped: boolean,
+  now: number,
+): MediaSnapshotState {
   const lastSnapshotAt = latestSnapshotAt(matching);
   return {
     mapped,
@@ -161,11 +185,25 @@ export function buildProviderMatrix(
       movie.lastSnapshotAt == null ||
       show.lastSnapshotAt == null;
 
+    const justwatchMovieVerified = justWatchVerifiedForMedia(provider, "MOVIE");
+    const justwatchTvVerified = justWatchVerifiedForMedia(provider, "SHOW");
     return {
       provider,
       justwatch: {
-        movieVerified: justWatchVerifiedForMedia(provider, "MOVIE"),
-        tvVerified: justWatchVerifiedForMedia(provider, "SHOW"),
+        movieVerified: justwatchMovieVerified,
+        tvVerified: justwatchTvVerified,
+        movie: justwatchMediaState(
+          justwatchCollections,
+          "MOVIE",
+          justwatchMovieVerified,
+          now,
+        ),
+        show: justwatchMediaState(
+          justwatchCollections,
+          "SHOW",
+          justwatchTvVerified,
+          now,
+        ),
         collections: justwatchCollections.length,
         lastSnapshotAt: justwatchLastSnapshot,
         stale: justwatchStale,

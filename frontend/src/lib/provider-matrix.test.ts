@@ -262,3 +262,33 @@ describe("filtri e ordinamento matrice", () => {
     ).toEqual(["Netflix", "Amazon Prime Video"]);
   });
 });
+
+describe("stato JustWatch per tipo media", () => {
+  it("separa collezioni e freschezza per Film e Serie", () => {
+    const p = provider({ justwatch_movie_verified: true, justwatch_tv_verified: false });
+    const movieCollection = collection({
+      id: "jw-movie",
+      source_key: "justwatch",
+      media_type: "MOVIE",
+      last_valid_snapshot: snapshot("s1", "2026-01-09T10:00:00Z"),
+    });
+    const showCollection = collection({
+      id: "jw-show",
+      source_key: "justwatch",
+      media_type: "SHOW",
+      last_valid_snapshot: snapshot("s2", "2025-12-01T10:00:00Z"),
+    });
+
+    const [row] = buildProviderMatrix([p], [movieCollection, showCollection], [], NOW);
+
+    expect(row.justwatch.movie).toEqual({
+      mapped: true,
+      collections: 1,
+      lastSnapshotAt: "2026-01-09T10:00:00Z",
+      stale: false,
+    });
+    expect(row.justwatch.show.mapped).toBe(false);
+    expect(row.justwatch.show.collections).toBe(1);
+    expect(row.justwatch.show.stale).toBe(true);
+  });
+});

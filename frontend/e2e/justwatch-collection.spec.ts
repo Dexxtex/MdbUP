@@ -324,7 +324,7 @@ test("la matrice provider confronta JustWatch e TMDb e offre le azioni rapide", 
 
   await page.goto("/app/providers");
   await expect(page.getByTestId("provider-matrix")).toBeVisible();
-  await expect(page.getByRole("columnheader", { name: "JustWatch (Default)" })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "JustWatch" })).toBeVisible();
   const appleRow = page.getByTestId("matrix-row-apple-tv-plus");
   await expect(appleRow).toContainText("Apple TV+");
   await expect(appleRow.getByTestId("matrix-justwatch-apple-tv-plus")).toBeVisible();

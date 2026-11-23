@@ -37,7 +37,7 @@ test("il paese si cerca per nome o ISO e pilota le query", async ({ page }) => {
 
   // la matrice confronta i provider del paese scelto, non "italiani" a priori
   await expect(
-    page.getByRole("table", { name: "Matrice comparativa dei provider — Germania" }),
+    page.getByRole("table", { name: "Stato dei provider — Germania" }),
   ).toBeVisible();
 
   // e il filtro funziona anche per codice ISO

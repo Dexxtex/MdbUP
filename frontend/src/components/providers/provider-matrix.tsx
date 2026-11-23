@@ -72,21 +72,26 @@ function MapPill({ verified, label }: { verified: boolean; label: string }) {
   );
 }
 
-function JustWatchCell({ row }: { row: ProviderMatrixRow }) {
+function JustWatchCell({
+  row,
+  mediaType,
+}: {
+  row: ProviderMatrixRow;
+  mediaType: MediaType;
+}) {
+  const state = mediaType === "MOVIE" ? row.justwatch.movie : row.justwatch.show;
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex flex-wrap gap-1">
-        <MapPill verified={row.justwatch.movieVerified} label="Film" />
-        <MapPill verified={row.justwatch.tvVerified} label="Serie" />
-      </div>
-      <p className="text-xs text-ink-muted">
-        {formatNumber(row.justwatch.collections)} collezioni
-      </p>
+      <MapPill
+        verified={state.mapped}
+        label={state.mapped ? "Mapping verificato" : "Mapping da verificare"}
+      />
+      <p className="text-xs text-ink-muted">{formatNumber(state.collections)} collezioni</p>
       <div className="flex flex-wrap items-center gap-1.5">
-        <Freshness value={row.justwatch.lastSnapshotAt} />
+        <Freshness value={state.lastSnapshotAt} />
         <StatusPill
-          label={row.justwatch.stale ? "Da aggiornare" : "Aggiornato"}
-          tone={row.justwatch.stale ? "warning" : "success"}
+          label={state.stale ? "Da aggiornare" : "Aggiornato"}
+          tone={state.stale ? "warning" : "success"}
         />
       </div>
     </div>
@@ -250,10 +255,9 @@ export function ProviderMatrix({
     <Card testId="provider-matrix">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-ink">Matrice comparativa</h2>
+          <h2 className="text-lg font-semibold text-ink">Stato per provider</h2>
           <p className="text-sm text-ink-muted">
-            Provider configurati: mapping JustWatch e TMDb, freschezza dell&apos;ultimo
-            snapshot e binding attivi.
+            Per ogni provider: mapping JustWatch e TMDb, ultimo snapshot e binding attivi.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -299,7 +303,7 @@ export function ProviderMatrix({
           <div className="mt-4 hidden overflow-x-auto md:block">
             <table className="w-full min-w-[64rem] border-collapse text-left text-sm">
               <caption className="sr-only">
-                Matrice comparativa dei provider — {countryName(country)}
+                Stato dei provider — {countryName(country)}
               </caption>
               <thead>
                 <tr className="border-b border-line">
@@ -311,7 +315,7 @@ export function ProviderMatrix({
                     onSort={onSort}
                   />
                   <SortHeader
-                    label="JustWatch (Default)"
+                    label="JustWatch"
                     sortKey="justwatch"
                     activeKey={sortKey}
                     direction={direction}
@@ -355,7 +359,7 @@ export function ProviderMatrix({
                       <p className="text-xs text-ink-muted">{row.provider.slug}</p>
                     </td>
                     <td className="px-3 py-3">
-                      <JustWatchCell row={row} />
+                      <JustWatchCell row={row} mediaType={mediaType} />
                     </td>
                     <td className="px-3 py-3">
                       <TmdbCell row={row} mediaType="MOVIE" />
@@ -393,7 +397,7 @@ export function ProviderMatrix({
                   <div className="flex items-start justify-between gap-3">
                     <dt className="text-xs font-medium uppercase text-ink-faint">JustWatch</dt>
                     <dd className="text-right">
-                      <JustWatchCell row={row} />
+                      <JustWatchCell row={row} mediaType={mediaType} />
                     </dd>
                   </div>
                   <div className="flex items-start justify-between gap-3">
