@@ -14,6 +14,7 @@ from app.api.deps import (
     get_db_dep,
     get_request_id,
     get_settings_dep,
+    require_admin,
     require_csrf,
 )
 from app.core.config import Settings
@@ -163,6 +164,20 @@ def update_collection(
         db, settings, collection_id, payload, actor_user_id=user.id
     )
     return schemas_catalog.CollectionOut.model_validate(summary)
+
+
+@router.delete(
+    "/collections/{collection_id}",
+    status_code=204,
+    dependencies=[Depends(require_csrf)],
+    summary="Elimina una collezione e i suoi dati locali",
+)
+def delete_collection(
+    collection_id: uuid.UUID,
+    db: Session = Depends(get_db_dep),
+    admin: AppUser = Depends(require_admin),
+) -> None:
+    collection_admin.delete_collection(db, collection_id, actor_user_id=admin.id)
 
 
 @router.post(

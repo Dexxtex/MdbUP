@@ -363,7 +363,7 @@ export interface paths {
         get: operations["get_provider_api_providers__provider_id__get"];
         put?: never;
         post?: never;
-        /** Elimina un provider non usato da collezioni */
+        /** Elimina un provider e le sue collezioni locali */
         delete: operations["delete_provider_api_providers__provider_id__delete"];
         options?: never;
         head?: never;
@@ -518,7 +518,8 @@ export interface paths {
         get: operations["get_collection_api_collections__collection_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Elimina una collezione e i suoi dati locali */
+        delete: operations["delete_collection_api_collections__collection_id__delete"];
         options?: never;
         head?: never;
         /** Modifica una collezione esistente */
@@ -3860,6 +3861,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CollectionOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_collection_api_collections__collection_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

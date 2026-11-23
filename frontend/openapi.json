@@ -840,7 +840,7 @@
         "tags": [
           "providers"
         ],
-        "summary": "Elimina un provider non usato da collezioni",
+        "summary": "Elimina un provider e le sue collezioni locali",
         "operationId": "delete_provider_api_providers__provider_id__delete",
         "parameters": [
           {
@@ -1505,6 +1505,40 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "collections"
+        ],
+        "summary": "Elimina una collezione e i suoi dati locali",
+        "operationId": "delete_collection_api_collections__collection_id__delete",
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Collection Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",

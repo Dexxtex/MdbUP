@@ -37,6 +37,7 @@ from app.repositories import collections as collections_repo
 from app.repositories import providers as providers_repo
 from app.repositories import snapshots as snapshots_repo
 from app.repositories import sources as sources_repo
+from app.services import collection_cleanup
 from app.services import collections as collections_service
 from app.services.collections import CollectionSummary
 
@@ -1251,6 +1252,57 @@ class CollectionAcquisition:
     collection_id: uuid.UUID
     status: str
     snapshot_id: uuid.UUID | None
+
+
+def delete_collection(
+    db: Session,
+    collection_id: uuid.UUID,
+    *,
+    actor_user_id: uuid.UUID | None = None,
+) -> None:
+    """Delete a collection and its local snapshots, bindings and run history.
+
+    Remote MDBList lists are never deleted: only the local binding is removed.
+    If a sync is still running, the operator must wait for it to finish.
+    """
+    collection = collections_repo.get_collection(db, collection_id)
+    if collection is None:
+        raise NotFoundError(
+            "Collezione non trovata.", details={"collection_id": str(collection_id)}
+        )
+    snapshot_ids, binding_ids = collection_cleanup.collect_local_data(db, [collection.id])
+    collection_cleanup.ensure_no_active_runs(
+        db,
+        binding_ids,
+        code="COLLECTION_RUN_ACTIVE",
+        message=(
+            "C'è una sincronizzazione in corso per questa collezione: "
+            "attendi che finisca prima di eliminarla."
+        ),
+        details={"collection_id": str(collection.id)},
+    )
+    cleanup = collection_cleanup.delete_local_data(
+        db,
+        collection_ids=[collection.id],
+        snapshot_ids=snapshot_ids,
+        binding_ids=binding_ids,
+    )
+    audit.record(
+        db,
+        action="collection_deleted",
+        entity_type="collection",
+        entity_id=collection.id,
+        actor_user_id=actor_user_id,
+        actor_type=AuditActorType.USER if actor_user_id else AuditActorType.SYSTEM,
+        before={
+            "slug": collection.slug,
+            "name": collection.name,
+            "snapshots": cleanup.snapshots,
+            "bindings": cleanup.bindings,
+            "runs": cleanup.runs,
+        },
+    )
+    db.commit()
 
 
 def enqueue_collection_acquisition(

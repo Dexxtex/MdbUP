@@ -17,6 +17,8 @@ export interface DataTableProps<T> {
   rows: T[];
   rowKey: (row: T) => string;
   emptyMessage?: string;
+  /** Azioni mostrate in cima alla card mobile, prima dei campi. */
+  cardActions?: (row: T) => ReactNode;
 }
 
 /**
@@ -29,6 +31,7 @@ export function DataTable<T>({
   rows,
   rowKey,
   emptyMessage = "Nessun elemento.",
+  cardActions,
 }: DataTableProps<T>) {
   if (rows.length === 0) {
     return <p className="py-6 text-center text-sm text-ink-muted">{emptyMessage}</p>;
@@ -44,6 +47,11 @@ export function DataTable<T>({
             key={rowKey(row)}
             className="rounded-lg border border-line bg-surface-elevated p-4"
           >
+            {cardActions ? (
+              <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                {cardActions(row)}
+              </div>
+            ) : null}
             <dl className="grid grid-cols-1 gap-2">
               {cardColumns.map((column) => (
                 <div key={column.key} className="flex items-start justify-between gap-4">

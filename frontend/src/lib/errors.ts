@@ -71,13 +71,15 @@ export function describeApiError(error: unknown): ErrorPresentation {
     };
   }
 
-  if (error.code === "PROVIDER_IN_USE") {
+  if (error.code === "PROVIDER_RUN_ACTIVE" || error.code === "COLLECTION_RUN_ACTIVE") {
     return {
       ...base,
-      title: "Provider in uso",
+      title: "Sincronizzazione in corso",
       message:
-        "Il provider è collegato a una o più collezioni. Rimuovi prima quelle collezioni, poi elimina il provider.",
-      retryable: false,
+        error.code === "COLLECTION_RUN_ACTIVE"
+          ? "Una sync è in corso per questa collezione. Attendi che finisca, poi riprova."
+          : "Una sync è in corso per una collezione di questo provider. Attendi che finisca, poi riprova.",
+      retryable: true,
     };
   }
 

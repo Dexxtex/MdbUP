@@ -1,6 +1,10 @@
 import { useDeferredValue, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { useAcquireCollection, useCreatePreview } from "../hooks/mutations";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  useAcquireCollection,
+  useCreatePreview,
+  useDeleteCollection,
+} from "../hooks/mutations";
 import {
   useCollection,
   useCollectionEpisodeEvents,
@@ -44,7 +48,7 @@ import {
   availabilityStatusTone,
   isJustWatchSource,
 } from "../lib/justwatch";
-import { IconSearch } from "../components/ui/icons";
+import { IconSearch, IconTrash } from "../components/ui/icons";
 
 const snapshotColumns: Column<Snapshot>[] = [
   {
@@ -187,7 +191,9 @@ const snapshotItemColumns: Column<SnapshotItem>[] = [
 
 export default function CollectionDetailPage() {
   const { collectionId } = useParams<{ collectionId: string }>();
+  const navigate = useNavigate();
   const collection = useCollection(collectionId);
+  const deleteCollection = useDeleteCollection();
   const snapshots = useCollectionSnapshots(collectionId);
   const acquire = useAcquireCollection(collectionId ?? "");
   const [sourcePreviewId, setSourcePreviewId] = useState<string | undefined>();
@@ -228,6 +234,16 @@ export default function CollectionDetailPage() {
   const data = collection.data;
   const latest = data.latest_snapshot ?? data.last_valid_snapshot ?? null;
   const snapshotRows = snapshots.data ?? [];
+
+  const handleDelete = () => {
+    const confirmed = window.confirm(
+      `Eliminare la collezione “${data.name}”? Verranno rimossi gli snapshot locali, l'eventuale binding e la cronologia delle run. Le liste MDBList remote non vengono toccate.`,
+    );
+    if (!confirmed) return;
+    deleteCollection.mutate(data.id, {
+      onSuccess: () => navigate("/app/collections"),
+    });
+  };
 
   return (
     <>
@@ -288,10 +304,25 @@ export default function CollectionDetailPage() {
             <Button onClick={() => acquire.mutate()} busy={acquire.isPending}>
               Acquisisci snapshot
             </Button>
+            <Button
+              variant="danger"
+              busy={deleteCollection.isPending}
+              title={`Elimina ${data.name} e i suoi dati locali; le liste MDBList remote non vengono toccate.`}
+              data-testid={`collection-delete-${data.slug}`}
+              onClick={handleDelete}
+            >
+              <IconTrash />
+              Elimina
+            </Button>
           </>
         }
       />
       <StaleBanner updatedAt={collection.dataUpdatedAt} />
+      {deleteCollection.isError ? (
+        <div className="mb-4">
+          <ErrorState error={deleteCollection.error} />
+        </div>
+      ) : null}
 
       {isUpcomingCollection(data) ? (
         <div className="mb-4">

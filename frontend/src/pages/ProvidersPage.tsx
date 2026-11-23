@@ -1,7 +1,11 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useBindings, useCollections, useProviderCatalog, useProviders, useSources } from "../hooks/queries";
-import { useCreateProvider, useDeleteProvider } from "../hooks/mutations";
+import {
+  useCreateProvider,
+  useDeleteCollection,
+  useDeleteProvider,
+} from "../hooks/mutations";
 import type {
   Collection,
   Provider,
@@ -182,14 +186,25 @@ function JustWatchMappingCell({ provider }: { provider: Provider }) {
 function ProviderCard({
   provider,
   freshness,
+  collections,
   onDelete,
+  onDeleteCollection,
   deleting,
+  deletingCollectionId,
 }: {
   provider: Provider;
   freshness: SnapshotFreshness | undefined;
+  collections: readonly Collection[];
   onDelete: (provider: Provider) => void;
+  onDeleteCollection: (collection: Collection) => void;
   deleting: boolean;
+  deletingCollectionId: string | null;
 }) {
+  const linkedCollections = Math.max(
+    provider.collections_count,
+    collections.length,
+    freshness?.collections ?? 0,
+  );
   return (
     <article
       data-testid={`provider-card-${provider.slug}`}
@@ -264,22 +279,65 @@ function ProviderCard({
         ) : (
           <p className="text-xs text-ink-muted">Mai acquisito</p>
         )}
-        <Link
-          to={`/app/collections?provider=${provider.id}`}
-          className="inline-flex items-center gap-1 text-xs font-medium text-accent underline"
-        >
-          <IconLayers />
-          {formatNumber(freshness?.collections ?? 0)} collezioni
-        </Link>
+        <div className="mt-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-ink-muted">
+              Collezioni locali ({formatNumber(collections.length)})
+            </p>
+            <Link
+              to={`/app/collections?provider=${provider.id}`}
+              className="inline-flex items-center gap-1 text-xs font-medium text-accent underline"
+            >
+              <IconLayers />
+              Apri elenco
+            </Link>
+          </div>
+          {collections.length > 0 ? (
+            <ul className="mt-1 max-h-44 space-y-1.5 overflow-y-auto pr-1">
+              {collections.map((collection) => (
+                <li
+                  key={collection.id}
+                  className="flex items-center justify-between gap-2 rounded-md border border-line bg-surface-muted px-2 py-1.5"
+                >
+                  <div className="min-w-0">
+                    <Link
+                      to={`/app/collections/${collection.id}`}
+                      className="block truncate text-xs font-medium text-ink underline"
+                    >
+                      {collection.name}
+                    </Link>
+                    <span className="text-[11px] text-ink-faint">
+                      {collection.media_type === "MOVIE" ? "Film" : "Serie"}
+                    </span>
+                  </div>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    busy={deletingCollectionId === collection.id}
+                    title={`Elimina ${collection.name} e i suoi dati locali; le liste MDBList remote non vengono toccate.`}
+                    data-testid={`provider-collection-delete-${collection.slug}`}
+                    onClick={() => onDeleteCollection(collection)}
+                  >
+                    <IconTrash />
+                    Elimina
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-xs text-ink-muted">Nessuna collezione locale.</p>
+          )}
+        </div>
         <Button
           variant="danger"
           size="sm"
           className="mt-2 w-full"
           busy={deleting}
-          disabled={provider.collections_count > 0}
           title={
-            provider.collections_count > 0
-              ? "Rimuovi prima le collezioni collegate a questo provider."
+            linkedCollections > 0
+              ? `Elimina ${provider.name} e le ${formatNumber(
+                  linkedCollections,
+                )} collezioni locali collegate.`
               : `Elimina ${provider.name}`
           }
           data-testid={`provider-delete-${provider.slug}`}
@@ -345,24 +403,31 @@ function providerColumns(
     {
       key: "actions",
       header: "Azioni",
-      render: (provider) => (
-        <Button
-          variant="danger"
-          size="sm"
-          busy={deletingId === provider.id}
-          disabled={provider.collections_count > 0}
-          title={
-            provider.collections_count > 0
-              ? "Rimuovi prima le collezioni collegate."
-              : `Elimina ${provider.name}`
-          }
-          data-testid={`provider-delete-${provider.slug}`}
-          onClick={() => onDelete(provider)}
-        >
-          <IconTrash />
-          Elimina
-        </Button>
-      ),
+      render: (provider) => {
+        const linkedCollections = Math.max(
+          provider.collections_count,
+          freshness.get(provider.id)?.collections ?? 0,
+        );
+        return (
+          <Button
+            variant="danger"
+            size="sm"
+            busy={deletingId === provider.id}
+            title={
+              linkedCollections > 0
+                ? `Elimina ${provider.name} e le ${formatNumber(
+                    linkedCollections,
+                  )} collezioni locali collegate.`
+                : `Elimina ${provider.name}`
+            }
+            data-testid={`provider-delete-${provider.slug}`}
+            onClick={() => onDelete(provider)}
+          >
+            <IconTrash />
+            Elimina
+          </Button>
+        );
+      },
     },
   ];
 }
@@ -708,19 +773,46 @@ export default function ProvidersPage() {
   const collections = useCollections({});
   const bindings = useBindings();
   const deleteProvider = useDeleteProvider();
+  const deleteCollection = useDeleteCollection();
   const justwatchSource = (sources.data ?? []).find((source) => source.key === "justwatch");
   const freshness = useMemo(
     () => freshnessByProvider(collections.data ?? []),
     [collections.data],
   );
+  const collectionsByProvider = useMemo(() => {
+    const grouped = new Map<string, Collection[]>();
+    for (const collection of collections.data ?? []) {
+      const list = grouped.get(collection.provider_id) ?? [];
+      list.push(collection);
+      grouped.set(collection.provider_id, list);
+    }
+    return grouped;
+  }, [collections.data]);
 
   const handleDelete = (provider: Provider) => {
-    if (provider.collections_count > 0) return;
+    const loadedCollections = (collections.data ?? []).filter(
+      (collection) => collection.provider_id === provider.id,
+    ).length;
+    const linkedCount = Math.max(provider.collections_count, loadedCollections);
+    const linked =
+      linkedCount > 0
+        ? ` Verranno rimosse anche ${formatNumber(
+            linkedCount,
+          )} collezioni locali collegate con la loro cronologia. Le liste MDBList remote non vengono toccate.`
+        : " Nessuna collezione locale è collegata.";
     const confirmed = window.confirm(
-      `Eliminare il provider “${provider.name}”? Le collezioni non vengono toccate.`,
+      `Eliminare il provider “${provider.name}”?${linked}`,
     );
     if (!confirmed) return;
     deleteProvider.mutate(provider.id);
+  };
+
+  const handleDeleteCollection = (collection: Collection) => {
+    const confirmed = window.confirm(
+      `Eliminare la collezione “${collection.name}”? Verranno rimossi gli snapshot locali, l'eventuale binding e la cronologia delle run. Le liste MDBList remote non vengono toccate.`,
+    );
+    if (!confirmed) return;
+    deleteCollection.mutate(collection.id);
   };
 
   const allProviders = providers.data ?? [];
@@ -848,6 +940,11 @@ export default function ProvidersPage() {
           <ErrorState error={deleteProvider.error} />
         </div>
       ) : null}
+      {deleteCollection.isError ? (
+        <div className="mb-4">
+          <ErrorState error={deleteCollection.error} />
+        </div>
+      ) : null}
 
       {providers.isSuccess ? (
         <>
@@ -875,8 +972,15 @@ export default function ProvidersPage() {
                   key={provider.id}
                   provider={provider}
                   freshness={freshness.get(provider.id)}
+                  collections={collectionsByProvider.get(provider.id) ?? []}
                   onDelete={handleDelete}
+                  onDeleteCollection={handleDeleteCollection}
                   deleting={deleteProvider.isPending && deleteProvider.variables === provider.id}
+                  deletingCollectionId={
+                    deleteCollection.isPending
+                      ? (deleteCollection.variables ?? null)
+                      : null
+                  }
                 />
               ))}
             </div>

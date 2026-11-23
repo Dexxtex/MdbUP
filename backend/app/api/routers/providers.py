@@ -54,7 +54,7 @@ def create_provider(
     "/providers/{provider_id}",
     status_code=204,
     dependencies=[Depends(require_csrf)],
-    summary="Elimina un provider non usato da collezioni",
+    summary="Elimina un provider e le sue collezioni locali",
 )
 def delete_provider(
     provider_id: uuid.UUID,

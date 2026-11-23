@@ -96,13 +96,22 @@ describe("describeApiError", () => {
     expect(presentation.retryable).toBe(false);
   });
 
-  it("spiega PROVIDER_IN_USE senza proporre un retry", () => {
+  it("spiega PROVIDER_RUN_ACTIVE e propone un retry dopo la sync", () => {
     const presentation = describeApiError(
-      apiError({ status: 409, code: "PROVIDER_IN_USE", category: "CONFLICT" }),
+      apiError({ status: 409, code: "PROVIDER_RUN_ACTIVE", category: "CONFLICT" }),
     );
-    expect(presentation.title).toBe("Provider in uso");
-    expect(presentation.message).toContain("collezioni");
-    expect(presentation.retryable).toBe(false);
+    expect(presentation.title).toBe("Sincronizzazione in corso");
+    expect(presentation.message).toContain("sync");
+    expect(presentation.retryable).toBe(true);
+  });
+
+  it("spiega COLLECTION_RUN_ACTIVE per una collezione in sync", () => {
+    const presentation = describeApiError(
+      apiError({ status: 409, code: "COLLECTION_RUN_ACTIVE", category: "CONFLICT" }),
+    );
+    expect(presentation.title).toBe("Sincronizzazione in corso");
+    expect(presentation.message).toContain("questa collezione");
+    expect(presentation.retryable).toBe(true);
   });
 
   it("riconosce ORDER_NOT_ENFORCED come avviso, non errore rosso", () => {

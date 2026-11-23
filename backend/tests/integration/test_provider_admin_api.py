@@ -3,6 +3,12 @@
 from __future__ import annotations
 
 from app.seed import seed_sources
+from tests.integration.factories import (
+    assert_local_history_deleted,
+    assert_no_episode_events,
+    attach_local_history,
+    provider_with_collection,
+)
 
 
 def test_seed_sources_leaves_providers_and_collections_empty(client, admin) -> None:
@@ -140,30 +146,49 @@ def test_delete_unused_provider_removes_it(client, admin) -> None:
     assert client.get(f"/api/providers/{provider_id}").status_code == 404
 
 
-def test_delete_provider_in_use_is_blocked(client, admin) -> None:
+def test_delete_provider_with_collections_removes_local_data(client, admin) -> None:
     assert seed_sources() == 0
-    created = client.post(
-        "/api/providers",
-        json={"slug": "in-uso", "name": "In uso", "tmdb_movie_id": "77777"},
-        headers=admin,
-    )
-    assert created.status_code == 201, created.text
-    provider = created.json()
-    collection = client.post(
-        "/api/collections",
-        json={
-            "provider_id": provider["id"],
-            "media_type": "MOVIE",
-            "name": "Collezione del provider",
-            "slug": "collezione-provider",
-        },
-        headers=admin,
-    )
-    assert collection.status_code == 201, collection.text
+    provider, collection = provider_with_collection(client, admin)
+    ids = attach_local_history(provider["id"], collection["id"], run_status="SUCCEEDED")
+
+    response = client.delete(f"/api/providers/{provider['id']}", headers=admin)
+
+    assert response.status_code == 204, response.text
+    assert client.get(f"/api/providers/{provider['id']}").status_code == 404
+    assert client.get(f"/api/collections/{collection['id']}").status_code == 404
+    assert client.get("/api/collections").json()["total"] == 0
+    assert_local_history_deleted(ids)
+    assert_no_episode_events()
+
+
+def test_delete_provider_is_blocked_while_a_sync_run_is_active(client, admin) -> None:
+    assert seed_sources() == 0
+    provider, collection = provider_with_collection(client, admin)
+    ids = attach_local_history(provider["id"], collection["id"], run_status="APPLYING")
 
     response = client.delete(f"/api/providers/{provider['id']}", headers=admin)
 
     assert response.status_code == 409, response.text
-    assert response.json()["error"]["code"] == "PROVIDER_IN_USE"
-    assert response.json()["error"]["details"]["collections"] == 1
+    assert response.json()["error"]["code"] == "PROVIDER_RUN_ACTIVE"
     assert client.get(f"/api/providers/{provider['id']}").status_code == 200
+
+    # Once the run is terminal the provider and its local collections can go.
+    import uuid
+
+    from app.core.time import utcnow
+    from app.db.models import SyncRun
+    from app.db.session import get_session_factory
+
+    session = get_session_factory()()
+    try:
+        run = session.get(SyncRun, uuid.UUID(ids["run"]))
+        assert run is not None
+        run.status = "CANCELLED"
+        run.finished_at = utcnow()
+        session.commit()
+    finally:
+        session.close()
+
+    deleted = client.delete(f"/api/providers/{provider['id']}", headers=admin)
+    assert deleted.status_code == 204, deleted.text
+    assert client.get(f"/api/providers/{provider['id']}").status_code == 404

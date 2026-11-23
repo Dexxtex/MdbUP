@@ -185,8 +185,30 @@ export function useDeleteProvider() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["providers"] });
       void queryClient.invalidateQueries({ queryKey: ["collections"] });
+      void queryClient.invalidateQueries({ queryKey: ["collection"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.bindings });
+      void queryClient.invalidateQueries({ queryKey: ["runs"] });
+      void queryClient.invalidateQueries({ queryKey: ["catalog-changes"] });
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
       void queryClient.invalidateQueries({ queryKey: queryKeys.sources });
+    },
+  });
+}
+
+export function useDeleteCollection() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (collectionId: string) =>
+      apiFetch<void>(`/collections/${collectionId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["collections"] });
+      void queryClient.invalidateQueries({ queryKey: ["collection"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.bindings });
+      void queryClient.invalidateQueries({ queryKey: ["runs"] });
+      void queryClient.invalidateQueries({ queryKey: ["catalog-changes"] });
+      void queryClient.invalidateQueries({ queryKey: ["providers"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sources });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
     },
   });
 }

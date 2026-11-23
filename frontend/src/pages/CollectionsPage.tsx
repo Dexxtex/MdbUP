@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useCollections, useProviders } from "../hooks/queries";
+import { useDeleteCollection } from "../hooks/mutations";
 import type { Collection } from "../api/types";
 import {
   CollectionSourceBadge,
@@ -26,113 +27,153 @@ import {
   isUpcomingCollection,
 } from "../lib/collections";
 import { formatNumber } from "../lib/format";
-import { IconLayers } from "../components/ui/icons";
+import { IconLayers, IconTrash } from "../components/ui/icons";
 
-const columns: Column<Collection>[] = [
-  {
-    key: "name",
-    header: "Collezione",
-    render: (collection) => (
-      <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-1.5">
+function CollectionDeleteButton({
+  collection,
+  onDelete,
+  deleting,
+  className,
+  testId,
+}: {
+  collection: Collection;
+  onDelete: (collection: Collection) => void;
+  deleting: boolean;
+  className?: string;
+  testId?: string;
+}) {
+  return (
+    <Button
+      variant="danger"
+      size="sm"
+      className={className}
+      busy={deleting}
+      title={`Elimina ${collection.name} e i suoi dati locali; le liste MDBList remote non vengono toccate.`}
+      data-testid={testId ?? `collection-delete-${collection.slug}`}
+      onClick={() => onDelete(collection)}
+    >
+      <IconTrash />
+      Elimina
+    </Button>
+  );
+}
+
+function collectionColumns(
+  onDelete: (collection: Collection) => void,
+  deletingId: string | null,
+): Column<Collection>[] {
+  return [
+    {
+      key: "name",
+      header: "Collezione",
+      render: (collection) => (
+        <div className="flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Link
+              to={`/app/collections/${collection.id}`}
+              className="font-medium text-accent underline"
+            >
+              {collection.name}
+            </Link>
+            <CollectionSourceBadge
+              label={collectionSourceLabel(collection)}
+              tone={collectionSourceTone(collection)}
+            />
+            {isUpcomingCollection(collection) ? <UpcomingBadge /> : null}
+          </div>
+          <span className="text-xs text-ink-muted">{collectionKindLabel(collection.kind)}</span>
+          {collection.is_local_filter ? (
+            <span className="w-fit rounded-full border border-warning/40 bg-warning-soft px-2 py-0.5 text-xs text-warning">
+              {collection.is_multi_provider ? "Multi-provider (locale)" : "Filtro locale"}
+            </span>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      key: "provider",
+      header: "Provider",
+      render: (collection) =>
+        collection.is_multi_provider
+          ? `${collection.provider_names?.join(" + ") || "Multi-provider"}`
+          : collectionProviderName(collection),
+    },
+    {
+      key: "media",
+      header: "Tipo",
+      render: (collection) => (collection.media_type === "MOVIE" ? "Film" : "Serie"),
+    },
+    {
+      key: "origin",
+      header: "Origine",
+      render: (collection) => (
+        <OriginBadge
+          origin={collection.origin}
+          source={collection.source_key}
+          multiProvider={collection.is_multi_provider}
+        />
+      ),
+    },
+    {
+      key: "date_basis",
+      header: "Base della data",
+      render: (collection) => (
+        <DateBasisBadge dateBasis={collection.date_basis} source={collection.source_key} />
+      ),
+    },
+    {
+      key: "snapshot",
+      header: "Ultimo snapshot valido",
+      render: (collection) =>
+        collection.last_valid_snapshot ? (
+          <div className="flex flex-col gap-1">
+            <SnapshotStatusPill status={collection.last_valid_snapshot.status} />
+            <Timestamp value={collection.last_valid_snapshot.finished_at} className="text-xs" />
+            <span className="text-xs tabular-nums text-ink-faint">
+              {formatNumber(collection.last_valid_snapshot.items_count)} elementi
+            </span>
+          </div>
+        ) : (
+          <span className="text-xs text-ink-muted">Nessuno</span>
+        ),
+    },
+    {
+      key: "active",
+      header: "Stato",
+      render: (collection) => (
+        <span className={collection.is_active ? "text-success" : "text-ink-faint"}>
+          {collection.is_active ? "Attiva" : "Disattivata"}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Azioni",
+      render: (collection) => (
+        <div className="flex flex-wrap items-center gap-3 text-xs">
           <Link
             to={`/app/collections/${collection.id}`}
             className="font-medium text-accent underline"
           >
-            {collection.name}
+            Apri
           </Link>
-          <CollectionSourceBadge
-            label={collectionSourceLabel(collection)}
-            tone={collectionSourceTone(collection)}
+          <Link
+            to={`/app/collections/${collection.id}/edit`}
+            className="font-medium text-ink-muted underline hover:text-ink"
+          >
+            Modifica
+          </Link>
+          <CollectionDeleteButton
+            collection={collection}
+            onDelete={onDelete}
+            deleting={deletingId === collection.id}
+            className="hidden md:inline-flex"
           />
-          {isUpcomingCollection(collection) ? <UpcomingBadge /> : null}
         </div>
-        <span className="text-xs text-ink-muted">{collectionKindLabel(collection.kind)}</span>
-        {collection.is_local_filter ? (
-          <span className="w-fit rounded-full border border-warning/40 bg-warning-soft px-2 py-0.5 text-xs text-warning">
-            {collection.is_multi_provider ? "Multi-provider (locale)" : "Filtro locale"}
-          </span>
-        ) : null}
-      </div>
-    ),
-  },
-  {
-    key: "provider",
-    header: "Provider",
-    render: (collection) =>
-      collection.is_multi_provider
-        ? `${collection.provider_names?.join(" + ") || "Multi-provider"}`
-        : collectionProviderName(collection),
-  },
-  {
-    key: "media",
-    header: "Tipo",
-    render: (collection) => (collection.media_type === "MOVIE" ? "Film" : "Serie"),
-  },
-  {
-    key: "origin",
-    header: "Origine",
-    render: (collection) => (
-      <OriginBadge
-        origin={collection.origin}
-        source={collection.source_key}
-        multiProvider={collection.is_multi_provider}
-      />
-    ),
-  },
-  {
-    key: "date_basis",
-    header: "Base della data",
-    render: (collection) => (
-      <DateBasisBadge dateBasis={collection.date_basis} source={collection.source_key} />
-    ),
-  },
-  {
-    key: "snapshot",
-    header: "Ultimo snapshot valido",
-    render: (collection) =>
-      collection.last_valid_snapshot ? (
-        <div className="flex flex-col gap-1">
-          <SnapshotStatusPill status={collection.last_valid_snapshot.status} />
-          <Timestamp value={collection.last_valid_snapshot.finished_at} className="text-xs" />
-          <span className="text-xs tabular-nums text-ink-faint">
-            {formatNumber(collection.last_valid_snapshot.items_count)} elementi
-          </span>
-        </div>
-      ) : (
-        <span className="text-xs text-ink-muted">Nessuno</span>
       ),
-  },
-  {
-    key: "active",
-    header: "Stato",
-    render: (collection) => (
-      <span className={collection.is_active ? "text-success" : "text-ink-faint"}>
-        {collection.is_active ? "Attiva" : "Disattivata"}
-      </span>
-    ),
-  },
-  {
-    key: "actions",
-    header: "Azioni",
-    render: (collection) => (
-      <div className="flex flex-wrap gap-3 text-xs">
-        <Link
-          to={`/app/collections/${collection.id}`}
-          className="font-medium text-accent underline"
-        >
-          Apri
-        </Link>
-        <Link
-          to={`/app/collections/${collection.id}/edit`}
-          className="font-medium text-ink-muted underline hover:text-ink"
-        >
-          Modifica
-        </Link>
-      </div>
-    ),
-  },
-];
+    },
+  ];
+}
 
 export default function CollectionsPage() {
   const [searchParams] = useSearchParams();
@@ -145,10 +186,19 @@ export default function CollectionsPage() {
 
   const providers = useProviders("IT");
   const collections = useCollections({ providerId, mediaType, origin, kind, isActive });
+  const deleteCollection = useDeleteCollection();
 
   const activeFilterCount = [providerId, mediaType, origin, kind, isActive].filter(
     Boolean,
   ).length;
+
+  const handleDelete = (collection: Collection) => {
+    const confirmed = window.confirm(
+      `Eliminare la collezione “${collection.name}”? Verranno rimossi gli snapshot locali, l'eventuale binding e la cronologia delle run. Le liste MDBList remote non vengono toccate.`,
+    );
+    if (!confirmed) return;
+    deleteCollection.mutate(collection.id);
+  };
 
   return (
     <>
@@ -261,6 +311,11 @@ export default function CollectionsPage() {
       {collections.isError ? (
         <ErrorState error={collections.error} onRetry={() => void collections.refetch()} />
       ) : null}
+      {deleteCollection.isError ? (
+        <div className="mb-4">
+          <ErrorState error={deleteCollection.error} />
+        </div>
+      ) : null}
 
       {collections.isSuccess ? (
         <>
@@ -280,7 +335,23 @@ export default function CollectionsPage() {
             <Card>
               <DataTable
                 caption="Elenco delle collezioni"
-                columns={columns}
+                columns={collectionColumns(
+                  handleDelete,
+                  deleteCollection.isPending
+                    ? (deleteCollection.variables ?? null)
+                    : null,
+                )}
+                cardActions={(collection) => (
+                  <CollectionDeleteButton
+                    collection={collection}
+                    onDelete={handleDelete}
+                    deleting={
+                      deleteCollection.isPending &&
+                      deleteCollection.variables === collection.id
+                    }
+                    testId={`collection-delete-card-${collection.slug}`}
+                  />
+                )}
                 rows={collections.data}
                 rowKey={(collection) => collection.id}
               />
