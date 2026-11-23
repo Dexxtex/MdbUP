@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useBindings, useCollections, useProviderCatalog, useProviders, useSources } from "../hooks/queries";
+import { useBindings, useCollections, useProviderCatalog, useProviders } from "../hooks/queries";
 import {
   useCreateProvider,
   useDeleteCollection,
@@ -35,15 +35,9 @@ import { Timestamp } from "../components/ui/time";
 import { DEFAULT_COUNTRY } from "../lib/countries";
 import { formatNumber } from "../lib/format";
 import { hasJustWatchMapping } from "../lib/justwatch";
-import {
-  IconBuilding,
-  IconGrid,
-  IconLayers,
-  IconSearch,
-  IconTrash,
-} from "../components/ui/icons";
-import { JustWatchConnectorCard } from "../components/justwatch/connector-card";
+import { IconBuilding, IconGrid, IconLayers, IconTrash } from "../components/ui/icons";
 import { ProviderMatrix } from "../components/providers/provider-matrix";
+import { ProviderSuggest } from "../components/providers/provider-suggest";
 
 /** Provider italiani noti: le chip compaiono solo se il backend li espone. */
 const KNOWN_PROVIDERS = [
@@ -771,12 +765,10 @@ export default function ProvidersPage() {
   const [view, setView] = useState<"cards" | "table">("cards");
   const [showCreate, setShowCreate] = useState(false);
   const providers = useProviders(country);
-  const sources = useSources();
   const collections = useCollections({});
   const bindings = useBindings();
   const deleteProvider = useDeleteProvider();
   const deleteCollection = useDeleteCollection();
-  const justwatchSource = (sources.data ?? []).find((source) => source.key === "justwatch");
   const freshness = useMemo(
     () => freshnessByProvider(collections.data ?? []),
     [collections.data],
@@ -881,19 +873,21 @@ export default function ProvidersPage() {
           >
             <CountrySelect id="country" value={country} onChange={setCountry} />
           </Field>
-          <Field id="provider-search" label="Cerca provider">
-            <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint">
-                <IconSearch />
-              </span>
-              <Input
-                id="provider-search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Netflix, Prime Video, Disney+…"
-                className="pl-9"
-              />
-            </div>
+          <Field
+            id="provider-search"
+            label="Cerca provider"
+            hint={
+              allProviders.length > 0
+                ? "Scrivi per filtrare o scegli dall'elenco dei provider presenti."
+                : undefined
+            }
+          >
+            <ProviderSuggest
+              id="provider-search"
+              value={query}
+              onChange={setQuery}
+              providers={allProviders}
+            />
           </Field>
         </div>
 
@@ -914,12 +908,6 @@ export default function ProvidersPage() {
           </div>
         ) : null}
       </Card>
-
-      {justwatchSource ? (
-        <div className="mb-6">
-          <JustWatchConnectorCard source={justwatchSource} />
-        </div>
-      ) : null}
 
       {providers.isPending ? <TableSkeleton /> : null}
 

@@ -51,6 +51,9 @@ test("il paese si cerca per nome o ISO e pilota le query", async ({ page }) => {
     )
     .toContain("?country=FR");
 
+  // il connettore JustWatch non sta più nella pagina Provider (è nella Guida)
+  await expect(page.getByTestId("justwatch-connector")).toHaveCount(0);
+
   // vista tabella: la caption riflette il paese corrente
   await page.getByRole("button", { name: "Tabella" }).click();
   await expect(page.getByRole("table", { name: "Provider per il paese FR" })).toBeVisible();

@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
+import { JustWatchConnectorCard } from "../components/justwatch/connector-card";
 import { Card, PageHeader } from "../components/ui/primitives";
 import { StatusPill } from "../components/ui/status-pill";
+import { useSources } from "../hooks/queries";
 
 function Step({
   number,
@@ -25,12 +27,15 @@ function Step({
 }
 
 export default function HelpPage() {
+  const sources = useSources();
+  const justwatch = (sources.data ?? []).find((source) => source.key === "justwatch");
+
   return (
     <>
       <PageHeader
         eyebrow="Supporto"
         title="Guida"
-        description="Come configurare MdbUP da zero: provider, collezioni, snapshot, preview e liste MDBList."
+        description="Come configurare MdbUP da zero: sorgenti e connettore JustWatch, provider per paese, collezioni, snapshot, preview e liste MDBList."
         testId="help-header"
       />
 
@@ -40,8 +45,9 @@ export default function HelpPage() {
           <p className="mt-1 text-sm text-ink-muted">
             MdbUP non crea automaticamente provider, collezioni o liste: la configurazione
             iniziale è volutamente vuota. Le fonti (TMDb, JustWatch pubblico, ecc.) sono già
-            registrate dal backend; provider e collezioni sono dati tuoi. Il comando
-            <code> seed-providers</code> è solo un demo opzionale: non viene eseguito
+            registrate dal backend: all'avvio del container gira <code>seed-sources</code>, che
+            inserisce solo le fonti e nessun provider. Provider e collezioni sono dati tuoi.
+            Il comando <code>seed-providers</code> è un demo opzionale: non viene eseguito
             automaticamente e non va usato se vuoi partire da una configurazione pulita.
           </p>
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -59,11 +65,16 @@ export default function HelpPage() {
             </Step>
             <Step number={3} title="Crea un provider">
               <p>
-                Apri <Link className="text-accent underline" to="/app/providers">Provider</Link> e usa
-                <strong> Aggiungi provider</strong>. Scegli un servizio dall’elenco TMDb/JustWatch
-                (oppure inserisci gli ID manualmente). TVDB non espone un elenco streaming: inserisci
-                il Company ID manuale. TVDB fornisce company ID e metadati, non la disponibilità per
-                l’Italia; gli ID sono configurazione manuale: verificali sulla fonte prima di usarli.
+                Apri <Link className="text-accent underline" to="/app/providers">Provider</Link> e
+                scegli prima il <strong>paese</strong> dal menu ISO in alto: catalogo, card, matrice e
+                messaggi seguono quel paese, e la matrice confronta i provider di quel paese.
+                Poi usa <strong>Aggiungi provider</strong> e scegli un servizio dall’elenco
+                TMDb/JustWatch (oppure inserisci gli ID manualmente). Il campo
+                <strong> Cerca provider</strong> filtra la pagina e apre l’elenco dei provider
+                presenti: se per il paese scelto non ce ne sono, l’elenco non compare.
+                TVDB non espone un elenco streaming: inserisci il Company ID manuale. TVDB fornisce
+                company ID e metadati, non la disponibilità nel paese selezionato; gli ID sono
+                configurazione manuale: verificali sulla fonte prima di usarli.
                 Le card dei provider hanno il pulsante <strong>Elimina</strong>: elimina il provider
                 e le eventuali collezioni locali collegate con la loro cronologia. Le liste MDBList
                 remote non vengono toccate. Se una sync è in corso, attendi che finisca.
@@ -72,7 +83,8 @@ export default function HelpPage() {
             <Step number={4} title="Crea una collezione">
               <p>
                 Da <Link className="text-accent underline" to="/app/collections">Collezioni</Link> scegli
-                provider, tipo media, fonte e tipo di collezione. Per JustWatch serve il package
+                provider, paese, tipo media, fonte e tipo di collezione: la collezione eredita il
+                paese dal provider. Per JustWatch serve il package
                 configurato sul provider; per TMDb servono gli ID del provider. La policy JustWatch
                 si accetta quando crei il binding, non qui. Ogni collezione si elimina dalla
                 card del provider, dalla sua riga/card in Collezioni o dal dettaglio: vengono
@@ -106,6 +118,13 @@ export default function HelpPage() {
               “Da verificare” non significa che il provider non esista: significa che l’ID è stato
               inserito manualmente e non è stato confermato live. Le collezioni si possono creare
               comunque, ma il flag <code>provider_mapping_verified</code> resta <code>false</code>.
+            </p>
+            <p>
+              Il <strong>paese</strong> non è un filtro cosmetico: provider, mapping e collezioni
+              hanno un <code>country_code</code>, e l’elenco in alto determina quale insieme
+              stai guardando. Cambiando paese la pagina ricarica provider e catalogo per quel
+              paese; se non ci sono provider configurati la tabella resta vuota (non mostra
+              quelli di altri paesi).
             </p>
             <p>
               Questa versione non ha un editor di mapping: gli ID salvati restano quelli digitati
@@ -158,6 +177,36 @@ export default function HelpPage() {
             </p>
           </div>
         </Card>
+
+        {justwatch ? (
+          <>
+            <Card>
+              <h2 className="text-lg font-semibold text-ink">Connettore JustWatch</h2>
+              <p className="mt-1 text-sm text-ink-muted">
+                JustWatch non richiede credenziali: il connettore è pubblico e l’unica regola è il
+                throttle locale (una richiesta al secondo) con cache dei risultati. Questa card
+                mostra lo stato reale della fonte, i limiti in uso, il consumo di richieste e i
+                mapping dei provider verificati per il paese.
+              </p>
+              <ul className="mt-3 space-y-1 text-sm text-ink-muted">
+                <li>
+                  <strong>Throttle e cache</strong>: derivano dalla configurazione del servizio; se
+                  la fonte risponde 429 o va in timeout, lo snapshot risulta incompleto e non
+                  diventa mai valido per un MIRROR.
+                </li>
+                <li>
+                  <strong>Richieste ora/oggi</strong>: conteggio in memoria del processo; si azzera
+                  al riavvio del container.
+                </li>
+                <li>
+                  <strong>Mapping</strong>: elenco dei provider con mapping JustWatch verificato,
+                  usato dal builder delle collezioni e dalla matrice.
+                </li>
+              </ul>
+            </Card>
+            <JustWatchConnectorCard source={justwatch} testId="help-justwatch-connector" />
+          </>
+        ) : null}
 
         <Card>
           <h2 className="text-lg font-semibold text-ink">Binding e sincronizzazione</h2>
