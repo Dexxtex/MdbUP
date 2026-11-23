@@ -1,7 +1,7 @@
 name: CI
 
 # Gate di qualità di MdbUP (specifica di progetto, fase 1 §10).
-# Job bloccanti: lint, typecheck, test, migrations, build, security.
+# Job bloccanti: lint, typecheck, test, e2e, migrations, build, security.
 
 on:
   push:
@@ -220,6 +220,51 @@ jobs:
           heads=$(uv run alembic heads | grep -c '(head)')
           echo "head trovati: ${heads}"
           test "${heads}" -eq 1
+
+  e2e:
+    name: E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # La suite E2E è interamente mockata (`e2e/support/api-mock.ts`): non servono
+    # Postgres, Redis né un backend. Playwright avvia da sé il dev server Vite
+    # (`webServer` in playwright.config.ts) e guida un Chromium headless.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm ci
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      # I binari dei browser sono la parte lenta (centinaia di MB): la chiave
+      # segue package-lock.json, quindi cambiano solo quando cambia Playwright.
+      - name: Cache browser Playwright
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Installa Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright (Chromium, API mockate)
+        working-directory: frontend
+        run: npm run test:e2e
+
+      - name: Test falliti (trace e screenshot)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: frontend/test-results
+          retention-days: 7
 
   build:
     name: Build

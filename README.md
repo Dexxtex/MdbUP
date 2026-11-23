@@ -488,6 +488,13 @@ Playwright** verdi; `ruff check`, `ruff format --check`, `mypy`, build Vite,
 lint e audit senza vulnerabilità. I test unitari usano `respx`/fixture; la
 verifica live è stata eseguita separatamente su TMDb e MDBList reali.
 
+La suite E2E gira anche in CI (job **E2E** in `.github/workflows/ci.yml`): non
+richiede Postgres, Redis né backend perché le chiamate `/api/**` sono mockate
+(`frontend/e2e/support/api-mock.ts`); Playwright avvia da sé il dev server Vite
+e guida un Chromium headless, con i binari in cache quando `package-lock.json`
+non cambia. Sui fallimenti il job pubblica `frontend/test-results` (trace e
+screenshot).
+
 Coverage gate: backend **90.68%** statement e **100%** statement/branch sui router API (`app/api/routers/*`), frontend **94.62%** linee / **90.39%** branch / **94.32%** funzioni sui moduli logici (`src/lib`, `src/api`, `src/hooks`). Le pagine e i componenti presentazionali sono coperti dagli E2E Playwright, non dal denominatore Vitest.
 
 ---
